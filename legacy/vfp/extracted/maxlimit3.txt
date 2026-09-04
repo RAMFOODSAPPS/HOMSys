@@ -1,0 +1,1460 @@
+# maxlimit3.SCX  --  28 records, blockSize=1
+
+==============================================================================
+REC 1   OBJ=Dataenvironment   CLASS=dataenvironment   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Left = 1
+Top = 220
+Width = 520
+Height = 200
+Name = "Dataenvironment"
+
+==============================================================================
+REC 2   OBJ=Form1   CLASS=form   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Height = 379
+Width = 867
+DoCreate = .T.
+AutoCenter = .T.
+BorderStyle = 2
+Caption = "Order Limit Overriding Request"
+ControlBox = .F.
+MaxButton = .F.
+MinButton = .F.
+WindowType = 1
+Name = "Form1"
+--- METHODS ---
+PROCEDURE definegrid
+thisform.grid1.recordsource="tempmax5"
+thisform.grid1.columncount = 8
+thisform.grid1.fontname="tahoma"
+thisform.grid1.fontsize=9
+thisform.grid1.deletemark=.f.
+thisform.grid1.setall("alignment",0)
+
+thisform.grid1.column1.controlsource="tempmax5.custkey"
+thisform.grid1.column1.header1.caption = "CUSTKEY"
+thisform.grid1.column1.header1.alignment=2
+thisform.grid1.column1.width=70
+thisform.grid1.column1.readonly=.t.
+thisform.grid1.column1.header1.fontbold=.t.
+
+thisform.grid1.column2.controlsource="tempmax5.cusname"
+thisform.grid1.column2.header1.caption = "CUSNAME"
+thisform.grid1.column2.header1.alignment=2
+thisform.grid1.column2.width=200
+thisform.grid1.column2.readonly=.t.
+thisform.grid1.column2.header1.fontbold=.t.
+
+thisform.grid1.column3.controlsource="tempmax5.cprodno"
+thisform.grid1.column3.header1.caption = "PRODNO"
+thisform.grid1.column3.header1.alignment=2
+thisform.grid1.column3.width=50
+thisform.grid1.column3.readonly=.t.
+thisform.grid1.column3.header1.fontbold=.t.
+
+thisform.grid1.column4.controlsource="tempmax5.proddesc"
+thisform.grid1.column4.header1.caption = "Product Description"
+thisform.grid1.column4.header1.alignment=2
+thisform.grid1.column4.width=250
+thisform.grid1.column4.readonly=.t.
+thisform.grid1.column4.header1.fontbold=.t.
+
+thisform.grid1.column5.controlsource="tempmax5.pieces"
+thisform.grid1.column5.header1.caption = "Pc/Case"
+thisform.grid1.column5.header1.alignment=2
+thisform.grid1.column5.width=40
+thisform.grid1.column5.readonly=.t.
+thisform.grid1.column5.header1.fontbold=.t.
+
+thisform.grid1.column6.controlsource="tempmax5.packsize"
+thisform.grid1.column6.header1.caption = "Pack Size"
+thisform.grid1.column6.header1.alignment=2
+thisform.grid1.column6.width=90
+thisform.grid1.column6.readonly=.t.
+thisform.grid1.column6.header1.fontbold=.t.
+
+thisform.grid1.column7.controlsource="tempmax5.maxqtycs"
+thisform.grid1.column7.header1.caption = "Max. Qtycs"
+thisform.grid1.column7.header1.alignment=2
+thisform.grid1.column7.inputmask="999"
+thisform.grid1.column7.width=70
+thisform.grid1.column7.readonly=.t.
+thisform.grid1.column7.header1.fontbold=.t.
+
+thisform.grid1.column8.alignment = 1
+thisform.grid1.column8.controlsource="tempmax5.suggqtycs"
+thisform.grid1.column8.header1.caption = "Pref. Qtycs"
+thisform.grid1.column8.inputmask="999"
+thisform.grid1.column8.width=70
+thisform.grid1.column8.readonly=.t.
+thisform.grid1.column8.header1.fontbold=.t.
+ENDPROC
+PROCEDURE processemail
+#INCLUDE "MSOutl9.H"
+
+LOCAL loOutlook, loNameSpace, loFolder, loMailItem
+
+lcOldError = ON("ERROR")
+ON ERROR loOutlook = .NULL.
+loOutlook = GetObject(, "Outlook.Application")
+ON ERROR &lcOldError
+IF ISNULL(loOutlook)
+   loOutlook = CREATEOBJECT("Outlook.Application")
+ENDIF
+loNamespace = loOutlook.GetNamespace("MAPI")			&& The Application contains NameSpace
+*@* loFolder= loNamespace.GetDefaultFolder(olFolderInbox)	&& NameSpace contains the Folder
+loFolder= loNamespace.GetDefaultFolder(6)	&& NameSpace contains the Folder
+
+msubject =  "_Order Limit Overriding Request for " + qcustkey + " - " + allt(qcusname) + " to " + allt(qprodno) + " - "+ allt(qproddesc)
+loMailItem = loFolder.Items.Add(olMailItem)
+mess1 = ""
+m = thisform.emailbody()	&& create email body store in 'mess1'
+m = delfile("xtemp")
+With loMailItem
+   .to = xto
+   *.cc = xcc
+   .subject = msubject
+   *.font.name = "Courier New"
+   .Attachments.Add(mzip)
+   .htmlbody = mess1
+   if mmailaction = "SEND"
+      .send
+   else
+      .display
+   endif
+endwith
+
+*!*	erase &m_outputzip
+release loMailItem, loOutlook, loNameSpace, loFolder, attach, mess1, attach
+ENDPROC
+PROCEDURE emailbody
+&& email body
+
+m34= chr(34)
+mess1 = mess1 + "<html><head><body>"
+
+*!*	mess1 = mess1 + "<div>Sir,</div>"
+*!*	mess1 = mess1 + "<br/>"
+*!*	mess1 = mess1 + "<div>We would like request approval to adjust order limit of the following:</div>"
+*!*	mess1 = mess1 + "<br/>"
+
+
+mess1 = mess1 + "<TABLE>"
+sele * from xsend where cprodno=qprodno and custkey=qcustkey into cursor xtemp
+mess1 = mess1 + "<TR>"
+mess1 = mess1 + "<TD COLSPAN = " +m34+"3"+m34+ "><FONT SIZE = "+ m34+"3"+m34 +"><B>"+custkey+" - "+allt(cusname)+"<b></FONT></TD>"
+mess1 = mess1 + "</TR>"
+mess1 = mess1 + "<TR>"
+mess1 = mess1 + "<TD WIDTH = " +m34+"80"+m34+ " ALIGN = "+ m34+"CENTER"+m34+ "><DIV STYLE = "+m34+"border-bottom:Solid 1px"+m34+"><B>Product No.</B></DIV></TD>"
+mess1 = mess1 + "<TD WIDTH = " +m34+"80"+m34+ " ALIGN = "+ m34+"CENTER"+m34+ "><DIV STYLE = "+m34+"border-bottom:Solid 1px"+m34+"><B>Order&nbsp;Limit</B></DIV></TD>"
+mess1 = mess1 + "<TD WIDTH = " +m34+"80"+m34+ " ALIGN = "+ m34+"CENTER"+m34+ "><DIV STYLE = "+m34+"border-bottom:Solid 1px"+m34+"><B>Requested&nbsp;Limit</B></DIV></TD>"
+mess1 = mess1 + "</TR>"
+	
+mess1 = mess1 + "<TR>"
+mess1 = mess1 + "<TD><Div>" + allt(qprodno) + " - "+ allt(qproddesc) + "</div></TD>"
+mess1 = mess1 + "<TD><Div><center>" + str(maxqtycs,5,2) + "</center></div></TD>"
+mess1 = mess1 + "<TD><Div><center>" + str(suggqtycs,5,2) + "</center></div></TD>"
+mess1 = mess1 + "</TR>"
+mess1 = mess1 + "</TABLE>"
+
+mess1 = mess1 + "<TABLE>"
+mess1 = mess1 + "<TR>"
+mess1 = mess1 + "<Td></td>"
+mess1 = mess1 + "</TR>"
+mess1 = mess1 + "<TR>"
+mess1 = mess1 + "<TD COLSPAN = " +m34+"13"+m34+ "><FONT SIZE = "+ m34+"2"+m34 +"><b>Sales For The Last 12 Months:</b></FONT></TD>"
+mess1 = mess1 + "</TR>"
+sele tpsales
+xasof=asof
+* asdbellen 10/28/2017 to avoid bad date in the emails
+if xasof = {}
+   xasof = firstday(sysparam.transdate)-1
+endif
+xmonth12=gomonth(xasof,0)
+xmonth11=gomonth(xasof,-1)
+xmonth10=gomonth(xasof,-2)
+xmonth9=gomonth(xasof,-3)
+xmonth8=gomonth(xasof,-4)
+xmonth7=gomonth(xasof,-5)
+xmonth6=gomonth(xasof,-6)
+xmonth5=gomonth(xasof,-7)
+xmonth4=gomonth(xasof,-8)
+xmonth3=gomonth(xasof,-9)
+xmonth2=gomonth(xasof,-10)
+xmonth1=gomonth(xasof,-11)
+
+mess1 = mess1 + "<TR>"
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + "><b></DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + "><b>" + left(cmonth(xmonth1),3)  + substr(str(year(xmonth1),4),3,2)+  "</b></DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + "><b>" + left(cmonth(xmonth2),3)  + substr(str(year(xmonth2),4),3,2)+  "</b></DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + "><b>" + left(cmonth(xmonth3),3)  + substr(str(year(xmonth3),4),3,2)+  "</b></DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + "><b>" + left(cmonth(xmonth4),3)  + substr(str(year(xmonth4),4),3,2)+   "</b></DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + "><b>" + left(cmonth(xmonth5),3)  + substr(str(year(xmonth5),4),3,2)+   "</b></DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + "><b>" + left(cmonth(xmonth6),3)  + substr(str(year(xmonth6),4),3,2)+   "</b></DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + "><b>" + left(cmonth(xmonth7),3)  + substr(str(year(xmonth7),4),3,2)+   "</b></DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + "><b>" + left(cmonth(xmonth8),3)  + substr(str(year(xmonth8),4),3,2)+   "</b></DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + "><b>" + left(cmonth(xmonth9),3)  + substr(str(year(xmonth9),4),3,2)+   "</b></DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + "><b>" + left(cmonth(xmonth10),3) + substr(str(year(xmonth10),4),3,2)+   "</b></DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + "><b>" + left(cmonth(xmonth11),3) + substr(str(year(xmonth11),4),3,2)+  "</b></DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + "><b>"+ left(cmonth(xmonth12),3)  + substr(str(year(xmonth12),4),3,2)+   "</b></DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + "><b> Ave. Qty </b></DIV></FONT></TD>" 
+mess1 = mess1 + "</TR>"
+
+* asdbellen 01/18/2018 show only the historical sales of current customer even with consomax2 in cust4win
+xtsales = newname("dbf")
+xtpsales = newname("dbf")
+sele qty1 as ave1,qty2 as ave2,qty3 as ave3,qty4 as ave4,qty5 as ave5,;
+   qty6 as ave6,qty7 as ave7,qty8 as ave8,qty9 as ave9,qty10 as ave10,;
+   qty11 as ave11,qty12 as ave12,qtyave12 as ave;
+   from tpsales where custkey=qcustkey .and. cprodno="ALL" into table &xtsales
+use
+sele * from tpsales where custkey=qcustkey and cprodno=qprodno order by cprodno into table &xtpsales
+use
+
+use &xtsales alias xtsales in 0 excl
+sele xtsales
+sum ave1,ave2,ave3,ave4,ave5,ave6,ave7,ave8,ave9,ave10,ave11,ave12,ave to mave1,mave2,mave3,mave4,mave5,mave6,mave7,mave8,mave9,mave10,mave11,mave12,mave
+
+use &xtpsales alias xtpsales in 0 excl
+sele xtpsales
+sum qty1,qty2,qty3,qty4,qty5,qty6,qty7,qty8,qty9,qty10,qty11,qty12,qtyave12,retqty1,retqty2,retqty3,retqty4,retqty5,retqty6,retqty7,retqty8,retqty9,retqty10,retqty11,retqty12,retqave12 to ;
+   mqty1,mqty2,mqty3,mqty4,mqty5,mqty6,mqty7,mqty8,mqty9,mqty10,mqty11,mqty12,mqtyave12,mretqty1,mretqty2,mretqty3,mretqty4,mretqty5,mretqty6,mretqty7,mretqty8,mretqty9,mretqty10,mretqty11,mretqty12,mretqave12
+      
+sele xtsales
+mess1 = mess1 + "<TR>"
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"Right"+M34 + ">  Total Sales:  </DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mave12,"9999,999,999")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mave11,"9999,999,999")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mave10,"9999,999,999")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mave9,"9999,999,999")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mave8,"9999,999,999")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mave7,"9999,999,999")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mave6,"9999,999,999")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mave5,"9999,999,999")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mave4,"9999,999,999")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mave3,"9999,999,999")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mave2,"9999,999,999")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mave1,"9999,999,999")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mave,"9999,999,999")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "</TR>"
+m = delfile("xtsales")
+
+set deci to 2
+sele xtpsales
+if recc()>0
+   appe blank
+endif
+mess1 = mess1 + "<TR>"
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"Right"+M34 + ">Sales:</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mqty12,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mqty11,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mqty10,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mqty9,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mqty8,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mqty7,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mqty6,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mqty5,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mqty4,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mqty3,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mqty2,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mqty1,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mqtyave12,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "</TR>"
+
+mess1 = mess1 + "<TR>"
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"Right"+M34 + ">Return:</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mretqty12,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mretqty11,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mretqty10,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mretqty9,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mretqty8,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mretqty7,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mretqty6,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mretqty5,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mretqty4,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mretqty3,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mretqty2,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mretqty1,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><DIV ALIGN = " + M34+"CENTER"+M34 + ">" +TRANSFORM(mretqave12,"9999,999,999.99")+ "</DIV></FONT></TD>" 
+mess1 = mess1 + "</TR>"
+m = delfile("xtpsales")
+
+mess1 = mess1 + "</TABLE>"
+		
+if !empty(thisform.txtAddmsg.value)
+	mess1 = mess1 + "<br><div><b>Remarks</b>: "+allt(thisform.txtAddmsg.value)+"</div>"
+endi
+
+*@* jpalermo 09/17/2013
+molthfile = "OLTHIST.dbf"
+if file(molthfile)
+   use &molthfile alias olthist in 0 shared
+   sele cust4win
+   seek qcustkey
+   if .not. empty(consomax2) 		
+      qcustkey2 = consomax2
+      sele olthist
+      sele * from olthist where cprodno=qprodno and (custkey=qcustkey .or. allt(custkey)=="ALL" .or. custkey = qcustkey2) into cursor xhist order by date desc
+   else
+      sele olthist
+      sele * from olthist where cprodno=qprodno and (custkey=qcustkey .or. allt(custkey)=="ALL") into cursor xhist order by date desc      
+   endif
+   
+   sele xhist
+   if recc()>0
+      mess1 = mess1 + "<br>"
+      mess1 = mess1 + "<br>"
+      mess1 = mess1 + "<TABLE>"
+      mess1 = mess1 + "<TR>"   
+      mess1 = mess1 + "<TD COLSPAN = " +m34+"13"+m34+ "><FONT SIZE = "+ m34+"2"+m34 +"><b>Order Limit History:</b></FONT></TD>"
+      mess1 = mess1 + "</TR>"  
+      mess1 = mess1 + "<TR>"
+      mess1 = mess1 + "<TD WIDTH = " +m34+"80"+m34+ " ALIGN = "+ m34+"CENTER"+m34+ "><FONT SIZE = "+ M34+"2"+M34 +"><DIV STYLE = "+m34+"border-bottom:Solid 1px"+m34+"><B>Date</B></DIV></TD>"
+      mess1 = mess1 + "<TD WIDTH = " +m34+"80"+m34+ " ALIGN = "+ m34+"CENTER"+m34+ "><FONT SIZE = "+ M34+"2"+M34 +"><DIV STYLE = "+m34+"border-bottom:Solid 1px"+m34+"><B>Order&nbsp;Limit</B></DIV></TD>" 
+      mess1 = mess1 + "<TD WIDTH = " +m34+"80"+m34+ " ALIGN = "+ m34+"CENTER"+m34+ "><FONT SIZE = "+ M34+"2"+M34 +"><DIV STYLE = "+m34+"border-bottom:Solid 1px"+m34+"><B>Global&nbsp;Constraints</B></DIV></TD>"
+      mess1 = mess1 + "<TD WIDTH = " +m34+"80"+m34+ " ALIGN = "+ m34+"CENTER"+m34+ "><FONT SIZE = "+ M34+"2"+M34 +"><DIV STYLE = "+m34+"border-bottom:Solid 1px"+m34+"><B>Remarks</B></DIV></TD>"
+      mess1 = mess1 + "</TR>"	  
+	  sele xhist
+	  go top
+	  do while .not. eof()         
+         mess1 = mess1 + "<TR>"
+         mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><Div>" + allt(dtoc(date)) + "</div></TD>"
+         mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><Div><center>" + str(maxqtycs,5,2) + "</center></div></TD>"
+         mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><Div><center>" + iif(allt(custkey)=="ALL","YES","NO") + "</center></div></TD>"
+         mess1 = mess1 + "<TD><FONT SIZE = "+ M34+"2"+M34 +"><Div><center>" + allt(remarks) + "</center></div></TD>"
+         mess1 = mess1 + "</TR>"         
+         sele xhist
+         skip
+      enddo
+      mess1 = mess1 + "</TABLE>"
+   endif
+   use
+   m = closedbf("olthist")
+endif
+*-*
+
+mess1 = mess1 + "<br>"
+mess1 = mess1 + "<br>"
+*!*	mess1 = mess1 + "<div>For your approval,</div>"
+*!*	mess1 = mess1 + "<br/>"
+mess1 = mess1 + "<div>"+sysparam.company+"</div>"
+*mess1 = mess1 + "<div>BRANCH CODE: WH"+str(qwh,pub_whsize)+"</div>"
+mess1 = mess1 + "<div>BRANCH CODE: WH"+alltr(sysparam.bcode)+"</div>" && acastillano 12/01/2023
+mess1 = mess1 + "</body></head></html>"
+
+ENDPROC
+PROCEDURE processexcel
+ sele * from xsend where cprodno=qprodno and custkey=qcustkey into cursor xtemp
+
+   #INCLUDE EXCEL9.h
+   #Define False .F.
+   #Define True .T.
+   #DEFINE RPT_FONTNAME "Times New Roman"
+   #DEFINE RPT_FONTSIZE 8
+
+   public loExcel, lcOldError, lcRange, lnSheets, lnCounter
+
+
+   lcOldError = On("ERROR")
+   On Error loExcel = .NULL.
+   loExcel = GetObject(, "Excel.Application")
+   On Error &lcOldError
+   If IsNull(loExcel)
+      loExcel = CreateObject( "Excel.Application" )
+   Endif
+   WITH loExcel
+      .Workbooks.Add
+      .DisplayAlerts = False
+      lnSheets = .Sheets.Count
+      For lnCounter = 1 To lnSheets - 1
+         .Sheets(1).Delete
+      Endfor
+      With .Sheets(1)
+         .Select
+         .Name = "Order Limit Overding Request"
+      ENDWITH
+   
+  
+   .Range("A1").value="SUBJECT: _Order Limit Overriding Request for " + qcustkey + " - " + allt(qcusname) + " to " + allt(qprodno) + " - "+ allt(qproddesc)  
+   .Range("A3").value=custkey+ "-" +allt(cusname)
+   .Range("A5").value=allt(qprodno) + " - "+ allt(qproddesc)
+   .RAnge("A4").value="Product Number"
+   .RAnge("F4").value="Order Limit"
+   .RAnge("G4").value="Requested Limit"
+   .RAnge("F5").value=str(maxqtycs,5,2)
+   .RAnge("G5").value=str(suggqtycs,5,2)
+   .Range("A8").value="Sales for the last 12 months:"
+   sele tpsales
+   xasof=asof
+   if xasof = {}
+      xasof = firstday(sysparam.transdate)-1
+   endif
+   
+   xmonth12=gomonth(xasof,0)
+   xmonth11=gomonth(xasof,-1)
+   xmonth10=gomonth(xasof,-2)
+   xmonth9=gomonth(xasof,-3)
+   xmonth8=gomonth(xasof,-4)
+   xmonth7=gomonth(xasof,-5)
+   xmonth6=gomonth(xasof,-6)
+   xmonth5=gomonth(xasof,-7)
+   xmonth4=gomonth(xasof,-8)
+   xmonth3=gomonth(xasof,-9)
+   xmonth2=gomonth(xasof,-10)
+   xmonth1=gomonth(xasof,-11)
+   
+   .Range("B9").value=left(cmonth(xmonth1),3)  + substr(str(year(xmonth1),4),3,2)
+   .Range("C9").value=left(cmonth(xmonth2),3)  + substr(str(year(xmonth2),4),3,2)
+   .Range("D9").value=left(cmonth(xmonth3),3)  + substr(str(year(xmonth3),4),3,2)
+   .Range("E9").value=left(cmonth(xmonth4),3)  + substr(str(year(xmonth4),4),3,2)
+   .Range("F9").value=left(cmonth(xmonth5),3)  + substr(str(year(xmonth5),4),3,2)
+   .Range("G9").value=left(cmonth(xmonth6),3)  + substr(str(year(xmonth6),4),3,2)
+   .Range("H9").value=left(cmonth(xmonth7),3)  + substr(str(year(xmonth7),4),3,2)
+   .Range("I9").value=left(cmonth(xmonth8),3)  + substr(str(year(xmonth8),4),3,2)
+   .Range("J9").value=left(cmonth(xmonth9),3)  + substr(str(year(xmonth9),4),3,2)
+   .Range("K9").value=left(cmonth(xmonth10),3)  + substr(str(year(xmonth10),4),3,2)
+   .Range("L9").value=left(cmonth(xmonth11),3)  + substr(str(year(xmonth11),4),3,2)
+   .Range("M9").value=left(cmonth(xmonth12),3)  + substr(str(year(xmonth12),4),3,2)
+   .Range("N9").value="Ave. Qty"
+   
+   xtsales = newname("dbf")
+   xtpsales = newname("dbf")
+   sele qty1 as ave1,qty2 as ave2,qty3 as ave3,qty4 as ave4,qty5 as ave5,;
+   qty6 as ave6,qty7 as ave7,qty8 as ave8,qty9 as ave9,qty10 as ave10,;
+   qty11 as ave11,qty12 as ave12,qtyave12 as ave;
+   from tpsales where custkey=qcustkey .and. cprodno="ALL" into table &xtsales
+   use
+   sele * from tpsales where custkey=qcustkey and cprodno=qprodno order by cprodno into table &xtpsales
+   use
+   use &xtsales alias xtsales in 0 excl
+   sele xtsales
+   sum ave1,ave2,ave3,ave4,ave5,ave6,ave7,ave8,ave9,ave10,ave11,ave12,ave to mave1,mave2,mave3,mave4,mave5,mave6,mave7,mave8,mave9,mave10,mave11,mave12,mave
+   use &xtpsales alias xtpsales in 0 excl
+   sele xtpsales
+   sum qty1,qty2,qty3,qty4,qty5,qty6,qty7,qty8,qty9,qty10,qty11,qty12,qtyave12,retqty1,retqty2,retqty3,retqty4,retqty5,retqty6,retqty7,retqty8,retqty9,retqty10,retqty11,retqty12,retqave12 to ;
+   mqty1,mqty2,mqty3,mqty4,mqty5,mqty6,mqty7,mqty8,mqty9,mqty10,mqty11,mqty12,mqtyave12,mretqty1,mretqty2,mretqty3,mretqty4,mretqty5,mretqty6,mretqty7,mretqty8,mretqty9,mretqty10,mretqty11,mretqty12,mretqave12
+      
+   sele xtsales
+
+   .Range("A10").value="Total Sales:"
+   .Range("B10").value=TRANSFORM(mave12,"9999,999,999")
+   .Range("C10").value=TRANSFORM(mave11,"9999,999,999")
+   .Range("D10").value=TRANSFORM(mave10,"9999,999,999")
+   .Range("E10").value=TRANSFORM(mave9,"9999,999,999")
+   .Range("F10").value=TRANSFORM(mave8,"9999,999,999")
+   .Range("G10").value=TRANSFORM(mave7,"9999,999,999")
+   .Range("H10").value=TRANSFORM(mave6,"9999,999,999")
+   .Range("I10").value=TRANSFORM(mave5,"9999,999,999")
+   .Range("J10").value=TRANSFORM(mave4,"9999,999,999")
+   .Range("K10").value=TRANSFORM(mave3,"9999,999,999")
+   .Range("L10").value=TRANSFORM(mave2,"9999,999,999")
+   .Range("M10").value=TRANSFORM(mave1,"9999,999,999")
+   .Range("N10").value=TRANSFORM(mave,"9999,999,999")
+   m = delfile("xtsales")
+   
+   set deci to 2
+   sele xtpsales
+   if recc()>0
+      appe blank
+   endif
+   .Range("A11").value="Sales:"
+   .Range("B11").value=TRANSFORM(mqty12,"9999,999,999.99")
+   .Range("C11").value=TRANSFORM(mqty11,"9999,999,999.99")
+   .Range("D11").value=TRANSFORM(mqty10,"9999,999,999.99")
+   .Range("E11").value=TRANSFORM(mqty9,"9999,999,999.99")
+   .Range("F11").value=TRANSFORM(mqty8,"9999,999,999.99")
+   .Range("G11").value=TRANSFORM(mqty7,"9999,999,999.99")
+   .Range("H11").value=TRANSFORM(mqty6,"9999,999,999.99")
+   .Range("I11").value=TRANSFORM(mqty5,"9999,999,999.99")
+   .Range("J11").value=TRANSFORM(mqty4,"9999,999,999.99")
+   .Range("K11").value=TRANSFORM(mqty3,"9999,999,999.99")
+   .Range("L11").value=TRANSFORM(mqty2,"9999,999,999.99")
+   .Range("M11").value=TRANSFORM(mqty1,"9999,999,999.99")
+   .Range("N11").value=TRANSFORM(mqtyave12,"9999,999,999.99")
+   
+   
+   
+   .Range("A12").value="Return"
+   .Range("B12").value=TRANSFORM(mretqty12,"9999,999,999.99")
+   .Range("C12").value=TRANSFORM(mretqty11,"9999,999,999.99")
+   .Range("D12").value=TRANSFORM(mretqty10,"9999,999,999.99")
+   .Range("E12").value=TRANSFORM(mretqty9,"9999,999,999.99")
+   .Range("F12").value=TRANSFORM(mretqty8,"9999,999,999.99")
+   .Range("G12").value=TRANSFORM(mretqty7,"9999,999,999.99")
+   .Range("H12").value=TRANSFORM(mretqty6,"9999,999,999.99")
+   .Range("I12").value=TRANSFORM(mretqty5,"9999,999,999.99")
+   .Range("J12").value=TRANSFORM(mretqty4,"9999,999,999.99")
+   .Range("K12").value=TRANSFORM(mretqty3,"9999,999,999.99")
+   .Range("L12").value=TRANSFORM(mretqty2,"9999,999,999.99")
+   .Range("M12").value=TRANSFORM(mretqty1,"9999,999,999.99")
+   .Range("N12").value=TRANSFORM(mretqave12,"9999,999,999.99")
+   m = delfile("xtpsales")
+   
+   if !empty(thisform.txtAddmsg.value)
+      .Range("A13").value="REMARKS:"+allt(thisform.txtAddmsg.value)
+   endif
+
+   molthfile ="OLTHIST.dbf"
+   if file(molthfile)
+      use &molthfile alias olthist in 0 shared
+      sele cust4win
+      seek qcustkey
+      if .not. empty(consomax2) 		
+         qcustkey2 = consomax2
+         sele olthist
+         sele * from olthist where cprodno=qprodno and (custkey=qcustkey .or. allt(custkey)=="ALL" .or. custkey = qcustkey2) into cursor xhist order by date desc
+      else
+         sele olthist
+         sele * from olthist where cprodno=qprodno and (custkey=qcustkey .or. allt(custkey)=="ALL") into cursor xhist order by date desc      
+      endif
+   
+      sele xhist
+      if recc()>0
+         .Range("A15").value="Order Limit History:"
+         .Range("A16").value="Date"
+         .Range("B16").value="Order Limit"
+         .Range("C16").value="Global Constraint"
+         .Range("D16").value="Remarks"
+          sele xhist
+	      go top
+	      do while .not. eof() 
+            .Range("A17").value=allt(dtoc(date))
+            .Range("B17").value=str(maxqtycs,5,2)
+            .Range("C17").value=iif(allt(custkey)=="ALL","YES","NO")
+            .Range("D17").value=allt(remarks)
+            sele xhist
+            skip
+         enddo
+      endif   
+    use
+   m = closedbf("olthist")
+   endif
+   
+   .Range("A19").value=sysparam.company
+   .Range("A20").value="BRANCH CODE:WH "+str(qwh,pub_whsize)
+   
+*   m=exc_font("A4:G4",10,RPT_FONTNAME,XLLeft,true)
+    m=exc_font("A4:G4",10,RPT_FONTNAME,XLLeft)
+   .Range("A4:G4").Select
+   With .Selection
+      .HorizontalAlignment = xlCenter
+      .VerticalAlignment = xlCenter
+      .WrapText = True
+   EndWith
+   .Range("A16:D16").Select
+   With .Selection
+      .HorizontalAlignment = xlCenter
+      .VerticalAlignment = xlCenter
+      .WrapText = True
+   EndWith
+   .RAnge("A15.E15").Merge
+   .RAnge("A8.N8").Merge
+   .RAnge("A5.E5").Merge
+   .RAnge("A4.E4").Merge
+   .Range("A3.E3").Merge
+   .Columns("A:A").ColumnWidth = 12
+*!*	   m=exc_font("B9:N9",10,RPT_FONTNAME,XLCenter)
+*!*	   m=exc_font("A8,A15",10,RPT_FONTNAME,XLLeft)
+*!*	   m=exc_font("A3:E3",12,RPT_FONTNAME,XLLeft)
+*!*	   
+   m=exc_font("B9:N9",10,RPT_FONTNAME,XLCenter,.t.)
+   m=exc_font("A8,A15",10,RPT_FONTNAME,XLLeft,.t.)
+   m=exc_font("A3:E3",12,RPT_FONTNAME,XLLeft,.t.)
+  
+   With .ActiveSheet.PageSetup
+      .Orientation = xlPortrait
+	  .PaperSize = xlPaperletter
+	  .PrintTitleRows = "$1:$5"
+	  .RightFooter = "Page &P of &N"
+   EndWith   
+   mfilename = addbs(mdir)+juststem(mzip)+"_Order Limit Overding Request " + allt(qprodno) + " - "+ allt(qproddesc)+".xls"
+   .ActiveWorkbook.SaveAs(mfilename,xlAddin)
+   .ActiveWorkbook.close
+    
+ENDWITH
+WAIT CLEAR
+loExcel.quit()
+loExcel.Visible = .f.
+
+release loexcel, lcolderror, lcrange, lnsheets, lncounter
+
+if file(mfilename)
+   mcreated=mcreated+mfilename+chr(13)
+endif
+
+ENDPROC
+PROCEDURE dprocess
+param mcustkey1,mcusname1
+sele cust4win
+seek mcustkey1
+*thisform.txtCustkey.value = custkey
+*thisform.txtCusname.value = cusname  
+mcuwhseno = whseno
+mckey = ckey
+mconsomax2 = consomax2
+
+tempmax2 = newname("dbf")
+midxmax2 = newname("idx")
+tempall = newname("dbf")
+sele maxorder
+copy to &tempmax2 for custkey = mcustkey1
+USE &tempmax2 alias tempmax2 in 0 excl
+sele tempmax2
+index on cprodno to &midxmax2
+sele maxorder
+copy to &tempall for custkey = "ALL"      
+use &tempall alias tempall in 0 excl         
+sele tempall
+set rela to cprodno into tempmax2
+dele for cprodno = tempmax2.cprodno
+repla all custkey with mcustkey1, cusname with mcusname1
+set rela to
+sele tempmax2
+appe from &tempall
+m = delfile("tempall")
+sele tempmax3
+zap
+appe from &tempmax2
+
+if .not. empty(mconsomax2) && acastillano 09/25/2021
+   tempconso = newname("dbf")
+   consoidx = newname("idx")
+   sele cust4win
+   copy to &tempconso for consomax2 = mconsomax2
+   use &tempconso alias tempconso in 0 exclu
+   sele tempconso
+   index on custkey to &consoidx
+   tempmax3x = newname("dbf")
+   sele maxorder
+   set rela to custkey into tempconso
+   *copy to &tempmax3x for custkey = mconsomax2
+   copy to &tempmax3x for custkey =tempconso.custkey
+   set rela to
+   m = delfile("tempconso")
+   
+   use &tempmax3x alias tempmax3x in 0 excl
+   sele tempmax3x
+ 
+   if reccount() > 0 
+      midxmax3 = newname("idx")
+      sele tempmax3x
+      index on cprodno to &midxmax3
+      sele tempmax2
+      set rela to cprodno into tempmax3x
+      dele for cprodno = tempmax3x.cprodno 
+      set rela to
+      pack
+      xtempmax3 = newname("dbf")
+      sele tempmax5
+      copy stru to &xtempmax3 
+      use &xtempmax3 alias xtempmax3 in 0 excl
+      sele xtempmax3
+      appe from &tempmax3x
+      *repl all xtempmax3.consomax2 with custkey 
+      *repl all xtempmax3.custkey with mcustkey1
+      sele  tempmax3
+      zap
+      appe from &tempmax2
+      appe from &xtempmax3 
+        
+      m = delfile("xtempmax3")
+   endif            
+   m = delfile("tempmax3x")                        
+endif
+
+sele tempmax3
+set rela to cprodno into tempsend3
+dele for cprodno <> tempsend3.cprodno
+repl suggqtycs with tempsend3.sugmaxcs for cprodno = tempsend3.cprodno
+set rela to
+sele tempmax3
+repl whseno with mcuwhseno for custkey != "ALL"
+repl ckey with mckey for empty(ckey) 
+set rela to cprodno into prod4win
+repl all proddesc with prod4win.proddesc, pieces with prod4win.pieces, packsize with prod4win.packsize for cprodno = prod4win.cprodno
+set rela to
+*repl all custkey with mcustkey1, cusname with mcusname1
+go top
+sele tempmax5
+append from &tempmax3
+set rela to custkey into cust4win && acastillano 12/17/2020 correct cusname from cust4win
+repla cusname with cust4win.cusname, whseno with cust4win.whseno for custkey = cust4win.custkey
+set rela to
+
+m = delfile("tempmax2")
+m = delfile("tempall")
+    
+
+ENDPROC
+PROCEDURE bms88only
+mngrwhgf = ""
+mngrwhjc = ""
+mngrwhro = ""
+xmngrgf = ""
+xmngrjc = ""
+xmngrro = ""
+sele bmsvar
+* GODFREY
+locate for varname = "OLREQGF"
+if .not. found()
+   appe blank
+   repl varname with "OLREQGF", varvalue with "26,25,21,45,13,39"
+   mngrwhgf = varvalue
+else
+   mngrwhgf = varvalue
+endif
+locate for varname = "OLRGF2"
+if .not. found()
+   appe blank
+   repl varname with "OLRGF2", varvalue with "FELIPE, GODFREY"
+   xmngrgf = varvalue
+else
+   xmngrgf = varvalue
+endif
+* JOMARK
+locate for varname = "OLREQJC"
+if .not. found()
+   appe blank
+   repl varname with "OLREQJC", varvalue with "24,23,19,27,16"
+   mngrwhjc = varvalue
+else
+   mngrwhjc = varvalue
+endif
+locate for varname = "OLRJC2"
+if .not. found()
+   appe blank
+   repl varname with "OLRJC2", varvalue with "CASTRO, JOMARK"
+   xmngrjc = varvalue
+else
+   xmngrjc = varvalue
+endif
+* RENSON
+locate for varname = "OLREQRO"
+if .not. found()
+   appe blank
+   repl varname with "OLREQRO", varvalue with ",22"
+   mngrwhro = varvalue
+else
+   mngrwhro = varvalue
+endif
+locate for varname = "OLRRO2"
+if .not. found()
+   appe blank
+   repl varname with "OLRRO2", varvalue with "OLIVEROS, RENSON"
+   xmngrro = varvalue
+else
+   xmngrro = varvalue
+endif
+
+*checking
+if str(qwh,pub_whsize) $ mngrwhgf
+    xto = xmngrgf
+endif
+if str(qwh,pub_whsize) $ mngrwhjc
+    xto = xmngrjc
+endif
+if str(qwh,pub_whsize) $ mngrwhro
+    xto = xmngrro
+endif
+
+ENDPROC
+PROCEDURE dcreatetxtfile
+sele * from xsend where cprodno=qprodno and custkey=qcustkey into cursor xtemp
+set console off
+set alternate to &xadatxt additive
+set alternate on 
+
+?"Subject :" + alltr(msubject)
+?"Mail to :" + alltr(mmailto) 
+?"Email body"
+?
+?alltr(custkey)+ " - "+ allt(cusname)
+?space(10),"Product No.",space(10),space(2),"Order Limit",space(2),"Request Limit"
+?"--------------------------------",space(2),"-------------",space(2),"-------------"
+?allt(qprodno) + " - "+ allt(qproddesc),space(5),str(maxqtycs,5,2),space(10),str(suggqtycs,5,2)
+?
+?"Sales For The Last 12 Months:"
+sele tpsales
+xasof=asof
+if xasof = {}
+   xasof = firstday(sysparam.transdate)-1
+endif
+xmonth12=gomonth(xasof,0)
+xmonth11=gomonth(xasof,-1)
+xmonth10=gomonth(xasof,-2)
+xmonth9=gomonth(xasof,-3)
+xmonth8=gomonth(xasof,-4)
+xmonth7=gomonth(xasof,-5)
+xmonth6=gomonth(xasof,-6)
+xmonth5=gomonth(xasof,-7)
+xmonth4=gomonth(xasof,-8)
+xmonth3=gomonth(xasof,-9)
+xmonth2=gomonth(xasof,-10)
+xmonth1=gomonth(xasof,-11)
+mo1 = left(cmonth(xmonth1),3)  + substr(str(year(xmonth1),4),3,2)
+mo2 = left(cmonth(xmonth2),3)  + substr(str(year(xmonth2),4),3,2)
+mo3 = left(cmonth(xmonth3),3)  + substr(str(year(xmonth3),4),3,2)
+mo4 = left(cmonth(xmonth4),3)  + substr(str(year(xmonth4),4),3,2)
+mo5 = left(cmonth(xmonth5),3)  + substr(str(year(xmonth5),4),3,2)
+mo6 = left(cmonth(xmonth6),3)  + substr(str(year(xmonth6),4),3,2)
+mo7 = left(cmonth(xmonth7),3)  + substr(str(year(xmonth7),4),3,2)
+mo8 = left(cmonth(xmonth8),3)  + substr(str(year(xmonth8),4),3,2)
+mo9 = left(cmonth(xmonth9),3)  + substr(str(year(xmonth9),4),3,2)
+mo10 = left(cmonth(xmonth10),3)  + substr(str(year(xmonth10),4),3,2)
+mo11= left(cmonth(xmonth11),3)  + substr(str(year(xmonth11),4),3,2)
+mo12 = left(cmonth(xmonth12),3)  + substr(str(year(xmonth12),4),3,2)
+
+?space(12),mo1,space(2),mo2,space(2),mo3,space(2),mo4,space(2),mo5,space(2),mo6,space(2),mo7,space(2),mo8,space(2),mo9,space(2),mo10,space(2),mo11,space(2),mo12,space(2),"Ave. Qty"
+
+xtsales = newname("dbf")
+xtpsales = newname("dbf")
+sele qty1 as ave1,qty2 as ave2,qty3 as ave3,qty4 as ave4,qty5 as ave5,;
+   qty6 as ave6,qty7 as ave7,qty8 as ave8,qty9 as ave9,qty10 as ave10,;
+   qty11 as ave11,qty12 as ave12,qtyave12 as ave;
+   from tpsales where custkey=qcustkey .and. cprodno="ALL" into table &xtsales
+use
+sele * from tpsales where custkey=qcustkey and cprodno=qprodno order by cprodno into table &xtpsales
+use
+
+use &xtsales alias xtsales in 0 excl
+sele xtsales
+sum ave1,ave2,ave3,ave4,ave5,ave6,ave7,ave8,ave9,ave10,ave11,ave12,ave to mave1,mave2,mave3,mave4,mave5,mave6,mave7,mave8,mave9,mave10,mave11,mave12,mave
+
+use &xtpsales alias xtpsales in 0 excl
+sele xtpsales
+sum qty1,qty2,qty3,qty4,qty5,qty6,qty7,qty8,qty9,qty10,qty11,qty12,qtyave12,retqty1,retqty2,retqty3,retqty4,retqty5,retqty6,retqty7,retqty8,retqty9,retqty10,retqty11,retqty12,retqave12 to ;
+   mqty1,mqty2,mqty3,mqty4,mqty5,mqty6,mqty7,mqty8,mqty9,mqty10,mqty11,mqty12,mqtyave12,mretqty1,mretqty2,mretqty3,mretqty4,mretqty5,mretqty6,mretqty7,mretqty8,mretqty9,mretqty10,mretqty11,mretqty12,mretqave12
+mx12 = TRANSFORM(mave12,"9999,999,999")
+mx11 = TRANSFORM(mave11,"9999,999,999")
+mx10 = TRANSFORM(mave10,"9999,999,999")
+mx9 = TRANSFORM(mave9,"9999,999,999")
+mx8 = TRANSFORM(mave8,"9999,999,999")
+mx7 = TRANSFORM(mave7,"9999,999,999")
+mx6 = TRANSFORM(mave6,"9999,999,999")
+mx5 = TRANSFORM(mave5,"9999,999,999")
+mx4 = TRANSFORM(mave4,"9999,999,999")
+mx3 = TRANSFORM(mave3,"9999,999,999")
+mx2 = TRANSFORM(mave2,"9999,999,999")
+mx1 = TRANSFORM(mave1,"9999,999,999")
+mxav = TRANSFORM(mave,"9999,999,999")
+      
+sele xtsales
+?"Total Sales:",space(3),alltr(mx12),space(7),alltr(mx11),space(5),alltr(mx10),space(7),alltr(mx9),space(5),alltr(mx8),space(7),alltr(mx7),space(5),alltr(mx6),space(7),alltr(mx5),space(5),alltr(mx4),space(7),alltr(mx3),space(5),alltr(mx2),space(7),alltr(mx1),space(5),alltr(mxav)
+m = delfile("xtsales")
+set deci to 2
+sele xtpsales
+if recc()>0
+   appe blank
+endif
+mx12 = TRANSFORM(mqty12,"9999,999,999.99")
+mx11 = TRANSFORM(mqty11,"9999,999,999.99")
+mx10 = TRANSFORM(mqty1,"9999,999,999.99")
+mx9 = TRANSFORM(mqty9,"9999,999,999.99")
+mx8 = TRANSFORM(mqty8,"9999,999,999.99")
+mx7 = TRANSFORM(mqty7,"9999,999,999.99")
+mx6 = TRANSFORM(mqty6,"9999,999,999.99")
+mx5 = TRANSFORM(mqty5,"9999,999,999.99")
+mx4 = TRANSFORM(mqty4,"9999,999,999.99")
+mx3 = TRANSFORM(mqty3,"9999,999,999.99")
+mx2 = TRANSFORM(mqty2,"9999,999,999.99")
+mx1 = TRANSFORM(mqty1,"9999,999,999.99")
+mxav = TRANSFORM(mqtyave12,"9999,999,999.99")
+?space(4),"Sales:",space(2),alltr(mx12),space(4),alltr(mx11),space(2),alltr(mx10),space(4),alltr(mx9),space(2),alltr(mx8),space(4),alltr(mx7),space(2),alltr(mx6),space(4),alltr(mx5),space(2),alltr(mx4),space(4),alltr(mx3),space(2),alltr(mx2),space(4),alltr(mx1),space(4),alltr(mxav)
+
+mx12 = TRANSFORM(mretqty12,"9999,999,999.99")
+mx11 = TRANSFORM(mretqty11,"9999,999,999.99")
+mx10 = TRANSFORM(mretqty10,"9999,999,999.99")
+mx9 = TRANSFORM(mretqty9,"9999,999,999.99")
+mx8 = TRANSFORM(mretqty8,"9999,999,999.99")
+mx7 = TRANSFORM(mretqty7,"9999,999,999.99")
+mx6 = TRANSFORM(mretqty6,"9999,999,999.99")
+mx5 = TRANSFORM(mretqty5,"9999,999,999.99")
+mx4 = TRANSFORM(mretqty4,"9999,999,999.99")
+mx3 = TRANSFORM(mretqty3,"9999,999,999.99")
+mx2 = TRANSFORM(mretqty2,"9999,999,999.99")
+mx1 = TRANSFORM(mretqty1,"9999,999,999.99")
+mxav = TRANSFORM(mretqave12,"9999,999,999.99")
+?space(3),"Return:",space(2),alltr(mx12),space(4),alltr(mx11),space(2),alltr(mx10),space(4),alltr(mx9),space(2),alltr(mx8),space(4),alltr(mx7),space(2),alltr(mx6),space(4),alltr(mx5),space(2),alltr(mx4),space(4),alltr(mx3),space(2),alltr(mx2),space(4),alltr(mx1),space(4),alltr(mxav)
+m = delfile("xtpsales")
+if !empty(thisform.txtAddmsg.value)
+	?"Remarks</b>: "+allt(thisform.txtAddmsg.value)
+endi
+
+molthfile = "OLTHIST.dbf"
+if file(molthfile)
+   use &molthfile alias olthist in 0 shared
+   sele cust4win
+   seek qcustkey
+   if .not. empty(consomax2) 		
+      qcustkey2 = consomax2
+      sele olthist
+      sele * from olthist where cprodno=qprodno and (custkey=qcustkey .or. allt(custkey)=="ALL" .or. custkey = qcustkey2) into cursor xhist order by date desc
+   else
+      sele olthist
+      sele * from olthist where cprodno=qprodno and (custkey=qcustkey .or. allt(custkey)=="ALL") into cursor xhist order by date desc      
+   endif
+   
+   sele xhist
+   if recc()>0
+      ?
+      ?
+      ?"Order Limit History:"
+      ?space(5),"Date",space(12),"Order Limit",space(2),"Global Constraints",space(10),"Remarks",space(10)
+      ?"-----------------------","------------","------------------","----------","------","-----------"
+      
+      sele xhist
+	  go top
+	  do while .not. eof()         
+         
+         ?allt(dtoc(date)),space(17),space(5),str(maxqtycs,5,2),space(12), iif(allt(custkey)=="ALL","YES","NO"), allt(remarks) 
+         sele xhist
+         skip
+      enddo
+   endif
+   use
+   m = closedbf("olthist")
+endif
+?
+?
+?alltr(sysparam.company)
+?"BRANCH CODE: WH"+alltr(sysparam.bcode)
+
+set alternate off
+set alternate to
+set cons on
+ENDPROC
+PROCEDURE Init
+m = openfile("bmsvar")
+*!*	if pubcurasof < pubcurasof2
+*!*	   thisform.cmdSend.enabled = .f.  
+*!*	   thisform.cmdSendoff.enabled = .f.  
+*!*	   thisform.lblCaution.caption = "READ! READ! READ! Sending of request is disabled due to outdated TPSALES. Extract the latest TPSALES sent by ITWORKS to continue."
+*!*	else
+   if sysparam.eodlite  && ps
+      thisform.cmdSend.enabled = .f.
+   endif
+   thisform.lblCaution.visible = .f.
+*endif
+
+sele cust4win
+set order to custkey
+sele prod4win
+set order to cprodno
+tempmax5 = newname("dbf")
+tempmax3 = newname("dbf")
+bakmax = substr(tempmax5,1,len(tempmax5)-3)+"bak"
+sele maxorder 
+copy stru to &tempmax5 
+use &tempmax5 alias tempmax5 in 0 excl
+sele tempmax5
+if vartype(suggqtycs) = "U"
+   alter table &tempmax5 add suggqtycs n(5)
+   erase &bakmax
+endif
+sele tempmax5
+if vartype(packsize) = "U"
+   alter table &tempmax5 add packsize c(10)
+   erase &bakmax
+endif
+sele tempmax5
+if vartype(consomax2) = "U"
+   alter table &tempmax5 add consomax2 c(7)
+   erase &bakmax
+endif
+sele tempmax5
+copy to &tempmax3
+use &tempmax3 alias tempmax3 in 0 exclu
+
+tempsend2 = newname("dbf")
+idxsend2 = newname("dbf")
+
+sele tempsend
+index on custkey to &idxsend2 uniq
+copy to &tempsend2
+set index to
+erase &idxsend2
+
+use &tempsend2 alias tempsend2 in 0 exclu
+sele tempsend2
+go top
+do while .not. eof()
+   mxcustkey = custkey
+   mxcusname = cusname
+   tempsend3 = newname("dbf")
+   idxsend3 = newname("idx")
+   sele tempsend
+   copy to &tempsend3 for custkey = mxcustkey
+   use &tempsend3 alias tempsend3 in 0 exclu
+   sele tempsend3
+   index on cprodno to &idxsend3
+   thisform.dprocess(mxcustkey,mxcusname)
+   m = delfile("tempsend3")
+   sele tempsend2
+   skip 
+enddo
+m = delfile("tempmax3")
+m = delfile("tempsend2")
+thisform.grid1.refresh  
+sele tempmax5
+go top
+thisform.definegrid
+thisform.refresh
+
+
+ENDPROC
+PROCEDURE Unload
+*!*	m = closedbf("custdir")
+*!*	m = closedbf("cust4win")
+*!*	m = closedbf("prod4win")
+*!*	m = closedbf("maxorder")
+*!*	m = closedbf("tpsales")
+*!*	m = closedbf("sysparam")
+m = closedbf("bmsvar")
+m = delfile("tempmax5")
+
+ENDPROC
+
+==============================================================================
+REC 3   OBJ=Grid1   CLASS=grid   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+ColumnCount = 8
+DeleteMark = .F.
+Height = 269
+Left = 12
+TabIndex = 4
+Top = 6
+Width = 852
+Name = "Grid1"
+Column1.Name = "Column1"
+Column2.Name = "Column2"
+Column3.Name = "Column3"
+Column4.Name = "Column4"
+Column5.Name = "Column5"
+Column6.Name = "Column6"
+Column7.Name = "Column7"
+Column8.Name = "Column8"
+
+==============================================================================
+REC 4   OBJ=Header1   CLASS=header   PARENT=Form1.Grid1.Column1
+==============================================================================
+--- PROPERTIES ---
+Caption = "Header1"
+Name = "Header1"
+
+==============================================================================
+REC 5   OBJ=Text1   CLASS=textbox   PARENT=Form1.Grid1.Column1
+==============================================================================
+--- PROPERTIES ---
+BorderStyle = 0
+Margin = 0
+ForeColor = 0,0,0
+BackColor = 255,255,255
+Name = "Text1"
+--- METHODS ---
+PROCEDURE DblClick
+*!*	thisform.dselect
+ENDPROC
+
+==============================================================================
+REC 6   OBJ=Header1   CLASS=header   PARENT=Form1.Grid1.Column2
+==============================================================================
+--- PROPERTIES ---
+Caption = "Header1"
+Name = "Header1"
+
+==============================================================================
+REC 7   OBJ=Text1   CLASS=textbox   PARENT=Form1.Grid1.Column2
+==============================================================================
+--- PROPERTIES ---
+BorderStyle = 0
+Margin = 0
+ForeColor = 0,0,0
+BackColor = 255,255,255
+Name = "Text1"
+--- METHODS ---
+PROCEDURE DblClick
+*thisform.dselect
+ENDPROC
+
+==============================================================================
+REC 8   OBJ=Header1   CLASS=header   PARENT=Form1.Grid1.Column3
+==============================================================================
+--- PROPERTIES ---
+Caption = "Header1"
+Name = "Header1"
+
+==============================================================================
+REC 9   OBJ=Text1   CLASS=textbox   PARENT=Form1.Grid1.Column3
+==============================================================================
+--- PROPERTIES ---
+BorderStyle = 0
+Margin = 0
+ForeColor = 0,0,0
+BackColor = 255,255,255
+Name = "Text1"
+--- METHODS ---
+PROCEDURE DblClick
+*thisform.dselect
+ENDPROC
+
+==============================================================================
+REC 10   OBJ=Header1   CLASS=header   PARENT=Form1.Grid1.Column4
+==============================================================================
+--- PROPERTIES ---
+Caption = "Header1"
+Name = "Header1"
+
+==============================================================================
+REC 11   OBJ=Text1   CLASS=textbox   PARENT=Form1.Grid1.Column4
+==============================================================================
+--- PROPERTIES ---
+BorderStyle = 0
+Margin = 0
+ForeColor = 0,0,0
+BackColor = 255,255,255
+Name = "Text1"
+--- METHODS ---
+PROCEDURE DblClick
+*thisform.dselect
+ENDPROC
+
+==============================================================================
+REC 12   OBJ=Header1   CLASS=header   PARENT=Form1.Grid1.Column5
+==============================================================================
+--- PROPERTIES ---
+Caption = "Header1"
+Name = "Header1"
+
+==============================================================================
+REC 13   OBJ=Text1   CLASS=textbox   PARENT=Form1.Grid1.Column5
+==============================================================================
+--- PROPERTIES ---
+BorderStyle = 0
+Margin = 0
+ForeColor = 0,0,0
+BackColor = 255,255,255
+Name = "Text1"
+--- METHODS ---
+PROCEDURE DblClick
+*thisform.dselect
+ENDPROC
+
+==============================================================================
+REC 14   OBJ=Header1   CLASS=header   PARENT=Form1.Grid1.Column6
+==============================================================================
+--- PROPERTIES ---
+Caption = "Header1"
+Name = "Header1"
+
+==============================================================================
+REC 15   OBJ=Text1   CLASS=textbox   PARENT=Form1.Grid1.Column6
+==============================================================================
+--- PROPERTIES ---
+BorderStyle = 0
+Margin = 0
+ForeColor = 0,0,0
+BackColor = 255,255,255
+Name = "Text1"
+--- METHODS ---
+PROCEDURE DblClick
+*thisform.dselect
+ENDPROC
+
+==============================================================================
+REC 16   OBJ=Header1   CLASS=header   PARENT=Form1.Grid1.Column7
+==============================================================================
+--- PROPERTIES ---
+Caption = "Header1"
+Name = "Header1"
+
+==============================================================================
+REC 17   OBJ=Text1   CLASS=textbox   PARENT=Form1.Grid1.Column7
+==============================================================================
+--- PROPERTIES ---
+BorderStyle = 0
+Margin = 0
+ForeColor = 0,0,0
+BackColor = 255,255,255
+Name = "Text1"
+
+==============================================================================
+REC 18   OBJ=Header1   CLASS=header   PARENT=Form1.Grid1.Column8
+==============================================================================
+--- PROPERTIES ---
+Caption = "Header1"
+Name = "Header1"
+
+==============================================================================
+REC 19   OBJ=Text1   CLASS=textbox   PARENT=Form1.Grid1.Column8
+==============================================================================
+--- PROPERTIES ---
+BorderStyle = 0
+Margin = 0
+ForeColor = 0,0,0
+BackColor = 255,255,255
+Name = "Text1"
+
+==============================================================================
+REC 20   OBJ=cmdSend   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 334
+Left = 783
+Height = 37
+Width = 40
+FontBold = .T.
+Caption = "\<Send"
+TabIndex = 6
+Name = "cmdSend"
+--- METHODS ---
+PROCEDURE Click
+sele tempmax5
+
+*!*	coun to mrecval for suggqtycs <> 0
+*!*	if mrecval = 0
+*!*	   m = messageb("Unable to send. Please provide Pref. Qtycs to at least one product.",64,"BMS")
+*!*	   return
+*!*	endif
+if messageb("Only records with suggested Qtycs will be sent for approval." + chr(13) + ;
+   "Ensure that all overriding requirement for the current customer have been provided." + chr(13) + "Do you want to continue?",4+32+256,"BMS") = 6
+   xsend = newname("dbf")
+   sele tempmax5
+   copy to &xsend for suggqtycs > 0 .and. .not. suggqtycs < maxqtycs
+
+   use &xsend alias xsend in 0 excl
+   sele xsend
+   if reccount() > 0 
+      wait window "Creating OL file" nowait
+      mmailaction = ""
+      *m = openfile("bmsvar")
+      sele bmsvar
+      locate for alltr(varname) == "OLOREQACTION"
+      if .not. found()
+         append blank
+         repla varname with "OLOREQACTION", varvalue with "DISPLAY"
+      endif
+      mmailaction = alltr(varvalue)
+      *m = closedbf("bmsvar")
+      m = openfile("emailadd")
+      SELE emailadd
+      LOCATE for upper(alltr(mailreport)) == "OLOREQ"
+      IF .not. found()
+         sele sysparam
+         mbma = allt(bma)
+         sele emailadd
+         APPE blank
+         REPL mailto with mbma, mailreport with "OLOREQ"
+      ENDIF
+      mpath = "C:\VFPTEMP"
+      if .not. directory(mpath)
+         md &mpath
+      endif
+      xto = mailto
+      m = closedbf("emailadd")
+      sele xsend
+	  go top
+	  do while .not. eof()
+         qprodno = cprodno
+		 qcustkey = custkey
+		 qcusname = cusname
+		 qproddesc = allt(proddesc) + " (" + allt(str(pieces)) + " x " + allt(packsize) + ")"
+		 qwh = whseno
+		 olnum = docnum("OL",0,"GETSAVE")
+		 xolfile=mpath+"\OL"+str(olnum,6)+".dbf"
+		 
+		 if val(sysparam.bcode) = 88 && for bcode = 88 only. change mailrecipient output xto
+		    thisform.bms88only
+		 endif
+		 
+         sele tempmax5
+         copy to &xolfile for cprodno=qprodno and custkey=qcustkey
+         mzip  = addbs(mpath) +"\OL"+str(olnum,6)+".ZIP"
+         run 7z a &mzip &xolfile -m0=LZMA &&rgarcia 10/27/2021
+         erase &xolfile		 
+		 m = thisform.processemail()
+		 sele xsend
+		 skip
+	  enddo	  
+	  m = messagebox("Sending completed. The contents from this module will be reset.",64,"BMS")  
+	  sele tempmax5
+	  zap
+   endif
+   m = delfile("xsend")
+endif
+
+ENDPROC
+
+==============================================================================
+REC 21   OBJ=Command2   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 334
+Left = 825
+Height = 37
+Width = 40
+FontBold = .T.
+Caption = "\<Close"
+TabIndex = 7
+Name = "Command2"
+--- METHODS ---
+PROCEDURE Click
+release thisform
+ENDPROC
+
+==============================================================================
+REC 22   OBJ=Label9   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+AutoSize = .F.
+FontBold = .T.
+Caption = "Comments/"
+Height = 18
+Left = 21
+Top = 287
+Width = 75
+TabIndex = 20
+Name = "Label9"
+
+==============================================================================
+REC 23   OBJ=txtAddmsg   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Enabled = .T.
+Height = 45
+Left = 96
+MaxLength = 250
+TabIndex = 5
+Top = 284
+Width = 762
+DisabledForeColor = 0,0,0
+Name = "txtAddmsg"
+
+==============================================================================
+REC 24   OBJ=Label10   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+AutoSize = .F.
+FontBold = .T.
+Caption = "Remarks:"
+Height = 18
+Left = 20
+Top = 305
+Width = 75
+TabIndex = 21
+Name = "Label10"
+
+==============================================================================
+REC 25   OBJ=cmdSendOff   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 335
+Left = 696
+Height = 36
+Width = 84
+FontBold = .T.
+Caption = "Send \<Offline"
+Enabled = .T.
+TabIndex = 6
+Name = "cmdSendOff"
+--- METHODS ---
+PROCEDURE Click
+mproc = 0
+do sendopt2.mpr
+
+sele tempmax5
+*!*	coun to mrecval for suggqtycs <> 0
+*!*	if mrecval = 0 
+*!*	   m = messageb("Unable to send. Please provide Pref. Qtycs to at least one product.",64,"BMS")
+*!*	   return
+*!*	endif
+if messageb("Only records with suggested Qtycs will be sent for approval." + chr(13) + ;
+   "Ensure that all overriding requirement for the current customer have been provided." + chr(13) + "Do you want to continue?",4+32+256,"BMS") = 6
+   xsend = newname("dbf")
+   sele tempmax5
+   copy to &xsend for suggqtycs > 0 .and. .not. suggqtycs < maxqtycs
+   use &xsend alias xsend in 0 excl
+   
+   mpath = "C:\VFPTEMP"
+   if .not. directory(mpath)
+      md &mpath
+   endif
+   mdir = "C:\XLSFILES"
+   if .not. directory(mdir)
+      md &mdir
+   endif
+   sele xsend
+   if recc()>0
+      mcreated=""
+      sele xsend
+      go top
+      do while .not. eof()
+         qprodno = cprodno
+         qcustkey = custkey
+         qcusname = cusname
+         qproddesc = allt(proddesc) + " (" + allt(str(pieces)) + " x " + allt(packsize) + ")"
+         qwh = whseno
+         olnum = docnum("OL",0,"GETSAVE")
+         xolfile=mpath+"\OL"+str(olnum,6)+".dbf"
+         xadatxt =mpath+"\OL"+str(olnum,6)+".txt" 
+          
+         if val(sysparam.bcode) = 88 && for bcode = 88 only. change mailrecipient output xto
+		    thisform.bms88only
+		 endif
+         
+         sele tempmax5
+         copy to &xolfile for cprodno=qprodno and custkey=qcustkey
+         mzip= addbs(mpath) +"OL"+str(olnum,6)+".ZIP"
+         run 7z a &mzip &xolfile -m0=LZMA && ggabriel 2/21/2018 - process zip file &&rgarcia 10/27/2021
+         erase &xolfile
+         if file(mzip)
+            mcreated=mcreated+mzip+chr(13)
+         endif
+          if mproc = 1
+            thisform.processexcel &&process excel  
+         else
+             thisform.dcreatetxtfile
+         endif
+         sele xsend
+         skip
+      enddo
+      if .not. empty(mcreated)
+         m=messageb("Successfully created the following files:"+chr(13)+mcreated,64,"BMS")
+      endif	
+	  sele tempmax5
+	  zap  
+   endif
+   m = delfile("xsend")
+endif  
+ENDPROC
+
+==============================================================================
+REC 26   OBJ=lblCaution   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontBold = .T.
+FontItalic = .T.
+FontSize = 9
+WordWrap = .T.
+Alignment = 2
+BorderStyle = 1
+Caption = "Label2"
+Height = 36
+Left = 15
+Top = 336
+Width = 680
+TabIndex = 10
+ForeColor = 255,0,0
+BackColor = 255,255,128
+Name = "lblCaution"
+
+==============================================================================
+REC 27   OBJ=   CLASS=   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Arial, 0, 9, 5, 15, 12, 32, 3, 0
+Arial, 1, 9, 6, 15, 12, 32, 3, 0
+

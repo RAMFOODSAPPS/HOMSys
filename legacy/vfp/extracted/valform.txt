@@ -1,0 +1,383 @@
+# valform.SCX  --  10 records, blockSize=1
+
+==============================================================================
+REC 1   OBJ=Dataenvironment   CLASS=dataenvironment   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Name = "Dataenvironment"
+
+==============================================================================
+REC 2   OBJ=Form1   CLASS=form   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Height = 335
+Width = 472
+DoCreate = .T.
+AutoCenter = .T.
+BorderStyle = 3
+Caption = "Form1"
+ControlBox = .T.
+MaxButton = .F.
+MinButton = .F.
+TitleBar = 1
+WindowType = 1
+BackColor = 255,255,255
+Name = "Form1"
+--- METHODS ---
+PROCEDURE definelist
+thisform.list1.rowsource=thisform.dalias
+thisform.list1.rowsourcetype=6
+thisform.list1.columncount=2
+
+thisform.list1.columnwidths="50,380"
+thisform.label1.width=50
+thisform.label2.width=385
+thisform.label1.left=13
+thisform.label2.left=65
+thisform.label1.caption="Code"
+thisform.label2.caption="Description"
+if type("thisform.dsearchkey")="L"
+   thisform.dsearchkey="Code"
+else   
+   if thisform.dsearchkey<>"Code"
+      thisform.list1.columnwidths="380,50"
+      thisform.label1.left=400
+      thisform.label2.left=13
+   endif
+endif   
+sele(thisform.dalias)
+
+do case
+   case upper(thisform.dalias)="PROD4WIN"
+      thisform.dretfield="cprodno"
+      thisform.list1.columncount=5
+*      thisform.label1.caption="prodno"
+*      thisform.label2.caption="product description"
+      if thisform.dsearchkey="Code"
+         set order to cprodno
+         thisform.list1.columnwidths="50,270,35,35,35"
+         thisform.list1.rowsource=thisform.dalias+".cprodno,proddesc,pieces,qtyperpc,um"
+      else
+         set order to proddesc
+         thisform.list1.columnwidths="270,35,35,35,50"
+         thisform.list1.rowsource=thisform.dalias+".proddesc,pieces,qtyperpc,um,cprodno"
+      endif
+  case upper(thisform.dalias)="TEMPPR"
+      thisform.dretfield="cprodno"
+      thisform.list1.columncount=5
+      if thisform.dsearchkey="Code"
+         *set order to cprodno
+         thisform.list1.columnwidths="50,270,35,35,35"
+         thisform.list1.rowsource=thisform.dalias+".cprodno,proddesc,pieces,qtyperpc,um"
+      else
+         *set order to proddesc
+         thisform.list1.columnwidths="270,35,35,35,50"
+         thisform.list1.rowsource=thisform.dalias+".proddesc,pieces,qtyperpc,um,cprodno"
+      endif    
+  case alltrim(upper(thisform.dalias)) $ "CUST4WIN,CUSTDIR,CUSTVAN,TEMPCUST,"
+      thisform.dretfield="custkey"
+      THISFORM.LIST1.COLUMNCOUNT = 3
+      if thisform.dsearchkey="Code"
+         set order to ckey
+         thisform.list1.rowsource=thisform.dalias+".custkey,WHSENO,cusname"
+         thisform.list1.columnwidths="50,50,335"
+
+      else
+         set order to cusname
+         thisform.list1.rowsource=thisform.dalias+".cusname,custkey,WHSENO"
+         thisform.list1.columnwidths="335,50,50"
+      endif
+*!*	   case upper(thisform.dalias)="CUST4WIN"
+*!*	      thisform.list1.columncount=3
+
+*!*	      thisform.dretfield="ckey"
+*!*	      if thisform.dsearchkey="Code"
+*!*	         thisform.list1.columnwidths="50,330,50"
+*!*	         set order to ckey
+*!*	         thisform.list1.rowsource=thisform.dalias+".ckey,cusname,csman"
+*!*	      else
+*!*	         thisform.list1.columnwidths="330,50,50"
+
+*!*	         set order to cusname
+*!*	         thisform.list1.rowsource=thisform.dalias+".cusname,csman,ckey"
+*!*	      endif
+   case upper(thisform.dalias)="SUP4WIN"
+      thisform.dretfield="csupno"
+      if thisform.dsearchkey="Code"
+         set order to csupno
+         thisform.list1.rowsource=thisform.dalias+".csupno,supname"
+      else
+         set order to supname
+         thisform.list1.rowsource=thisform.dalias+".supname,csupno"
+      endif
+   case upper(thisform.dalias)="DEAL4MAS"
+      thisform.dretfield="dealcode"
+      if thisform.dsearchkey="Code"
+         set order to dealcode
+         thisform.list1.rowsource=thisform.dalias+".dealcode,dealdesc"
+      else
+         set order to dealdesc
+         thisform.list1.rowsource=thisform.dalias+".dealdesc,dealcode"
+      endif
+   case upper(thisform.dalias)="SMAN4WIN"
+      thisform.dretfield="csman"
+      if thisform.dsearchkey="Code"
+         set order to csman
+         thisform.list1.rowsource=thisform.dalias+".csman,name"
+      else
+         set order to name
+         thisform.list1.rowsource=thisform.dalias+".name,csman"
+      endif
+   case upper(thisform.dalias)="BRANCHW"
+      thisform.dretfield="whseno"
+      if thisform.dsearchkey="Code"
+         set order to whseno
+         thisform.list1.rowsource=thisform.dalias+".whseno,branch"
+      else
+         set order to branch
+         thisform.list1.rowsource=thisform.dalias+".branch,whseno"
+      endif
+   case upper(thisform.dalias)="TERMS"
+      thisform.dretfield="term"
+      if thisform.dsearchkey="Code"
+         set order to term
+         thisform.list1.rowsource=thisform.dalias+".term,desc"
+      else
+         set order to desc
+         thisform.list1.rowsource=thisform.dalias+".desc,term"
+      endif
+   case upper(thisform.dalias)="CHANNEL"
+      thisform.dretfield="channel"
+      if thisform.dsearchkey="Code"
+         set order to channel
+         thisform.list1.rowsource=thisform.dalias+".channel,chname"
+      else
+         set order to chname
+         thisform.list1.rowsource=thisform.dalias+".chname,channel"
+      endif
+   case upper(thisform.dalias)="VAN"
+      thisform.dretfield="vanno"
+      if thisform.dsearchkey="Code"
+         set order to vanno
+         thisform.list1.rowsource=thisform.dalias+".vanno,vandesc"
+      else
+         set order to vandesc
+         thisform.list1.rowsource=thisform.dalias+".vandesc,vanno"
+      endif
+   case upper(thisform.dalias)="DOCNUM"
+      thisform.dretfield="doctype"
+      if thisform.dsearchkey="Code"
+         set order to doctype
+         thisform.list1.rowsource=thisform.dalias+".docid,doctype"
+      else
+         set order to doctype
+         thisform.list1.rowsource=thisform.dalias+".doctype,docid"
+      endif
+   case upper(thisform.dalias)="ZONEMAST"
+      thisform.dretfield="czone"
+      if thisform.dsearchkey="Code"
+         set order to czone
+         thisform.list1.rowsource=thisform.dalias+".czone,cdesc"
+      else
+         set order to cdesc
+         thisform.list1.rowsource=thisform.dalias+".cdesc,czone"
+      endif
+   case upper(thisform.dalias)="EMP4WIN"
+      thisform.dretfield="empno"
+      if thisform.dsearchkey="Code"
+         set order to empno
+         thisform.list1.rowsource=thisform.dalias+".empno,name"
+      else
+         set order to name
+         thisform.list1.rowsource=thisform.dalias+".name,empno"
+      endif
+   ***aca-09/18/12
+   case upper(thisform.dalias)="SUPLIERW"
+      thisform.dretfield="supname"
+      if thisform.dsearchkey="Code"
+         set order to supno
+         thisform.list1.rowsource=thisform.dalias+".supno,supname"
+      else
+         set order to supname
+         thisform.list1.rowsource=thisform.dalias+".supname,supno"
+      endif      
+   case upper(thisform.dalias)="TMPTRUCK"
+      a1 = newname("idx")
+      a2 = newname("idx")
+      thisform.dretfield="supno"
+      if thisform.dsearchkey="Code"
+         index on supno to &a1
+         thisform.list1.rowsource=thisform.dalias+".supno,supname"
+      else
+         index on supname to &a2
+         thisform.list1.rowsource=thisform.dalias+".supname,supno"
+      endif      
+   ***
+   case alltrim(upper(thisform.dalias)) $ "CUST4WIN,CUSTDIR,CUSTVAN,TEMPCUST,"
+      thisform.dretfield="ckey"
+      THISFORM.LIST1.COLUMNCOUNT = 2
+      if thisform.dsearchkey="Code"
+         set order to custkey
+         *thisform.list1.rowsource=thisform.dalias+".ckey,WHSENO,cusname"
+         *thisform.list1.columnwidths="50,50,335"
+         thisform.list1.rowsource=thisform.dalias+".custkey,cusname"
+         thisform.list1.columnwidths="65"
+      else
+         set order to cusname
+         thisform.list1.rowsource=thisform.dalias+".cusname,custkey"
+         thisform.list1.columnwidths="376"
+      endif
+endcase
+go top 
+
+mdata = thisform.dalias+"."+thisform.dretfield
+if type("&mdata")="C"
+   thisform.dreturnvalue=""
+else
+   thisform.dreturnvalue=0
+endif      
+     
+thisform.refresh
+ENDPROC
+PROCEDURE Init
+param dcaption,dalias
+*thisform.lblCaption.caption = "SELECT "+dcaption
+thisform.caption = "SELECT "+dcaption
+*thisform.drecordsource=drecordsource
+*thisform.dretfield=dretfield
+thisform.dalias=dalias
+sele (thisform.dalias)
+go top
+thisform.definelist
+thisform.dreturnvalue=""
+thisform.dsearchkey="Code"
+ENDPROC
+PROCEDURE Unload
+if upper(thisform.dalias)="TMPTRUCK"
+   erase &a1
+   erase &a2
+endif
+return thisform.dreturnvalue
+ENDPROC
+
+==============================================================================
+REC 3   OBJ=Shape1   CLASS=shape   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 264
+Left = 10
+Height = 67
+Width = 452
+BackColor = 0,64,128
+Name = "Shape1"
+
+==============================================================================
+REC 4   OBJ=Command1   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 268
+Left = 14
+Height = 59
+Width = 59
+FontBold = .T.
+FontSize = 8
+Picture = ..\bitmaps\bnt_ok.gif
+Caption = "\<Select"
+ForeColor = 0,0,0
+Name = "Command1"
+--- METHODS ---
+PROCEDURE Click
+mdata = thisform.dalias+"."+thisform.dretfield
+thisform.dreturnvalue=&mdata
+release thisform
+
+ENDPROC
+
+==============================================================================
+REC 5   OBJ=List1   CLASS=listbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontBold = .T.
+ColumnCount = 3
+ColumnWidths = "65,200,50"
+Height = 228
+ColumnLines = .T.
+Left = 10
+Top = 30
+Width = 452
+DisabledBackColor = 192,192,192
+ItemBackColor = 192,192,192
+Name = "List1"
+
+==============================================================================
+REC 6   OBJ=label1   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 7
+Left = 10
+Height = 23
+Width = 70
+FontBold = .T.
+FontSize = 8
+Caption = "Code"
+ForeColor = 0,0,0
+Name = "label1"
+--- METHODS ---
+PROCEDURE Click
+if this.left<>13
+   thisform.dsearchkey="Code"
+   thisform.definelist
+   thisform.refresh
+endif   
+ENDPROC
+
+==============================================================================
+REC 7   OBJ=label2   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 7
+Left = 81
+Height = 23
+Width = 84
+FontBold = .T.
+FontSize = 8
+Caption = "Description"
+ForeColor = 0,0,0
+Name = "label2"
+--- METHODS ---
+PROCEDURE Click
+if this.left<>13
+   thisform.dsearchkey="Description"
+   thisform.definelist
+   thisform.refresh
+endif   
+ENDPROC
+
+==============================================================================
+REC 8   OBJ=Command2   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 268
+Left = 73
+Height = 59
+Width = 59
+FontBold = .T.
+FontSize = 8
+Picture = ..\bitmaps\bnt_cancel.gif
+Caption = "\<Cancel"
+ForeColor = 255,0,0
+Name = "Command2"
+--- METHODS ---
+PROCEDURE Click
+release thisform
+
+ENDPROC
+
+==============================================================================
+REC 9   OBJ=   CLASS=   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Arial, 0, 9, 5, 15, 12, 32, 3, 0
+Arial, 1, 8, 5, 14, 11, 29, 3, 0
+Arial, 1, 9, 6, 15, 12, 32, 3, 0
+

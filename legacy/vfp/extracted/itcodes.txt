@@ -1,0 +1,184 @@
+# ITCODES.SCX  --  8 records, blockSize=1
+
+==============================================================================
+REC 1   OBJ=Dataenvironment   CLASS=dataenvironment   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Name = "Dataenvironment"
+
+==============================================================================
+REC 2   OBJ=Form1   CLASS=form   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Height = 236
+Width = 517
+DoCreate = .T.
+AutoCenter = .T.
+Caption = "Authorization Codes"
+ControlBox = .F.
+TitleBar = 1
+WindowType = 1
+BackColor = 255,255,255
+Name = "Form1"
+--- METHODS ---
+PROCEDURE dchecklast
+param xnum
+n1 = val(substr(xnum,1,1))
+n2 = val(substr(xnum,2,1))
+n3 = val(substr(xnum,3,1))
+n4 = val(substr(xnum,4,1))
+n5 = val(substr(xnum,5,1)) && will be used in validation
+
+mres1 = n1 + n3
+mres2 = n2 + n4
+mres3 = mres1 * mres2
+mres4 = iif(mres3<10,"0"+str(mres3,1),left(allt(str(mres3)),2))
+mres5 = abs(val(substr(mres4,1,1))-val(substr(mres4,2,1)))
+if n5 <> mres5
+   xret = xret + "1"
+endif
+
+ENDPROC
+PROCEDURE Init
+param xtitle, xtcode
+this.caption = xtitle
+thisform.dtcode = xtcode
+thisform.dretval = ""
+thisform.refresh
+ENDPROC
+PROCEDURE Unload
+return thisform.dretval
+ENDPROC
+
+==============================================================================
+REC 3   OBJ=Label1   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+AutoSize = .T.
+FontBold = .T.
+FontName = "Verdana"
+FontSize = 15
+BackStyle = 0
+Caption = "Authorization Code:"
+Height = 27
+Left = 146
+Top = 22
+Width = 225
+TabIndex = 14
+Name = "Label1"
+
+==============================================================================
+REC 4   OBJ=txtCode   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontName = "Verdana"
+FontSize = 20
+Format = ""
+Height = 42
+InputMask = "99999-99999-99999-999999999"
+Left = 27
+MaxLength = 26
+TabIndex = 1
+Top = 66
+Width = 462
+BackColor = 255,254,223
+Name = "txtCode"
+--- METHODS ---
+PROCEDURE Valid
+thisform.cmdConfirm.enabled = .f.
+mvalue = this.value
+if mvalue <> space(5)+"-"+space(5)+"-"+space(5)+"-"+space(pub_docnosize)
+   thisform.cmdConfirm.enabled = .t.
+endif
+ENDPROC
+
+==============================================================================
+REC 5   OBJ=CmdCancel   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 153
+Left = 258
+Height = 59
+Width = 59
+FontBold = .T.
+FontName = "Arial"
+FontSize = 8
+Picture = \\itworks-pc\source\bitmaps\bnt_cancel.gif
+DisabledPicture = \\itworks-pc\source\bitmaps\bnt_cancel_dis.gif
+Caption = "Cance\<l"
+Enabled = .T.
+TabIndex = 12
+ToolTipText = "Cancel Displayed Document"
+Name = "CmdCancel"
+--- METHODS ---
+PROCEDURE Click
+release thisform
+ENDPROC
+
+==============================================================================
+REC 6   OBJ=cmdConfirm   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 153
+Left = 199
+Height = 59
+Width = 59
+FontBold = .T.
+FontName = "Arial"
+FontSize = 8
+Picture = \\itworks-pc\source\bitmaps\bnt_ok.gif
+DisabledPicture = \\itworks-pc\source\bitmaps\bnt_ok_dis.gif
+Caption = "\<Confirm"
+Enabled = .F.
+TabIndex = 12
+ToolTipText = "Cancel Displayed Document"
+Name = "cmdConfirm"
+--- METHODS ---
+PROCEDURE Click
+mcode = allt(thisform.txtCode.value)
+mcode12 = substr(mcode,1,12)
+mcodebr = substr(mcode,1,2)
+m = openfile("itcodes")
+mused = .f.
+if .not. used("sysparam")
+	m = openfile("sysparam")
+	mused = .t.
+endif
+sele sysparam
+go top
+mbcode = alltr(sysparam.bcode)
+if mbcode = mcodebr
+   sele itcodes
+   set order to ncode12
+   seek mcode12
+   if .not. found()
+      mtcode = substr(mcode,13,3)
+      if thisform.dtcode = mtcode
+         xret = ""
+         m = thisform.dchecklast(substr(mcode,1,5))
+         m = thisform.dchecklast(substr(mcode,7,5))
+         if len(xret) = 0
+            thisform.dretval = mcode
+         endif
+      endif
+   endif
+endif
+m = closedbf("itcodes")
+if mused
+	m = closedbf("sysparam")
+endif
+if empty(thisform.dretval) 
+   m = messageb("Entered Code is INVALID. Please check",64,"Code Check")
+else
+   release thisform
+endif
+ENDPROC
+
+==============================================================================
+REC 7   OBJ=   CLASS=   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Arial, 0, 9, 5, 15, 12, 32, 3, 0
+Verdana, 0, 20, 14, 32, 27, 56, 5, 0
+Arial, 1, 8, 5, 14, 11, 29, 3, 0
+

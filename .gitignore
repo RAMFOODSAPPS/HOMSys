@@ -1,0 +1,47 @@
+# .NET build output
+dotnet/backend/**/bin/
+dotnet/backend/**/obj/
+*.user
+
+# Angular / Node
+dotnet/frontend/homsys-web/node_modules/
+dotnet/frontend/homsys-web/dist/
+dotnet/frontend/homsys-web/.angular/
+npm-debug.log
+yarn-error.log
+
+# Python
+watcher/build/
+watcher/dist/
+watcher/deployed/
+__pycache__/
+*.pyc
+
+# Compiled binaries (build artifacts, not source)
+*.exe
+*.exe.old
+
+# Legacy reference data (large production DBF snapshots, kept off-repo)
+legacy/dbf/
+
+# Scratch test-run output (VFP compiled artifacts, DBF fixtures, exe)
+watcher/test_run/
+
+# Runtime logs
+*.log
+
+# Environment / secrets
+*.env
+appsettings.local.json
+appsettings.*.local.json
+
+# IDEs / OS
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.vs/
+.DS_Store
+Thumbs.db

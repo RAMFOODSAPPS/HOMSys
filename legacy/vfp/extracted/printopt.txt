@@ -1,0 +1,129 @@
+# printopt.SCX  --  8 records, blockSize=1
+
+==============================================================================
+REC 1   OBJ=Dataenvironment   CLASS=dataenvironment   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Name = "Dataenvironment"
+
+==============================================================================
+REC 2   OBJ=Form1   CLASS=form   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Height = 117
+Width = 377
+DoCreate = .T.
+AutoCenter = .T.
+Caption = "Print Report"
+ControlBox = .F.
+FontBold = .T.
+FontName = "Times New Roman"
+FontSize = 20
+MaxButton = .F.
+MinButton = .F.
+TitleBar = 0
+WindowType = 1
+BackColor = 255,255,255
+Name = "Form1"
+--- METHODS ---
+PROCEDURE Unload
+return thisform.dretval
+ENDPROC
+PROCEDURE Init
+param mcaption
+thisform.caption=mcaption
+thisform.dretval="4"
+ENDPROC
+
+==============================================================================
+REC 3   OBJ=Command1   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 29
+Left = 68
+Height = 59
+Width = 59
+FontBold = .T.
+FontName = "Arial"
+FontSize = 8
+Picture = \\itworks-pc\source\bitmaps\bnt_print.gif
+Caption = "Printer"
+Name = "Command1"
+--- METHODS ---
+PROCEDURE Click
+thisform.dretval="1"
+thisform.release
+
+ENDPROC
+
+==============================================================================
+REC 4   OBJ=Command2   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 29
+Left = 126
+Height = 59
+Width = 59
+FontBold = .T.
+FontName = "Arial"
+FontSize = 8
+Picture = \\itworks-pc\source\bitmaps\bnt_find.gif
+Caption = "Preview"
+Name = "Command2"
+--- METHODS ---
+PROCEDURE Click
+thisform.dretval="2"
+thisform.release
+
+ENDPROC
+
+==============================================================================
+REC 5   OBJ=Command3   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 29
+Left = 184
+Height = 59
+Width = 59
+FontBold = .T.
+FontName = "Arial"
+FontSize = 8
+Picture = \\itworks-pc\source\bitmaps\excel.ico
+Caption = "Excel"
+ForeColor = 0,0,0
+Name = "Command3"
+--- METHODS ---
+PROCEDURE Click
+thisform.dretval="3"
+thisform.release
+ENDPROC
+
+==============================================================================
+REC 6   OBJ=Command4   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 29
+Left = 242
+Height = 59
+Width = 59
+FontBold = .T.
+FontName = "Arial"
+FontSize = 8
+Picture = \\itworks-pc\source\bitmaps\bnt_cancel.gif
+Caption = "Cancel"
+ForeColor = 255,0,0
+Name = "Command4"
+--- METHODS ---
+PROCEDURE Click
+thisform.dretval="4"
+thisform.release
+
+ENDPROC
+
+==============================================================================
+REC 7   OBJ=   CLASS=   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Times New Roman, 1, 20, 12, 32, 25, 69, 6, 1
+Arial, 1, 8, 5, 14, 11, 29, 3, 0
+

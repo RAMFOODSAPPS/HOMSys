@@ -1,0 +1,384 @@
+# maxstat2.SCX  --  10 records, blockSize=1
+
+==============================================================================
+REC 1   OBJ=Dataenvironment   CLASS=dataenvironment   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Name = "Dataenvironment"
+
+==============================================================================
+REC 2   OBJ=Form1   CLASS=form   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Height = 413
+Width = 772
+DoCreate = .T.
+AutoCenter = .T.
+BorderStyle = 2
+Caption = "MAXORDER Results"
+MaxButton = .F.
+MinButton = .F.
+WindowType = 1
+BackColor = 255,255,255
+Name = "Form1"
+--- METHODS ---
+PROCEDURE definegrid
+thisform.grid1.fontsize=8
+thisform.grid1.recordsource="dmaxstat"
+thisform.grid1.columncount = 10
+thisform.grid1.readonly=.t.
+thisform.grid1.deletemark=.f.
+thisform.grid1.setall("alignment",2)
+
+sele dmaxstat
+thisform.grid1.setall("dynamicbackcolor",;
+   "iif(processed, RGB(189,227,251),RGB(255,255,255))","Column")
+   
+thisform.grid1.column1.controlsource="dmaxstat.custkey"
+thisform.grid1.column1.header1.caption="CustKey"
+thisform.grid1.column1.header1.fontbold=.t.
+thisform.grid1.column1.width=50
+thisform.grid1.column1.alignment=0   
+
+thisform.grid1.column2.controlsource="dmaxstat.cusname"
+thisform.grid1.column2.header1.caption="Customer Name"
+thisform.grid1.column2.header1.fontbold=.t.
+thisform.grid1.column2.width=200
+thisform.grid1.column2.alignment=0   
+
+thisform.grid1.column3.controlsource="dmaxstat.cprodno"
+thisform.grid1.column3.header1.caption="ProdNo."
+thisform.grid1.column3.header1.fontbold=.t.
+thisform.grid1.column3.width=50
+thisform.grid1.column3.alignment=0   
+
+thisform.grid1.column4.controlsource="dmaxstat.remarks"
+thisform.grid1.column4.header1.caption="Remarks"
+thisform.grid1.column4.header1.fontbold=.t.
+thisform.grid1.column4.width=450
+thisform.grid1.column4.alignment=0
+
+thisform.grid1.column5.controlsource="dmaxstat.sugmaxcs"
+thisform.grid1.column5.header1.caption="Suggested Maxcs"
+thisform.grid1.column5.header1.fontbold=.t.
+thisform.grid1.column5.width=100
+thisform.grid1.column5.alignment=0
+
+
+thisform.grid1.column6.controlsource="dmaxstat.curmaxcs"
+thisform.grid1.column6.header1.caption="Current Max QTYCS"
+thisform.grid1.column6.header1.fontbold=.t.
+thisform.grid1.column6.width=110
+thisform.grid1.column6.alignment=0
+
+thisform.grid1.column7.controlsource="dmaxstat.origcs"
+thisform.grid1.column7.header1.caption="Orig. Cs"
+thisform.grid1.column7.header1.fontbold=.t.
+thisform.grid1.column7.width=60
+thisform.grid1.column7.alignment=0   
+
+thisform.grid1.column8.controlsource="dmaxstat.origpc"
+thisform.grid1.column8.header1.caption="Orig. Pc"
+thisform.grid1.column8.header1.fontbold=.t.
+thisform.grid1.column8.width=60
+thisform.grid1.column8.alignment=0
+
+thisform.grid1.column9.controlsource="dmaxstat.newcs"
+thisform.grid1.column9.header1.caption="New Cs"
+thisform.grid1.column9.header1.fontbold=.t.
+thisform.grid1.column9.width=50
+thisform.grid1.column9.alignment=0
+
+thisform.grid1.column10.controlsource="dmaxstat.newpc"
+thisform.grid1.column10.header1.caption="New Pc"
+thisform.grid1.column10.header1.fontbold=.t.
+thisform.grid1.column10.width=50
+thisform.grid1.column10.alignment=0
+
+*!*	thisform.grid1.column8.controlsource="dmaxstat.remarks"
+*!*	thisform.grid1.column8.header1.caption="Remarks"
+*!*	thisform.grid1.column8.header1.fontbold=.t.
+*!*	thisform.grid1.column8.width=450
+*!*	thisform.grid1.column8.alignment=0
+ENDPROC
+PROCEDURE creaexcel
+#INCLUDE excel9.h
+#DEFINE false .F.
+#DEFINE true .T.
+
+#DEFINE RPT_FONTNAME "Arial"
+#DEFINE RPT_FONTSIZE 8
+
+PUBLIC loexcel, lcolderror, lcrange, lnsheets, lncounter
+
+WAIT WINDOW NOWAIT "Starting Excel..."
+lcolderror = ON("ERROR")
+ON ERROR loexcel = .NULL.
+loexcel = GETOBJECT(, "Excel.Application")
+ON ERROR &lcolderror
+
+IF ISNULL(loexcel)
+   loexcel = CREATEOBJECT( "Excel.Application" )
+ENDIF
+
+WITH loexcel
+
+   .workbooks.ADD
+   .displayalerts = false
+   lnsheets = .sheets.COUNT
+   FOR lncounter = 1 TO lnsheets - 1
+      .sheets(1).DELETE
+   ENDFOR
+   .sheets(1).SELECT
+   .sheets(1).NAME = "Max Order"
+
+   .activewindow.displaygridlines = true
+   .RANGE("A1").VALUE = "RAM FOOD PRODUCTS, INC."
+   .RANGE("A1:D1").mergecells=.t.
+   .RANGE("A2").VALUE = "MAXORDER RESULT" 
+   .RANGE("A2:D2").mergecells=.t.
+   .RANGE("A3").VALUE = "DATE: " + upper(MDY(date()))
+   .RANGE("A3:D3").mergecells=.t.
+   m = exc_font("A1:A4",10,RPT_FONTNAME,xlLeft,.T.)
+
+   .RANGE("A6").VALUE="P.O. #"
+   .RANGE("B6").VALUE="P.O. DATE"
+   .RANGE("C6").VALUE="CUSTKEY"
+   .RANGE("D6").VALUE="CUSTOMER NAME"
+   .RANGE("E6").VALUE="PRODUCT"
+   .RANGE("F6").VALUE="ORDERED CS"
+   .RANGE("G6").VALUE="ORDERED PC"
+   .RANGE("H6").VALUE="NEW PC"
+   .RANGE("I6").VALUE="NEW CS"
+   .RANGE("J6").VALUE="REMARKS"
+   m = exc_font("A6:J6",9,RPT_FONTNAME,xlCenter,.T.)
+
+   lnrow=7
+   lncol=1
+   sele dmaxstatx1
+   mrec=reccount()
+   go top
+   if mrec<>0
+      do while !eof()
+         wait wind "Populating Cells..."+str(mrec,12) nowait
+         mrec=mrec-1
+          mpodate1 = podate
+          mln = alltrim(str(lnrow))
+          
+         .range("A"+alltrim(str(lnrow))).value = pono &&ponum
+         .range("B"+alltrim(str(lnrow))).value = dtoc(mpodate1)
+         .range("C"+alltrim(str(lnrow))).value = allt(custkey)
+         .range("D"+alltrim(str(lnrow))).value = allt(cusname)
+         .range("E"+alltrim(str(lnrow))).value = allt(cprodno)
+         .range("F"+alltrim(str(lnrow))).value = origcs
+         .range("G"+alltrim(str(lnrow))).value = origpc
+         .range("H"+alltrim(str(lnrow))).value = newcs
+         .range("I"+alltrim(str(lnrow))).value = newpc
+         .Range("F"+mln+":I"+mln).HorizontalAlignment = xlRight
+*!*	         .Range("F"+mln+":I"+mln).HorizontalAlignment = xlRight     
+         .range("J"+alltrim(str(lnrow))).value = allt(remarks)
+         
+         lnrow = lnrow + 1
+         
+         sele dmaxstatx1
+         skip
+      enddo   
+
+   endif
+   
+   xlnrow=alltr(str(lnrow-1))
+   
+   .RANGE("A1:A"+xlnrow).columnwidth=10
+   .RANGE("A7:J"+xlnrow).FONT.NAME = RPT_FONTNAME
+   .RANGE("A7:J"+xlnrow).FONT.SIZE = 8
+   .RANGE("A1:J"+xlnrow).EntireColumn.AutoFit
+   
+   m = exc_box("A6:J"+xlnrow,xlNone,xlContinuous,xlThin,xlAutomatic,xldiagonalDown,xlDiagonalup,xlEdgeleft,xlEdgetop,xlEdgebottom,xlEdgeright,xlInsideVertical,xlInsideHorizontal)
+   WITH .activesheet.pagesetup
+      .ORIENTATION = xlportrait
+      .PAPERSIZE = xlPaperLetter
+      .printtitlerows = "$1:$7"
+*      .printtitlecolumns = "$A:$C"
+      .LeftFooter = "Page &P of &N"
+      .RightFooter= dirloc()
+   ENDWITH
+   .activeworkbook.SAVEAS(mexcel)
+ENDWITH
+
+WAIT CLEAR
+MESSAGEBOX(mexcel,64,"CREATED")
+loexcel.VISIBLE = .T.
+RELEASE loexcel
+RETURN
+ENDPROC
+PROCEDURE Unload
+m = delfile("dmaxstatx1")
+
+ENDPROC
+PROCEDURE Init
+
+dmaxstatx1 = newname("dbf")
+
+sele dmaxstat
+copy to &dmaxstatx1 for prcsmax = .t.
+use &dmaxstatx1 alias dmaxstatx1 in 0 exclu
+sele dmaxstatx1
+*!*	brow
+
+
+sele dmaxstat
+go top
+thisform.definegrid
+thisform.refresh
+ENDPROC
+
+==============================================================================
+REC 3   OBJ=Command1   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 12
+Left = 6
+Height = 37
+Width = 73
+FontBold = .T.
+FontSize = 8
+Caption = "\<Print"
+Name = "Command1"
+--- METHODS ---
+PROCEDURE Click
+do form printopt with "Print Maxorder Result" to mprintacc
+if mprintacc = "1" .or. mprintacc = "2"
+   if mprintacc = "1"
+      report form maxstat to printer prompt noconsole
+   else
+      report form maxstat preview
+   endif
+endif
+ENDPROC
+
+==============================================================================
+REC 4   OBJ=Command2   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 12
+Left = 223
+Height = 37
+Width = 73
+FontBold = .T.
+FontSize = 8
+Caption = "\<Close"
+Name = "Command2"
+--- METHODS ---
+PROCEDURE Click
+release thisform
+ENDPROC
+
+==============================================================================
+REC 5   OBJ=Grid1   CLASS=grid   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Height = 324
+Left = 6
+Top = 84
+Width = 762
+BackColor = 255,255,255
+Name = "Grid1"
+
+==============================================================================
+REC 6   OBJ=Label1   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+AutoSize = .T.
+FontName = "Tahoma"
+FontSize = 9
+BackStyle = 0
+Caption = "Checking of Maximum Order Results:"
+Height = 16
+Left = 6
+Top = 60
+Width = 201
+Name = "Label1"
+
+==============================================================================
+REC 7   OBJ=Command3   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 12
+Left = 79
+Height = 37
+Width = 73
+FontBold = .T.
+FontSize = 8
+Caption = "\<Excel"
+Name = "Command3"
+--- METHODS ---
+PROCEDURE Click
+*!*11/23/16	CCUETO 
+sele dmaxstatx1
+go top
+if reccount() <> 0
+   mexcdir = "C:\XLSFILES"
+   if .not. directory(mexcdir)
+      md &mexcdir
+   endif
+   mctr = 1
+   mexcel = addbs(mexcdir)  + "MAXORDER RESULT " + upper(mdy(date())) + "("+alltr(str(mctr)) +").XLS"   
+   mcheckmaxfile = .t.
+   do while mcheckmaxfile
+      if file(mexcel)
+         mctr = mctr + 1
+         mexcel = addbs(mexcdir)  + "MAXORDER RESULT " + upper(mdy(date())) + "("+alltr(str(mctr)) +").XLS"
+      else
+         mcheckmaxfile = .f.
+      endif
+   enddo
+   thisform.creaexcel
+else
+   messagebox("No record to process",64,"Warning")
+*!*	   MESSAGEBOX(mexcel,64,"CREATED")
+   return
+endif
+ENDPROC
+
+==============================================================================
+REC 8   OBJ=cmdsend   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 12
+Left = 151
+Height = 37
+Width = 73
+FontBold = .T.
+FontSize = 8
+Cancel = .F.
+Caption = "\<Send"
+Enabled = .T.
+Name = "cmdsend"
+--- METHODS ---
+PROCEDURE Click
+tempsend = newname("dbf")
+*idxsnd = newname("idx")
+sele dmaxstat
+copy to &tempsend for sugmaxcs <> 0
+use &tempsend alias tempsend in 0 exclu
+sele tempsend
+*index on cprodno to &idxsnd
+
+sele tempsend
+count to mrec
+if mrec <> 0
+   do form maxlimit3 
+else  
+   m = messageb("There's no suggested overiding orderlimit request.",64,"System Confimation")
+endif
+m = delfile("tempsend")
+*m = delfile("idxsnd")
+ENDPROC
+
+==============================================================================
+REC 9   OBJ=   CLASS=   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Arial, 0, 9, 5, 15, 12, 32, 3, 0
+Arial, 1, 8, 5, 14, 11, 29, 3, 0
+

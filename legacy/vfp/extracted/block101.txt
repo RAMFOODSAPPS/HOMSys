@@ -1,0 +1,134 @@
+# block101.SCX  --  7 records, blockSize=1
+
+==============================================================================
+REC 1   OBJ=Dataenvironment   CLASS=dataenvironment   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Name = "Dataenvironment"
+
+==============================================================================
+REC 2   OBJ=Form1   CLASS=form   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Height = 444
+Width = 673
+DoCreate = .T.
+AutoCenter = .T.
+Caption = "Block SKU"
+WindowType = 1
+Name = "Form1"
+--- METHODS ---
+PROCEDURE definegrid
+thisform.grid1.fontsize=9
+thisform.grid1.recordsource="dtemp"
+thisform.grid1.columncount=7
+thisform.grid1.readonly=.t.
+thisform.grid1.rowheight=23
+thisform.grid1.deletemark=.f.
+thisform.grid1.setall("alignment",2)
+
+thisform.grid1.column1.controlsource="dtemp.cusname"
+thisform.grid1.column1.header1.caption="Customer"
+thisform.grid1.column1.header1.fontbold=.t.
+thisform.grid1.column1.width=220
+thisform.grid1.column1.alignment=0
+thisform.grid1.column1.format="k"
+
+thisform.grid1.column2.controlsource="dtemp.supplier"
+thisform.grid1.column2.header1.caption="Supplier"
+thisform.grid1.column2.header1.fontbold=.t.
+thisform.grid1.column2.width=50
+thisform.grid1.column2.alignment=0
+thisform.grid1.column2.format="k"
+
+thisform.grid1.column3.controlsource="dtemp.cprodno"
+thisform.grid1.column3.header1.caption="Prodno"
+thisform.grid1.column3.header1.fontbold=.t.
+thisform.grid1.column3.width=45
+thisform.grid1.column3.alignment=0
+thisform.grid1.column3.format="k"
+
+thisform.grid1.column4.controlsource="dtemp.proddesc"
+thisform.grid1.column4.header1.caption="Product description"
+thisform.grid1.column4.header1.fontbold=.t.
+thisform.grid1.column4.width=180
+thisform.grid1.column4.alignment=0
+thisform.grid1.column4.format="k"
+
+thisform.grid1.column5.controlsource="dtemp.pieces"
+thisform.grid1.column5.header1.caption="Pieces"
+thisform.grid1.column5.header1.fontbold=.t.
+thisform.grid1.column5.width=40
+thisform.grid1.column5.alignment=0
+thisform.grid1.column5.format="k"
+
+thisform.grid1.column6.controlsource="dtemp.qtyperpc"
+thisform.grid1.column6.header1.caption="Qtyperpc"
+thisform.grid1.column6.header1.fontbold=.t.
+thisform.grid1.column6.width=60
+thisform.grid1.column6.alignment=0
+thisform.grid1.column6.format="k"
+
+thisform.grid1.column7.controlsource="dtemp.um"
+thisform.grid1.column7.header1.caption="UM"
+thisform.grid1.column7.header1.fontbold=.t.
+thisform.grid1.column7.width=30
+thisform.grid1.column7.alignment=0
+thisform.grid1.column7.format="k"
+
+
+
+
+
+ENDPROC
+PROCEDURE Init
+thisform.definegrid
+thisform.refresh
+ENDPROC
+
+==============================================================================
+REC 3   OBJ=Command1   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 384
+Left = 604
+Height = 59
+Width = 64
+FontBold = .T.
+Picture = ..\bitmaps\bnt_ok.gif
+Caption = "OK"
+Name = "Command1"
+--- METHODS ---
+PROCEDURE Click
+release thisform
+ENDPROC
+
+==============================================================================
+REC 4   OBJ=Grid1   CLASS=grid   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Height = 349
+Left = 4
+Top = 29
+Width = 664
+Name = "Grid1"
+
+==============================================================================
+REC 5   OBJ=Label1   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontBold = .T.
+Caption = "The following products will be deleted from sales order of corresponding customer:"
+Height = 21
+Left = 4
+Top = 8
+Width = 475
+Name = "Label1"
+
+==============================================================================
+REC 6   OBJ=   CLASS=   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Arial, 0, 9, 5, 15, 12, 32, 3, 0
+Arial, 1, 9, 6, 15, 12, 32, 3, 0
+

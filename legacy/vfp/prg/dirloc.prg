@@ -1,0 +1,1 @@
+RETURN "Location = "+SYS(5)+CURDIR()

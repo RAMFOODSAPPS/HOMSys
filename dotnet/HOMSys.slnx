@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/backend/">
+    <Project Path="backend/HOMSys.API/HOMSys.API.csproj" />
+    <Project Path="backend/HOMSys.Application/HOMSys.Application.csproj" />
+    <Project Path="backend/HOMSys.Domain/HOMSys.Domain.csproj" />
+    <Project Path="backend/HOMSys.Infrastructure/HOMSys.Infrastructure.csproj" />
+  </Folder>
+</Solution>

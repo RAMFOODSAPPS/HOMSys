@@ -1,0 +1,2501 @@
+# a11102.SCX  --  27 records, blockSize=1
+
+==============================================================================
+REC 1   OBJ=Dataenvironment   CLASS=dataenvironment   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Name = "Dataenvironment"
+
+==============================================================================
+REC 2   OBJ=Form1   CLASS=form   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Height = 550
+Width = 800
+DoCreate = .T.
+ShowTips = .T.
+AutoCenter = .T.
+BorderStyle = 2
+Caption = "Data Entry of Sales Orders"
+Closable = .T.
+MaxButton = .F.
+MinButton = .F.
+WindowType = 1
+Name = "Form1"
+--- METHODS ---
+PROCEDURE definegrid
+thisform.grid1.fontsize = 10
+thisform.grid1.fontname = "Tahoma"
+thisform.grid1.recordsource = "tempowkd"
+thisform.grid1.columncount = 6
+thisform.grid1.readonly = .f.
+thisform.grid1.rowheight = 23
+thisform.grid1.deletemark = .f.
+thisform.grid1.setall("alignment",0)
+
+thisform.grid1.setall("dynamicforecolor",;
+   "iif(tempowkd.pricelist=.f. , RGB(255,0,0),RGB(0,0,0))","Column")
+
+sele tempowkd
+thisform.grid1.setall("dynamicbackcolor",;
+   "iif((tempowkd.qtycs<>tempowkd.getmaxcs .or. tempowkd.qtypc<>tempowkd.getmaxpc) .and. tempowkd.dgetmax, RGB(189,227,251),RGB(255,255,255))","Column")
+
+thisform.grid1.column1.controlsource="tempowkd.cprodno"
+thisform.grid1.column1.header1.caption="Prodno"
+thisform.grid1.column1.header1.alignment=2
+thisform.grid1.column1.header1.fontbold = .t.
+thisform.grid1.column1.header1.fontsize = 9
+thisform.grid1.column1.width=55
+thisform.GRID1.column1.inputmask="9999" && harago 09/11/2017
+
+thisform.grid1.column2.controlsource="alltr(tempowkd.proddesc)+space(1)+alltr(tempowkd.packsize)"   &&"prod4win.proddesc"
+thisform.grid1.column2.header1.caption="Product Description"
+thisform.grid1.column2.header1.alignment=2
+thisform.grid1.column2.header1.fontbold = .t.
+thisform.grid1.column2.header1.fontsize = 9
+thisform.grid1.column2.width=370
+thisform.grid1.column2.readonly=.t.
+thisform.grid1.column2.enabled=.f.
+thisform.grid1.column2.alignment=0
+
+thisform.grid1.column3.controlsource="tempowkd.qtycs"
+thisform.grid1.column3.header1.caption="Order CS"
+thisform.grid1.column3.header1.alignment=2
+thisform.grid1.column3.header1.fontbold = .t.
+thisform.grid1.column3.header1.fontsize = 9
+thisform.grid1.column3.width=70
+thisform.grid1.column3.alignment=1
+thisform.grid1.column3.format="kz"
+
+thisform.grid1.column4.controlsource="tempowkd.qtypc"
+thisform.grid1.column4.header1.caption="Order PC"
+thisform.grid1.column4.header1.alignment=2
+thisform.grid1.column4.header1.fontbold = .t.
+thisform.grid1.column4.header1.fontsize = 9
+thisform.grid1.column4.width=70
+thisform.grid1.column4.alignment=1
+thisform.grid1.column4.format="kz"
+
+thisform.grid1.column5.controlsource="tempowkd.getmaxcs"
+thisform.grid1.column5.header1.caption="CS After GetMax"
+thisform.grid1.column5.header1.alignment=2
+thisform.grid1.column5.header1.fontbold = .t.
+thisform.grid1.column5.header1.fontsize = 8
+thisform.grid1.column5.width=100
+thisform.grid1.column5.readonly=.t.
+thisform.grid1.column5.enabled=.f.
+
+thisform.grid1.column6.controlsource="tempowkd.getmaxpc"
+thisform.grid1.column6.header1.caption="PC After GetMax"
+thisform.grid1.column6.header1.alignment=2
+thisform.grid1.column6.header1.fontbold = .t.
+thisform.grid1.column6.header1.fontsize = 8
+thisform.grid1.column6.width=100
+thisform.grid1.column6.readonly=.t.
+thisform.grid1.column6.enabled=.f.
+thisform.refresh
+ENDPROC
+PROCEDURE recalc
+wait wind "Recalculating Inventory for accurate available and allocated quantities please wait..." nowait
+tempavail = newname("DBF")
+thisdate=sysparam.transdate     
+sele avail4
+copy to &tempavail for .not. empty(cprodno) .and. class = 1
+use
+use &tempavail in 0 alias tempavail exclusive
+sele tempavail
+delete all for allt(cprodno)="0"
+pack
+if type("dusrfdlose") = "U"
+   alter table &tempavail add dusrfdlose n(9,2)
+endif
+do recalc16 with "tempavail",thisdate     && update qtycs from imtr
+do recalc1b with "tempavail",thisdate    && update allocated from oowk
+
+sele prod4win
+set order to cprodno
+sele tempavail
+set rela to cprodno into prod4win
+** ai 07/12/2006 - update supplier no of eif
+repl all supplier with prod4win.supplier for cprodno = prod4win.cprodno
+go top
+do while .not. eof()
+   mpieces=prod4win.pieces
+   wait window "Updating TOHCS, TOHPC of prodno "+cprodno nowait
+   mtohcs = (begcs+rrcs+othincs - (salescs + othiscs)) - dusrfdcs
+   mtohpc = (begpc+rrpc+othinpc - (salespc + othispc)) - dusrfdpc
+   mtohloose = (begloose + inloose - outloose) - dusrfdlose
+   repl tohcs with mtohcs, tohpc with mtohpc
+   if type("TOHLOOSE") = "N"
+       repl tohloose with mtohloose
+   endif
+   mloose=0
+   mcases=0
+   
+   mqtypc = qtyloose(tohcs,tohpc,tohloose,prod4win.pieces,prod4win.innerqty,4)
+   mcases = qtyloose(tohcs,tohpc,tohloose,prod4win.pieces,prod4win.innerqty,1)   
+   mpcs = qtyloose(tohcs,tohpc,tohloose,prod4win.pieces,prod4win.innerqty,2)   
+   mloose = qtyloose(tohcs,tohpc,tohloose,prod4win.pieces,prod4win.innerqty,3)
+   repl tohcs with mcases,tohpc with mpcs,tohloose with mloose
+   repl qtycs with tohcs - alloccs,qtypc with tohpc - allocpc
+   m=depcs("qtycs","qtypc",mpieces)
+   skip
+enddo   
+sele tempavail
+
+
+ENDPROC
+PROCEDURE updateproddesc
+sele tempowkd
+locate for empty(proddesc)
+if found()
+   set rela to cprodno into prod4win
+   repl proddesc with prod4win.proddesc for empty(proddesc)
+   repl packsize with prod4win.packsize for empty(packsize)
+   repl pieces with prod4win.pieces for pieces = 0
+   set rela to   
+endif
+ENDPROC
+PROCEDURE delblocksku
+dtemp = newname("db1")
+
+create cursor tempstru(cusname c(50), supplier n(2), cprodno c(4), proddesc c(35), pieces n(4), qtyperpc n(5), um c(4))
+
+sele tempstru
+copy stru to &dtemp
+m = delfile("tempstru")
+
+use &dtemp alias dtemp in 0 excl
+sele dtemp
+
+sele tempowkh
+go top
+do while .not. eof()
+   mdocno = docno
+   mckey = ckey
+   mdus = iif(substr(mckey,1,1) = "0",.t.,.f.)
+   if .not. mdus
+      sele tempowkd
+      seek mdocno
+      do while docno = mdocno .and. .not. eof()
+         mcprodno = cprodno
+         sele blocksku
+         seek mcprodno
+         if found()
+            sele dtemp 
+            appe blank 
+            repl cusname with tempowkh.cusname, cprodno with tempowkd.cprodno, proddesc with blocksku.proddesc
+            repl supplier with tempowkd.supplier, pieces with blocksku.pieces, qtyperpc with blocksku.qtyperpc, um with blocksku.um
+            sele tempowkd
+            dele
+         endif
+         sele tempowkd
+         skip
+      enddo
+   endif
+   sele tempowkh
+   skip
+enddo
+
+sele dtemp
+go top
+if reccount() <> 0
+   do form block101 
+endif
+
+m = delfile("dtemp")
+ENDPROC
+PROCEDURE dexclude
+* exclude vismin customers in maxorder
+tempso2 = newname("dbf")
+
+sele tempso
+copy to &tempso2
+use &tempso2 alias tempso2 in 0 excl
+sele tempso2
+go top
+do while .not. eof()
+   mdocno = docno
+   mcustkey = custkey
+   
+   sele cust4win
+   seek mcustkey
+   *if czone  = "2899"
+   if cust4win.czone $ thisform.dgetexcluzone   && exclud NKA  in maxorder 05/13/2024
+      sele tempowkh
+      seek mdocno
+      repl expectdel with .f.
+      
+      sele tempso
+      dele for docno = mdocno
+      
+      sele dmaxstat
+      appe blank
+      repl docno with mdocno, custkey with mcustkey, cusname with tempso2.cusname, remarks with "Ok. Excluded from MAXORDER LIMIT."
+   endif
+   sele tempso2
+   skip
+enddo
+m = delfile("tempso2")
+ENDPROC
+PROCEDURE dnewmax
+*public mfccoschain
+*mpodate1 = thisform.txtpodate.value && acastilalno 08/20/2019
+*mponum1 = thisform.txtponum.value
+m = openfile("sale4win")
+sele tempso
+go top
+do while .not. eof()
+   mdocno = docno 
+   mcustkey = custkey
+   mcusname = cusname
+  
+   mckey = ckey 
+   mwhseno = whseno
+   morderdate = orderdate
+   mponum = ponum
+   mmoe = moe
+   mresmoe = .f.
+   mcurdocno = docno
+   musername = username
+   mpodate = podate && acastillano
+   mnotok = .t.
+*!*	   mpodate = thisform.txtpodate.value
+   *mponum = ponum
+   
+   tempmoe = newname("dbf")
+   sele moe
+   copy stru to &tempmoe
+   use &tempmoe alias tempmoe in 0 excl
+
+   sele cust4win
+   seek mcustkey
+   mconsomax2 = consomax2
+   mfccoschain=""
+   midxdet = newname("idx")
+   tempdet = newname("dbf")
+   tempdunq = newname("dbf")
+   wait wind "Processing Sales Order No. " + allt(str(mdocno,pub_docnosize)) + " - " + mcusname + " please wait..." nowait
+   sele tempowkd
+   copy to &tempdet for .not. empty(cprodno) .and. docno=mdocno
+   use &tempdet alias tempdet in 0 excl
+   sele tempdet
+   index on class to &midxdet uniq
+   copy to &tempdunq
+   set index to
+   use &tempdunq alias tempdunq in 0 excl
+   sele tempdunq
+   if reccount() = 1
+      tempdet2 = newname("dbf")
+      sele tempdet
+      index on str(class,1)+cprodno to &midxdet
+      total on str(class,1)+cprodno to &tempdet2 fiel qtycs,qtypc
+      use &tempdet2 alias tempdet2 in 0 excl
+      sele tempdet2
+      dele for empty(cprodno) .or. (qtycs + qtypc = 0)
+      pack
+      go top
+      do while .not. eof()
+         mcprodno = cprodno
+         mclass = class
+         mqtycs = qtycs 
+         mqtypc = qtypc 
+         msupplier = supplier
+         mfree = freegoods
+         mproddesc = proddesc && gbugarin 07.18.13
+         mpieces = pieces
+         mum = um
+         mqtyperpc = qtyperpc
+
+         if .not. mfree
+            sele prod4win
+            seek mcprodno
+            mpieces = pieces
+            mum = um 
+            mqtyperpc = qtyperpc
+            
+            mcurqty = mqtycs + (mqtypc/mpieces)
+            ************ && gbugarin 07.18.13
+            
+            *m = thisform.checklimit() acastillano 08/20/2019 - transfer to prg
+             do chklimit with .t.,"TEMPOWKD",mcustkey,mckey,mwhseno,mcprodno,mproddesc,mpieces,mqtycs,mqtypc,mum,mqtyperpc,mcurqty,mdocno,morderdate,mponum,mpodate,musername,msupplier,mclass,mcusname,mconsomax2
+         else
+            *m = thisform.updatedmaxstat(mqtycs,mqtypc,mqtycs,mqtypc,"OK. Tagged as FREEGOODS",.f.,mproddesc,mpieces,mdocno,mckey,morderdate,mponum,mwhseno,mum,mqtyperpc,musername)&&GBUGARIN
+            ** acastillano 08/20/2019 - transfer to prg
+            do upmaxstat with .t.,mqtycs,mqtypc,mqtycs,mqtypc,"OK. Tagged as FREEGOODS",.f.,mproddesc,mpieces,mdocno,mckey,morderdate,mwhseno,mum,mqtyperpc,musername,,mpodate,mponum,mcustkey,mcusname,mcprodno,mdocno,0,0,.f.,0 &&GBUGARIN
+            mnotok = .f.
+         endif
+         sele tempdet2
+         skip
+      enddo
+      m = delfile("tempdet2")
+   else
+      sele dmaxstat
+      appe blank
+      repl docno with mdocno, custkey with mcustkey, cusname with mcusname, remarks with "With multiple CLASS. Retain one CLASS per S.O."
+   endif
+   sele tempowkh
+   seek mdocno
+   repl expectdel with mnotok, moe with mresmoe
+   
+   if mmoe .and. .not. mresmoe
+      sele moe
+      dele for sono = mdocno         
+   endif
+   
+   if mresmoe
+      sele moe
+      seek mcurdocno   
+      dele while sono = mdocno
+      appe from &tempmoe
+   endif
+   
+   m = delfile("tempmoe")
+   
+   mnotok = .f.
+   ******************   
+   m = delfile("tempdet")
+   m = delfile("tempdunq")
+   sele tempso
+   skip
+enddo
+
+m = closedbf("sale4win")
+
+thisform.refresh
+ENDPROC
+PROCEDURE checklimit
+tempend = newname("dbf")
+dhdr = newname("dbf")
+ddet = newname("dbf")
+midxdhdr = newname("idx")
+*sele tempowkh
+sele oowkhdr
+copy to &dhdr for custkey = mcustkey && .and. docno <> mdocno
+use &dhdr alias dhdr in 0 excl
+sele dhdr
+index on docno to &midxdhdr
+*sele tempowkd
+sele oowkdet
+dele for empty(cprodno)
+set rela to docno into dhdr
+copy to &ddet for docno = dhdr.docno .and. cprodno = mcprodno .and. .not. empty(cprodno)
+set rela to
+m = delfile("dhdr")
+use &ddet alias ddet in 0 excl
+sele ddet
+sum qtycs,qtypc to oqtycs,oqtypc
+torder = oqtycs + (oqtypc/mpieces)
+m = delfile("ddet")
+
+sele sysparam
+msytrdate = transdate
+
+dsales = newname("dbf")
+sele sale4win
+copy to &dsales for docid = 1 .and. custkey = mcustkey .and. cprodno = mcprodno .and. month(trdate) = month(msytrdate) .and. year(trdate) = year(msytrdate)
+use &dsales alias dsales in 0 excl
+sele dsales
+sum qtycs,qtypc to sqtycs,sqtypc
+tsales = sqtycs + (sqtypc/mpieces)
+
+m = delfile("dsales")
+mtotqty = torder + tsales
+mtotorder = mtotqty + mcurqty
+
+mtotcs  = sqtycs + oqtycs + mqtycs   && acastillano 08/01/2019
+mtotpc  = sqtypc + oqtypc + mqtypc
+mbalorder =  (mtotcs * mpieces) + mtotpc 
+
+msugmxcs = hconvert(mbalorder,mpieces,1)  && acastillano 08/01/2019
+msugmxpc = hconvert(mbalorder,mpieces,2)
+if msugmxpc >0 && add 1 cs if there's excessed pc
+   msugmxcs = msugmxcs + 1
+endif
+issugmax = .f.
+m = audtrail("BMS-Order Booking","SO",mdocno,morderdate,mcustkey,mcprodno,0,mqtycs,mqtypc,0,"CHECKLIMIT(1) torder=" + allt(str(torder,12,2)) + " tsales=" + allt(str(tsales,12,2)) + " mcurqty=" + allt(str(mcurqty,12,2)))
+
+store 0 to allmaxcs,allmaxpc,allmonths
+curmaxdate = {}
+
+*07/04/2012
+if .not. empty(mconsomax2)
+   **thisform.getfccoschain   
+   m = getfccoschain()
+   m = audtrail("BMS-Order Booking","SO",mdocno,morderdate,mcustkey,mcprodno,0,mqtycs,mqtypc,0,"CHECKLIMIT(2) mconsomax2: " + mconsomax2 + " allmaxcs=" + allt(str(allmaxcs)) + " allmaxpc=" + allt(str(allmaxpc)) + " allmonths=" + allt(str(allmonths)) + " curmaxdate=" + dtoc(curmaxdate))
+else
+   sele maxorder
+   seek mcustkey+mcprodno
+   allmaxcs = maxqtycs
+   allmaxpc = maxqtypc
+   allmonths = months
+   curmaxdate = date
+   m = audtrail("BMS-Order Booking","SO",mdocno,morderdate,mcustkey,mcprodno,0,mqtycs,mqtypc,0,"CHECKLIMIT(3) allmaxcs=" + allt(str(allmaxcs)) + " allmaxpc=" + allt(str(allmaxpc)) + " allmonths=" + allt(str(allmonths)) + " curmaxdate=" + dtoc(curmaxdate))
+endif
+*if found()
+if allmaxcs + allmaxpc <> 0
+   m = audtrail("BMS-Order Booking","SO",mdocno,morderdate,mcustkey,mcprodno,0,mqtycs,mqtypc,0,"CHECKLIMIT(4) mcustkey: " + mcustkey + " allmaxcs=" + allt(str(allmaxcs)) + " allmaxpc=" + allt(str(allmaxpc)) + " allmonths=" + allt(str(allmonths)) + " curmaxdate=" + dtoc(curmaxdate))
+   thisform.dorderlimit2
+else
+   sele cust4win
+   seek mcustkey
+   if found() and !empty(aliaskey)
+      custkey1=aliaskey
+      sele maxorder
+      locate for custkey=custkey1 and cprodno=mcprodno
+      allmaxcs = maxqtycs
+      allmaxpc = maxqtypc
+      allmonths = months
+      curmaxdate = date
+      m = audtrail("BMS-Order Booking","SO",mdocno,morderdate,mcustkey,mcprodno,0,mqtycs,mqtypc,0,"CHECKLIMIT(5) aliaskey: " + custkey1 + " allmaxcs=" + allt(str(allmaxcs)) + " allmaxpc=" + allt(str(allmaxpc)) + " allmonths=" + allt(str(allmonths)) + " curmaxdate=" + dtoc(curmaxdate))
+   else
+      sele maxorder
+      seek "ALL"+space(4)+mcprodno
+      allmaxcs = maxqtycs
+      allmaxpc = maxqtypc
+      allmonths = months
+      curmaxdate = date
+      m = audtrail("BMS-Order Booking","SO",mdocno,morderdate,mcustkey,mcprodno,0,mqtycs,mqtypc,0,"CHECKLIMIT(6) ALL allmaxcs=" + allt(str(allmaxcs)) + " allmaxpc=" + allt(str(allmaxpc)) + " allmonths=" + allt(str(allmonths)) + " curmaxdate=" + dtoc(curmaxdate))      
+   endi
+   if allmaxcs + allmaxpc <> 0
+      thisform.dorderlimit2
+   else   
+      m = thisform.upmaxstat(mqtycs,mqtypc,mqtycs,mqtypc,"OK. No ORDER LIMIT for this CUSTOMER+SKU",.f.,mproddesc,mpieces,mdocno,mckey,morderdate,mponum,mwhseno,mum,mqtyperpc,musername) &&gbugarin      
+      m = audtrail("BMS-Order Booking","SO",mdocno,morderdate,mcustkey,mcprodno,0,mqtycs,mqtypc,0,"CHECKLIMIT(7) No limit allmaxcs=" + allt(str(allmaxcs)) + " allmaxpc=" + allt(str(allmaxpc)) + " allmonths=" + allt(str(allmonths)))      
+      mnotok = .f.
+      *thisform.dordervsavesalesx4
+   endif
+endif
+
+ENDPROC
+PROCEDURE getfccoschain
+dconcus = newname("dbf")
+sele cust4win
+copy to &dconcus for consomax2 = mconsomax2
+use &dconcus alias dconcus in 0 excl
+sele dconcus
+go top
+do while .not. eof()
+   concustkey = custkey
+   sele maxorder
+   seek concustkey+mcprodno
+   if found()
+      allmaxcs = allmaxcs + maxqtycs
+      allmaxpc = allmaxpc + maxqtypc    
+      allmonths = allmonths + months
+      curmaxdate = date
+   endif
+   sele dconcus
+   skip
+enddo
+m = delfile("dconcus")
+ENDPROC
+PROCEDURE dorderlimit2
+*sele maxorder
+maxqty = qtyloose(allmaxcs,allmaxpc,0,mpieces,0,4)
+mmaxproceed = .t.
+if allmonths > 1
+   mctrmo = 0 - (allmonths - 1)
+   mmofr = eom(gomonth(sysparam.transdate,mctrmo))
+   mmoto = eom(sysparam.transdate)
+   do while mmofr < mmoto
+      mslfile = renfile(mmofr,"SL",val(sysparam.bcode))
+      if file(mslfile)
+         use &mslfile alias mslfile in 0 shared
+         dsales = newname("dbf")
+         sele mslfile
+         copy to &dsales for docid = 1 .and. custkey = mcustkey .and. cprodno = mcprodno
+         use &dsales alias dsales in 0 excl
+         sele dsales
+         sum qtycs,qtypc to sqtycs,sqtypc
+         mtotqty = mtotqty + (sqtycs + (sqtypc/mpieces))
+         m = delfile("dsales")
+         m = closedbf("mslfile")
+         m = audtrail("BMS-Order Booking","SO",mdocno,morderdate,mcustkey,mcprodno,0,mqtycs,mqtypc,0,"DORDERLIMIT2(6) " + mslfile + " found. mtotqty=" + allt(str(mtotqty,12,2)))
+      else
+         m = thisform.updatedmaxstat(mqtycs,mqtypc,0,0,"Not OK. " + mslfile + " not found.",.t., mproddesc,mpieces,mdocno,mckey,morderdate,mponum,mwhseno,mum,mqtyperpc,musername) &&gbugarin
+         m = audtrail("BMS-Order Booking","SO",mdocno,morderdate,mcustkey,mcprodno,0,mqtycs,mqtypc,0,"DORDERLIMIT2(1) remarks: Not OK. " + mslfile + " not found.")
+         mmaxproceed = .f.
+      endif
+      mmofr = eom(gomonth(mmofr,1))
+   enddo
+endif
+
+if mmaxproceed
+   mF = maxqty - mtotqty
+   if mF <= 0 && total orders is now equal to maxorder
+      issugmax  = .t.
+      sele tempowkd
+      dele for docno = mdocno and cprodno = mcprodno
+      appe blank
+      repl docno with mdocno, supplier with msupplier, class with mclass, prodno with val(mcprodno), cprodno with mcprodno, qtycs with 0, qtypc with 0
+
+      sele prod4win
+      seek mcprodno
+      mproddesc = proddesc
+      mpacksize = packsize
+      mpricelist = pricelist
+      mtaxrate = taxrate
+*!*	      mprcsmax = .t.
+      sele tempowkd
+      repl proddesc with mproddesc, packsize with mpacksize, pricelist with mpricelist, taxrate with mtaxrate
+      m = thisform.updatedmaxstat(mqtycs,mqtypc,0,0,"Not OK. Exceeded Max. Order of " + allt(str(maxqty)) + " CS with TOTAL ORDER of " + allt(str(mtotqty)) + ".",.t., mproddesc,mpieces,mdocno,mckey,morderdate,mponum,mwhseno,mum,mqtyperpc,musername,.t.) &&gbugarin
+      m = audtrail("BMS-Order Booking","SO",mdocno,morderdate,mcustkey,mcprodno,0,mqtycs,mqtypc,0,"DORDERLIMIT2(2) remarks: Not OK. Exceeded Max. Order of " + allt(str(maxqty)) + " CS with TOTAL ORDER of " + allt(str(mtotqty))) 
+   else
+      if mF < mcurqty
+         issugmax  = .t.
+         
+         remcs = int(mF)
+         rempc = (mF - int(mF)) * mpieces
+         
+         sele tempowkd
+         repl dgetmax with .t. for docno = mdocno and cprodno = mcprodno
+         
+         m = thisform.updatedmaxstat(mqtycs,mqtypc,remcs,rempc,"Ok but reduced QTY due to order constraints.",.t., mproddesc,mpieces,mdocno,mckey,morderdate,mponum,mwhseno,mum,mqtyperpc,musername,.t.) &&gbugarin
+         m = audtrail("BMS-Order Booking","SO",mdocno,morderdate,mcustkey,mcprodno,0,mqtycs,mqtypc,0,"DORDERLIMIT2(4) remarks: Ok but reduced QTY to remcs=" + allt(str(remcs))+" rempc=" + allt(str(rempc)))            
+      else
+         remcs = mqtycs
+         rempc = mqtypc
+         m = thisform.updatedmaxstat(mqtycs,mqtypc,remcs,rempc,"OK. Within the maximum order set for the customer.",.f., mproddesc,mpieces,mdocno,mckey,morderdate,mponum,mwhseno,mum,mqtyperpc,musername) &&gbugarin
+         m = audtrail("BMS-Order Booking","SO",mdocno,morderdate,mcustkey,mcprodno,0,mqtycs,mqtypc,0,"DORDERLIMIT2(5) remarks: OK. Within the maximum order set for the customer remcs=" + allt(str(remcs))+" rempc=" + allt(str(rempc)))
+      endif
+
+      sele prod4win
+      seek mcprodno
+      mproddesc = proddesc
+      mpacksize = packsize
+      mpricelist = pricelist
+      mtaxrate = taxrate
+      sele tempowkd
+      repl proddesc with mproddesc, packsize with mpacksize, pricelist with mpricelist, taxrate with mtaxrate          
+
+      mnotok = .f.
+   endif
+endif
+ENDPROC
+PROCEDURE updatedmaxstat
+param  xorigcs, xorigpc, xnewcs, xnewpc, xremarks, xprocessed , xproddesc , xpieces, xso, xckey, xorderdate, xponum, xwhseno, xum , xqtyperpc, xusername,xprcsmax  &&gbugarin
+
+mpodate1 = thisform.txtpodate.value
+mponum1 = thisform.txtponum.value
+
+sele dmaxstat
+appe blank
+repl docno with mdocno, custkey with mcustkey, cusname with mcusname, cprodno with mcprodno
+repl origcs with xorigcs, origpc with xorigpc, newcs with xnewcs, newpc with xnewpc
+repl remarks with xremarks, processed with xprocessed, servedcs with xnewcs, pono with mponum1, podate with mpodate1 &&pono with xponum,
+repl servedpc with xnewpc, maxqtycs with xnewcs, maxqtypc with xnewpc, prodno with val(mcprodno) && num to cha
+repl proddesc with xproddesc, pieces with xpieces, sono with xso, ckey with xckey, orderdate with xorderdate, whseno with xwhseno
+repl um with xum, qtyperpc with xqtyperpc, username with xusername, sysdate with sysparam.transdate, prcsmax with xprcsmax
+repl bmsversion with sysparam.bmsversion,curmaxcs with allmaxcs
+if issugmax  && acastillano 08/01/2019
+   repl sugmaxcs with msugmxcs
+endif
+
+sele tempowkd
+repl getmaxcs with xnewcs, getmaxpc with xnewpc for docno = mdocno and cprodno = mcprodno
+
+mresmoe = xprocessed
+
+if xprocessed
+   sele tempmoe
+   appe blank
+   repl whseno with mwhseno, ckey with mckey, custkey with mcustkey, cusname with mcusname
+   repl pono with mponum, sono with mdocno, orderdate with morderdate
+   repl prodno with val(mcprodno), cprodno with mcprodno, proddesc with mproddesc, pieces with mpieces
+   repl qtyperpc with mqtyperpc, um with mum
+   repl origcs with xorigcs, origpc with xorigpc, servedcs with xnewcs, servedpc with xnewpc
+   repl maxqtycs with allmaxcs, maxqtypc with allmaxpc, sysdate with datetime(), exename with getexe()
+   repl bmsversion with fdate(exename), remarks with xremarks
+   m = datauser()
+endif
+ENDPROC
+PROCEDURE dnewrec
+sele tempowkh
+zap
+sele tempowkd
+zap
+
+thisform.txtcustkey.value = ""
+thisform.txtcustname.value = ""
+thisform.txtponum.value = ""
+thisform.txtpodate.value = {}
+thisform.txtinvrem.value = ""
+thisform.txtorno.value = 0
+thisform.txtchkdate.value = {}
+thisform.txtoramt.value = 0
+
+ENDPROC
+PROCEDURE addnew
+thisform.daction = "ADD"
+thisform.txtPonum.enabled=.t.
+thisform.txtPodate.enabled=.t.
+thisform.txtinvrem.enabled=.t.
+
+m = saveuser("ADD NEW S.O.")
+sele cust4win
+set order to custkey
+
+*!*	do form valform with "CUSTOMER","CUSTDIR" to mcustkeyh
+  
+sele sysparam
+*mtrdate = transdate
+*morderdate = date()
+morderdate = transdate && acastillano 01/29/2026
+      
+sele cust4win
+seek mcustkey1
+mccode = oldccode
+mxccode = ccode
+mieffdate = ieffdate
+thisform.dgetczone = czone && acastillano 04/30/2025
+if .not. empty(mieffdate)	
+   if morderdate >= mieffdate
+      mccode = ccode
+   endif
+endif
+if mccode = 0
+   if mxccode <> 0
+      mccode = mxccode
+   else
+      mccode = sysparam.ccode
+   endif
+endif
+      
+if .not. empty(mcustkey1)
+   mckey=substr(mcustkey1,3,5)
+   mdocno = 1
+   mwh = val(substr(mcustkey1,1,2))
+   m_custkey=mcustkey1
+   
+   mproceed = .f.
+   if mwh = 45 .and. val(sysparam.bcode) <> 45 .and.  mccode <> 3
+      if file("aceluzon.dbf")
+         m = openfile("aceluzon")
+         sele aceluzon
+         locate for custkey = mcustkey1
+         if found()
+	        mproceed = .t.
+         endif
+         m = closedbf("aceluzon")
+      endif
+   else
+     mproceed = .t.
+   endif
+   
+   if mproceed
+      sele cust4win
+      seek mcustkey1
+      MTRTYPE = IIF(CUST4WIN.DUS=.T.,2,1)
+      MTRTYPE = iif(substr(mcustkey1,3,1) = "0",2,1)
+      if MTRTYPE = 1 && acastillano 06/07/2022 change to 2 for DUS
+         MTRTYPE = iif(classcode = 2,2,1)
+      endif
+      
+      sele cust4win      
+      mcusname1 = iif(empty(cust4win.cusname2),cust4win.cusname,cust4win.cusname2)
+      mterm1 = cust4win.term
+      mcsman1 = cust4win.csman
+      maddrln11 = cust4win.addrln1
+      maddrln21 = cust4win.addrln2
+      
+      thisform.txtcustkey.value=m_custkey
+      thisform.txtcustname.value=mcusname1
+      
+      mcheck = iif(mterm1=0,.t.,.f.)
+      thisform.txtorno.enabled=mcheck
+      thisform.txtoramt.enabled=mcheck
+      thisform.txtchkdate.enabled=mcheck
+      
+      thisform.dtermzero = mcheck
+      
+      if .not. empty(cust4win.deladdrln1+cust4win.deladdrln2)
+         maddrln11 = cust4win.deladdrln1
+         maddrln21 = cust4win.deladdrln2
+      endif
+      
+      mwhseno1 = cust4win.whseno
+      moffshore1 = cust4win.offshore
+      mex_branch1 = cust4win.ex_branch
+      mtpc1 = cust4win.tpc
+      msubd = cust4win.subd
+      mcustwhse = custwhse
+      mcustkey = custkey
+      mvatid = cust4win.vatid
+      mservewh = cust4win.servewh
+      mdelwhse = cust4win.delwhse
+      
+      if mservewh = 0
+         sele branchw 
+         if mwh = 45 .and. sysparam.ccode <> 3
+            seek mcustwhse  
+         else
+            seek mwh
+         endif
+         mservewh = servewh
+      endif
+      if sysparam.bcode $ "28,88"
+         moffshore1 = .t.
+      endif
+      
+      moktoadd = .f.
+      sele tempowkh
+      zap
+      
+       *if morderdate < sysparam.transdate
+*!*	         m = messageb("Unable to add Sales Order. Correct your computer's system date first." + chr(13) ;
+*!*	            + "Current System Date: " + dtoc(date()) + chr(13) ; 
+*!*	            + "BMS Transaction Date: " + dtoc(sysparam.transdate),16,"Order Date Check")
+      *else
+         mcsman2 = mcsman1
+         if .not. empty(msubd)
+            do form aia1110 with "SO","ADD" to moowkdata
+            mdsman = val(substr(moowkdata,1,4))
+            mdsname = substr(moowkdata,5,30)
+            mdrgwno = val(substr(moowkdata,35,pub_docnosize))
+            mdrgwdate = ctod(substr(moowkdata,35 + pub_docnosize,10))
+            mdrgwamt = val(substr(moowkdata,45 + pub_docnosize,14))
+            mdjobwhse = val(substr(moowkdata,59 + pub_docnosize,pub_whsize))
+            mdjobckey = substr(moowkdata,59 + pub_docnosize + pub_whsize,5)
+      
+            if mdsman <> 0
+               moktoadd = .t.
+               sele tempowkh
+               append blank
+               repl subdsman with mdsman, subdname with mdsname, refrgwno with mdrgwno, refrgwdate with mdrgwdate
+               repl refrgwamt with mdrgwamt, jobberwhse with mdjobwhse, jobberckey with mdjobckey 
+               repl shiptoln1 with mdsname, shiptoln2 with ""
+            endif
+         else
+            moktoadd = .t.
+            sele tempowkh
+            append blank
+            repl shiptoln1 with maddrln11,shiptoln2 with maddrln21
+         endif
+   
+         if moktoadd
+            thisform.ddocno=mdocno
+            sele tempowkh
+            repl ckey with mckey,cusname with mcusname1, docno with mdocno, status with "1",statdesc with "Entered"
+            repl orderdate with morderdate, term with iif(MTRTYPE=2,1,mterm1),csman with mcsman2 && acastilano 09/17/201/ iif(MTRTYPE=2,1,mterm1)
+            if type("termdays") <> "U"
+               repl termdays with termdays(term)
+            endif
+            repl salesman with val(csman)   
+            repl whseno with mwhseno1,offshore with moffshore1,ex_branch with mex_branch1
+            repl tpc with mtpc1,TRTYPE WITH MTRTYPE,servewh with mservewh
+            repl allocate with .t.
+            repl custwhse with mcustwhse
+            repl custkey with mcustkey
+            repl vatid with mvatid
+            repl expectdel with .t.
+            repl ccode with mccode
+            repl delwhse with mdelwhse
+            repl withvat with .t.
+           
+         
+            m=datauser()
+            
+            sele tempowkd
+            if reccount()=0
+               append blank
+               repl docno with mdocno, class with 1
+            endif
+         endif    
+      *endif
+   else
+      m = messageb("Customer not found in ACELUZON.DBF. Ask IT to update the file.",64,"Operation Cancelled")
+   endif
+else
+   thisform.txtPonum.enabled=.f.
+   thisform.txtPodate.enabled=.f.
+   thisform.txtinvrem.enabled=.f.
+endif   
+thisform.refresh
+thisform.activate  
+
+
+
+
+ENDPROC
+PROCEDURE validcust
+mblocktoinv = .f.
+mymess = ""
+THISFORM.txtcustkey.VALUE = ""
+THISFORM.TXTcustname.VALUE = ""
+sele cust4win
+set order to custkey
+
+sele cust4win
+seek mcustkey1
+if found()
+   *mcsman = csman &&RDEGUZMAN 08.16.2018
+   msalesman = salesman
+   currtin =alltr(tin)
+   if .not. blockinv
+      THISFORM.TXTcustkey.VALUE = custkey
+      THISFORM.TXTcustname.VALUE = cusname
+   else
+      THISFORM.TXTcustkey.VALUE = ""
+      THISFORM.TXTcustname.VALUE = ""
+      mblocktoinv = .t.
+      somessage = "S.O. is not allowed. Customer selected was BLOCKED in INVOICING" + chr(13)
+      somessage = somessage + "Do you want to add S.O. using authorization code issued by H.O."
+      if messageb(somessage,4+32+256,"Blocked Customer") = 6
+         xtranscode = "008"
+         do form itcodes with "Add Sales Order",xtranscode to xxretval
+         if len(xxretval) > 0
+            xtransdesc = "ADDING OF S.O. "
+            mblocktoinv = .f.
+            sele cust4win
+            THISFORM.TXTcustkey.VALUE = custkey
+            THISFORM.TXTcustname.VALUE = cusname            
+         endif
+      endif
+   endif
+   if empty(currtin)
+      mblocktoinv = .t.
+      THISFORM.TXTcustkey.VALUE = ""
+      THISFORM.TXTcustname.VALUE = ""
+      m = messageb("Unable to Encode S.O. Kinldy update TIN# due to empty by sending of customer update request.",64,"System Validation")
+   endif
+endif
+
+return mblocktoinv
+ENDPROC
+PROCEDURE checkponum2
+sele oowkhdr 
+set order to docno
+
+*m = openfile("pofiles")
+sele pofiles
+set order to ponum
+
+sele tempowkh
+go top
+do while .not. eof()
+   mdocno = docno
+   mponum = ponum
+   
+   if .not. empty(mponum)
+      sele pofiles
+      seek mponum
+      if .not. found()
+         appe blank
+         repl ponum with mponum, podate with tempowkh.podate, sono with mdocno, orderdate with tempowkh.orderdate
+         repl custkey with tempowkh.custkey, cusname with tempowkh.cusname, sysdate with date(), transdate with sysparam.transdate
+      endif
+   endif
+   sele tempowkh
+   skip
+enddo
+*m = closedbf("pofiles")
+
+
+ENDPROC
+PROCEDURE dchkaging
+WAIT WIND "Checking if Excluded..." nowait
+mpassedage = .t.
+sele cust4win
+locate for custkey = mcustkey1
+if .not. found()
+   messageb("Zone of customer not in zonemaster file. Please review customer details.", 16, "System Prompt")
+   return .f.
+endif
+
+m = openfile("zonemast")
+sele zonemast
+locate for alltr(czone) = alltr(cust4win.czone)
+if found()
+   ** exclude PG, SM, Robinsons, Prince
+   if UPPER(ALLTR(zonemast.cdesc)) $ "PUREGOLD,SUPERVALUE,PRINCE,ROBINSONS"   
+      return .t.
+   endif
+endif
+
+WAIT WIND "Checking Collection and Invoice aging..." nowait
+tmpcol_arof = newname("dbf")
+tmp_collection = newname("dbf")
+m = openfile("arof4win")
+sele arof4win
+copy to &tmpcol_arof for custkey = mcustkey1
+m = closedbf("arof4win")
+CREATE TABLE &tmp_collection (TRDATE d(8), ACCTNO n(5), WHSENO n(2), BRANCH C(20), CKEY c(5), EMPNO N(4), CUSTKEY C(7), CUSTNAME c(30), ;
+      SALESMAN n(4), SNAME C(40), DOCTYPE c(10), DOCID n(2), DOCNO n(8), DOCDATE d(8), ;
+      REFTYPE c(10), REFID n(2), REFNO n(8), REFDATE d(8), DRAMT n(12,2), CRAMT n(12,2), DOCBAL n(12,2), PAYMENTID c(20), ;
+      BADCQF L(1), AGEDATE d(8), DOCUCLASS n(1), DOCUTYPE c(20), APPLIED n(1), ORAMT N(12,2), ORDEDUCT N(12,2), ;
+      CHAIN c(3), TERMDAYS n(3), DUEDATE d(8), AGE n(8), INVAGE n(8),;
+      CUSTCODE N(2), CCNAME C(45), CCNAME2 C(45), PACCTS C(30), PACCTS2 C(30), PTYPE N(1), ;
+      ARDATE D(8), TRANSDATE D(8), AROF C(100), REFERENCE C(200), ccode n(1), deptcode n(2), username c(20), custwhse n(2), del_date d)
+use
+use &tmp_collection alias tmp_collection in 0 excl
+sele tmp_collection
+appe from &tmpcol_arof
+
+m = armatch3("tmp_collection")
+sele tmp_collection
+dele for str(docuclass,1) $ ("6,3,7") 
+dele for docid <> 1
+m = openfile("vshdr")
+ridx_coll = newname("idx")
+tmpdel_col = newname("dbf")
+tmpvh = newname("dbf")
+sele vshdr
+copy to &tmpvh for (doctype = "INVOICE" or doctype = "INV ")
+m = closedbf("vshdr")
+
+use &tmpvh alias tmpvh  in 0 exclu
+sele tmpvh
+index on docno to &ridx_coll
+
+sele tmp_collection
+set rela to docno into tmpvh
+repl del_date with tmpvh.delivered for docno = tmpvh.docno
+set rela to 
+m = delfile("tmpvh")
+sele tmp_collection
+copy to &tmpdel_col for empty(del_date)
+dele for empty(del_date)
+pack
+xcolctr = 0
+use &tmpdel_col alias tmpdel_col in 0 exclu
+sele tmpdel_col
+count to xcolctr
+if xcolctr >0
+   moutdir = "C:\VFPTEMP\"
+   if .not. directory(moutdir)
+       md &moutdir
+   endif
+   
+   sele tmpdel_col
+   go top
+   do while .not. eof()
+      mtrdate = trdate
+      mdocno = docno
+      meofile = addbs(dgetbkpath) + "EO"+alltr(sysparam.bcode)+prgnamer("my",mtrdate)+".zip"
+      mvtfile = "VR"+alltr(sysparam.bcode)+prgnamer("my",mtrdate) + ".DBF"
+      mvtfile1 = moutdir+ "VR"+alltr(sysparam.bcode)+prgnamer("my",mtrdate) + ".DBF"
+      if file(meofile)
+         mcmd = "-o" + moutdir + " " + meofile+ " " +mvtfile 
+         run 7z x &mcmd
+         if file(mvtfile1)
+            idxvt = newname("idx")
+            use &mvtfile1 alias mvtfile1 in 0 exclu
+            sele mvtfile1
+            dele for .not. (doctype = "INVOICE" or doctype = "INV ")
+            pack
+            locate for docno = mdocno 
+            if found()
+               sele tmpdel_col
+               repla del_date with mvtfile1.delivered 
+            endif
+            m = delfile("mvtfile1")
+         endif
+      endif
+      sele tmpdel_col
+      skip
+   enddo
+endif
+sele tmp_collection
+append from &tmpdel_col
+m=delfile("tmpdel_col")
+
+sele tmp_collection
+repl all invage with date()-docdate for empty(del_date)
+repl all age with date()-del_date for !empty(del_date) 
+
+sele tmp_collection
+go top
+count to a1 for age > 60 and year(trdate)
+if a1 > 0
+   mpassedage = .f.
+   mcolod = .t.
+endif
+count to a2 for invage > 30 and year(trdate)
+if a2 > 0
+   mpassedage = .f.
+   minvod = .t.
+endif
+copy to temp1ccust
+
+if .not. mpassedage
+   ldtNow = DATETIME()
+
+   lcDateTime = PADL(MONTH(ldtNow), 2, "0") + ;
+             PADL(DAY(ldtNow), 2, "0") + ;
+             PADL(YEAR(ldtNow), 4, "0") + ;
+             PADL(HOUR(ldtNow), 2, "0") + ;
+             PADL(MINUTE(ldtNow), 2, "0") + ;
+             PADL(SEC(ldtNow), 2, "0")
+
+   mxlsfilerep = "c:\xlsfiles\UNDELIVERED_UNCOLLECTED_"+lcDateTime+".XLS"
+   sele tmp_collection
+   copy to &mxlsfilerep fields custkey, custname, salesman, sname, doctype, docno, docdate, refno, refdate, dramt, ;
+      cramt, docbal, paymentid, ordeduct, age, invage, del_date, reference type xls
+   wait wind mxlsfilerep + " created." nowait
+   lcCmd = 'CMD /C START "" "' + mxlsfilerep + '"'
+   RUN /N &lcCmd
+endif
+
+delfile("tmp_collection")
+delfile("tmp_arof")
+delfile("ridx_coll")
+return mpassedage
+ENDPROC
+PROCEDURE Unload
+thisform.delblocksku && to delete sku(s) that are present in blocksku.dbf
+
+m = closedbf("oowkhdr")
+m = closedbf("oowkdet")
+m = closedbf("docclass")
+m = closedbf("blocksku")
+m = closedbf("sysparam")
+m = closedbf("avail4")
+m = closedbf("terms")
+m = closedbf("sman4win")
+m = closedbf("prodbid")
+m = closedbf("custdir")
+m = closedbf("prod4win")
+m = closedbf("moe") 
+m = closedbf("branchw")
+m = closedbf("CUST4WIN")
+m = closedbf("cu")
+m = closedbf("docclass") 
+m = closedbf("blocksku")
+m = closedbf("tpsales")
+m = closedbf("pofiles") && acastillano 10/09/2019
+m = closedbf("valprodm")
+m = closedbf("bmsvar")
+
+
+m = delfile("tempeif")
+m = delfile("tempeif6")
+m = delfile("tempowkh")
+m = delfile("tempowkd")
+
+erase &ndx1h
+erase &ndx1d
+
+*m = delfile("tempavail")
+erase &midxdoc
+*erase &midxav
+m = saveuser("END DATA ENTRY OF S.O.")
+ENDPROC
+PROCEDURE Init
+thisform.dlogdatetime = datetime()
+m = openfile("oowkhdr")
+m = openfile("oowkdet")
+m = openfile("docclass")
+m = openfile("blocksku")
+m = openfile("sysparam")
+m = openfile("terms")
+m = openfile("sman4win")
+m = openfile("prodbid")
+m = openfile("custdir")
+m = openfile("prod4win")
+m = openfile("moe")
+m = openfile("branchw")
+m = openfile("CUST4WIN")
+m = openfile("docclass") 
+m = openfile("blocksku")
+m = openfile("tpsales")
+m = openfile("pofiles") && acastillano 10/09/2019
+m = openfile("valprodm") && acastillano 03/26/2020
+m = openfile("bmsvar")
+m = openfile("avail4")
+m = openfile("avail6") && acastillano 11/20/2025
+
+release pubcurasof,pubcurasof2,dgetbkpath
+public pubcurasof,pubcurasof2,dgetbkpath
+thisform.dgetexcluzone = ""
+thisform.dgetczone = ""
+dgetbkpath = ""
+sele bmsvar
+locate for varname = "1EXCLUZONEMAXOR" && acastillano 05/13/2024
+if .not. found()
+   append blank
+   repla varname with "1EXCLUZONEMAXOR", varvalue with "1218,4320,6133,6218,4418,4245,4141,4532,4136,4230,4530,6130,6230,4413,4530,5205,5300,6903,1219,1236"
+   thisform.dgetexcluzone = thisform.dgetexcluzone + alltr(varvalue)
+else
+   thisform.dgetexcluzone = thisform.dgetexcluzone + alltr(varvalue)
+endif
+locate for varname = "2EXCLUZONEMAXOR"
+if .not. found()
+   append blank
+   repla varname with "2EXCLUZONEMAXOR", varvalue with "4531,4415,4138,6243,4241,6135,4314,4139,4323,4417,6136,4242,5203,2124,6244,4134,1221,4321,4410,4243"
+   thisform.dgetexcluzone = thisform.dgetexcluzone + alltr(varvalue)
+else
+   thisform.dgetexcluzone = thisform.dgetexcluzone + alltr(varvalue)
+endif
+locate for varname = "3EXCLUZONEMAXOR"
+if .not. found()
+   append blank
+   repla varname with "3EXCLUZONEMAXOR", varvalue with "2309,2443,6223,6314,2115,6249"
+   thisform.dgetexcluzone = thisform.dgetexcluzone + alltr(varvalue)
+else
+   thisform.dgetexcluzone = thisform.dgetexcluzone + alltr(varvalue)
+endif
+locate for varname ="BMSBKPATH"
+if found()
+   dgetbkpath = addbs(varvalue)+"DOSFILES\"
+endif
+
+m = openfile("avail4")
+sele pofiles
+set order to ponum
+
+sele tpsales
+go top
+pubcurasof= eom(tpsales.asof)
+
+sele sysparam
+pubcurasof2 = gomonth(eom(sysparam.transdate),-1)
+
+mprog = getprog(sys(16),thisform.caption)
+thisform.caption = mprog
+
+thisform.ddocno=0
+thisform.daction = ""
+thisform.dtermzero = .f.
+thisform.dgetclasscode = 0
+
+sele moe
+set order to sono
+
+sele branchw
+set order to whseno
+
+use cust4win in 0 alias cu again
+sele cu
+*set order to whckey
+set order to custkey
+
+midxdoc = newname("idx")
+sele docclass
+go top
+index on docclass to &midxdoc
+
+sele blocksku && dbf that contains the sku that must be deleted in invoices except on dus 
+set order to cprodno
+
+m=saveuser("START DATA ENTRY OF S.O.")
+
+tempowkh=newname("dbf")
+tempowkd=newname("dbf")
+tempeif = newname("dbf")
+tempeif6 = newname("dbf") && acastillano 11/20/2025
+
+sele oowkhdr
+copy stru to &tempowkh
+
+sele oowkdet
+copy stru to &tempowkd
+
+use &tempowkh alias tempowkh in 0 excl
+use &tempowkd alias tempowkd in 0 excl
+alter table &tempowkd add getmaxcs n(7) add getmaxpc n(7) add dgetmax l add mval n(12,2)
+
+ndx1h = newname("dbf")
+ndx1d = newname("dbf")
+sele tempowkh
+index on docno to &ndx1h
+
+sele tempowkd
+index on docno to &ndx1d
+repl all class with 1 for class=0
+
+*!*	brow
+*!*	sele sysparam
+*!*	if bcode $ "28,88"
+*!*	   tempavail = newname("dbf")
+*!*	   sele avail4
+*!*	   copy to &tempavail for class = 1
+*!*	   use &tempavail alias tempavail in 0 excl   
+*!*	else
+*!*	   thisform.recalc   
+*!*	endif
+*!*	midxav= newname("cdx")
+*!*	sele tempavail
+*!*	index on cprodno+STR(class,1) to &midxav
+*sele custdir
+*set filter to classcode = 1 && acastillano 07/05/2022 allow only DTS customers to encode SO
+
+sele terms
+set order to term
+
+sele sman4win
+*set order to csman
+set order to salesman
+
+sele cust4win
+*set filter to classcode=1 .or. classcode=3
+*set filter to .not. DUS
+set order to ckey
+
+sele prod4win
+set order to cprodno
+
+sele prodbid
+set order to prodno
+
+sele avail4
+copy to &tempeif 
+m = closedbf("avail4")
+use &tempeif alias tempeif in 0 exclu
+sele tempeif  
+
+sele avail6
+copy to &tempeif6
+m = closedbf("avail6")
+use &tempeif6 alias tempeif6 in 0 exclu
+sele tempeif6  
+
+
+*** checking of empty proddesc
+m = thisform.updateproddesc()
+
+*!*	sele tempowkd
+*!*	set rela to cprodno+str(class,1) into tempavail   &&ACA-avail4*!*	locate for empty(proddesc)
+
+sele tempowkh
+*set rela to docno into tempowkd,csman into sman4win,term into terms,str(whseno,2)+ckey into cu, docclass into docclass
+set rela to docno into tempowkd,salesman into sman4win,term into terms,custkey into cu, docclass into docclass
+set skip to tempowkd
+go top
+
+if sysparam.sysdate <> ctod(dtoc(thisform.dlogdatetime)) && rdeguzman 08/05/2020 disable if edited logtime
+   thisform.cmdsave.enabled = .f.
+   thisform.cmdmax.enabled = .f.
+   messageb("YOU ARE UNABLE TO ENCODE S.O. AS COMPUTER DATE HAS BEEN TWEAKED.",16, "System Warning!")
+endif
+thisform.fromcol = 0
+if sysparam.bcode $ "21/25/26"
+   thisform.txtcustkey.enabled = .f.
+else
+   thisform.txtcustkey.enabled = .t.
+endif
+thisform.txtcustkey.setfocus
+
+thisform.definegrid
+thisform.refresh
+ENDPROC
+PROCEDURE Activate
+sele tempowkh
+if tempowkh.grno=0
+   if tempowkh.offshore
+      repl grno with 2
+   else
+      repl grno with 1
+   endif
+endif
+GO TOP
+*set rela to docno into tempowkd,csman into sman4win,term into terms,str(whseno,2)+ckey into cu
+set rela to docno into tempowkd,salesman into sman4win,term into terms,custkey into cu
+
+thisform.refresh
+
+
+
+ENDPROC
+
+==============================================================================
+REC 3   OBJ=Grid1   CLASS=grid   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+ColumnCount = -1
+FontName = "Tahoma"
+FontSize = 9
+DeleteMark = .F.
+Height = 357
+Left = 0
+RecordMark = .F.
+RowHeight = 17
+TabIndex = 5
+Top = 122
+Width = 792
+Name = "Grid1"
+--- METHODS ---
+PROCEDURE BeforeRowColChange
+LPARAMETERS nColIndex
+thisform.fromcol=ncolindex
+thisform.refresh
+ENDPROC
+PROCEDURE AfterRowColChange
+LPARAMETERS nColIndex
+mxcustkey = tempowkh.custkey && acastillano 08/27/2025
+sele tempowkd
+mcprodno = cprodno
+curecno = recno()
+isextwhse = .f.
+*wait wind "ncolindex :" + str(ncolindex) + " fromcol: " + str(thisform.fromcol)
+if thisform.fromcol=1 .and. empty(mcprodno) .and. ncolindex=3
+   do form valform with "PRODNO","PROD4WIN" to mcprodno
+
+   if ncolindex=3 .and. .not. empty(mcprodno)
+      sele valprodm && acastillano 03/26/2020 ; 
+      locate for cprodno = mcprodno 
+      if found()
+         mzone1 = alltr(zone1) + "," +  alltr(zone2) &&acastillano 04/30/2025
+         mzone3 = alltr(zone3) &&acastillano 04/30/2025
+         m_cprodno = cprodno
+         m_proddesc = alltr(proddesc)
+         m_pieces = pieces
+         m_packsize = alltr(packsize)
+      
+         t_cprodno = toprodno
+         t_proddesc = alltr(tOproddesc)
+         t_pieces = topieces
+         t_packsize = alltr(topacksize)
+      
+         if thisform.dgetczone $ mzone1 
+            sele tempeif
+            locate for cprodno = mcprodno 
+            if found()
+               if tempeif.qtycs+tempeif.qtypc > 0
+                  if mxcustkey $ "6487621" && acastillano 08/27/2025 - special condition for Gensan
+                      && do not change the SKU to degram
+                  else
+                     if messageb(m_cprodno + " - " + m_proddesc + " " + str(m_pieces,4) + " x " + m_packsize +  " soon to be deactivated, would you like to replace it with "; 
+                        + t_cprodno + " - " + t_proddesc + " " + str(t_pieces,4) + " x " + t_packsize + "?",4+32+256,"System confirmation" ) = 6
+                        mcprodno = t_cprodno
+                     endif
+                  endif
+               else
+                  mcprodno = t_cprodno
+               endif
+            else
+               mcprodno = t_cprodno
+            endif
+         else
+            sele tempeif
+            locate for cprodno = mcprodno 
+            if found()
+               if tempeif.qtycs+tempeif.qtypc = 0 or tempeif.qtycs+tempeif.qtypc < 0
+                  mcprodno = t_cprodno
+               endif 
+            else
+               if mxcustkey $ "6410012,"
+                  
+               else
+                  sele tempeif
+                  locate for cprodno = mcprodno 
+                  if found()
+                     if tempeif.qtycs+tempeif.qtypc = 0 or tempeif.qtycs+tempeif.qtypc < 0
+                     
+                     else
+                        mcprodno = t_cprodno    
+                     endif 
+                  endif
+               endif    
+            endif
+         endif
+         if thisform.dgetczone $ mzone3 && RCS,SAVEWISE,METRO GAISANO
+            mcprodno = t_cprodno
+         endif
+      endif
+      
+*!*	      if mxcustkey $ "6155831,6153065,6155851,6153064,6152865,6154141,6154131,6154151,6154121,6152900,6152855,6152850,6153050,6153059,6153062" & acastillano temporarily comment 12/19/2025
+*!*	         sele tempeif6
+*!*	         locate for cprodno = mcprodno 
+*!*	         if found()
+*!*	            mqtycs = tempeif6.qtycs
+*!*	            mqtypc = tempeif6.qtypc
+*!*	            if tempeif6.qtycs+tempeif6.qtypc > 0
+*!*	               m =messageb("Unable to add this prodno because there's a remaining balance in EIF Extended WHSE."+CHR(13)+SPACE(5) + "SKU:" + mcprodno + " Quantity cases:" + str(mqtycs) + " Quantity pieces:" + str(mqtypc),64,"Systemtem Validation")
+*!*	               isextwhse = .t.
+*!*	            endif
+*!*	         endif         
+*!*	      endif      
+   endif
+endif    
+if thisform.fromcol=1 .and. empty(mcprodno) .and. ncolindex=4
+   do form valform with "PRODNO","PROD4WIN" to mcprodno
+
+   if ncolindex=4 .and. .not. empty(mcprodno)
+      sele valprodm && acastillano 03/26/2020 ; 
+      locate for cprodno = mcprodno 
+      if found()
+         mzone1 = alltr(zone1) + "," +  alltr(zone2) &&acastillano 04/30/2025
+         mzone3 = alltr(zone3) &&acastillano 04/30/2025
+         m_cprodno = cprodno
+         m_proddesc = alltr(proddesc)
+         m_pieces = pieces
+         m_packsize = alltr(packsize)
+      
+         t_cprodno = toprodno
+         t_proddesc = alltr(tOproddesc)
+         t_pieces = topieces
+         t_packsize = alltr(topacksize)
+      
+         if thisform.dgetczone $ mzone1 
+         
+            sele tempeif
+            locate for cprodno = mcprodno 
+            if found()
+               if tempeif.qtycs+tempeif.qtypc > 0
+                  if mxcustkey $ "6487621,"
+                  
+                  else
+                     if messageb(m_cprodno + " - " + m_proddesc + " " + str(m_pieces,4) + " x " + m_packsize +  " soon to be deactivated, would you like to replace it with "; 
+                        + t_cprodno + " - " + t_proddesc + " " + str(t_pieces,4) + " x " + t_packsize + "?",4+32+256,"System confirmation" ) = 6
+                        mcprodno = t_cprodno
+                     endif
+                  endif
+               else
+                  mcprodno = t_cprodno
+               endif
+            else
+               mcprodno = t_cprodno
+            endif
+         else
+            if .not. (alltr(sysparam.bcode) $ "88,90")
+               sele tempeif
+               locate for cprodno = mcprodno 
+               if found()
+                  if tempeif.qtycs+tempeif.qtypc = 0 or tempeif.qtycs+tempeif.qtypc < 0
+                     mcprodno = t_cprodno
+                  endif 
+               else
+                  if mxcustkey $ "6410012,"
+                  
+                  else
+                     sele tempeif
+                     locate for cprodno = mcprodno 
+                     if found()
+                        if tempeif.qtycs+tempeif.qtypc = 0 or tempeif.qtycs+tempeif.qtypc < 0
+                     
+                        else
+                           mcprodno = t_cprodno    
+                        endif 
+                     endif  
+                  endif 
+               endif
+            endif
+         endif
+         if thisform.dgetczone $ mzone3 && RCS,SAVEWISE,METRO GAISANO
+            mcprodno = t_cprodno
+         endif 
+      endif
+*!*	      if mxcustkey $ "6155831,6153065,6155851,6153064,6152865,6154141,6154131,6154151,6154121,6152900,6152855,6152850,6153050,6153059,6153062"
+*!*	         sele tempeif6
+*!*	         locate for cprodno = mcprodno 
+*!*	         if found()
+*!*	            mqtycs = tempeif6.qtycs
+*!*	            mqtypc = tempeif6.qtypc
+*!*	            if tempeif6.qtycs+tempeif6.qtypc > 0
+*!*	               m =messageb("Unable to add this prodno because there's a remaining balance in EIF Extended WHSE."+CHR(13)+SPACE(5) + "SKU:" + mcprodno + " Quantity cases:" + str(mqtycs) + " Quantity pieces:" + str(mqtypc),64,"Systemtem Validation")
+*!*	               isextwhse = .t.
+*!*	            endif
+*!*	         endif         
+*!*	      endif  
+   endif
+endif    
+
+
+if len(mcprodno) > 0
+   if thisform.fromcol=1 
+      sele valprodm && acastillano 03/26/2020
+      locate for cprodno = mcprodno
+      if found()
+         mzone1 = alltr(zone1) + "," +  alltr(zone2) &&acastillano 04/30/2025
+         mzone3 = alltr(zone3) &&acastillano 04/30/2025
+         m_cprodno = cprodno
+         m_proddesc = alltr(proddesc)
+         m_pieces = pieces
+         m_packsize = alltr(packsize)
+      
+         t_cprodno = toprodno
+         t_proddesc = alltr(tOproddesc)
+         t_pieces = topieces
+         t_packsize = alltr(topacksize)
+      
+         if thisform.dgetczone $ mzone1 
+         
+            sele tempeif
+            locate for cprodno = mcprodno 
+            if found()
+               if tempeif.qtycs+tempeif.qtypc > 0
+                  if mxcustkey $ "6487621,"
+                  
+                  else
+                     if messageb(m_cprodno + " - " + m_proddesc + " " + str(m_pieces,4) + " x " + m_packsize +  " soon to be deactivated, would you like to replace it with "; 
+                        + t_cprodno + " - " + t_proddesc + " " + str(t_pieces,4) + " x " + t_packsize + "?",4+32+256,"System confirmation" ) = 6
+                        mcprodno = t_cprodno
+                     endif
+                  endif
+               else
+                  mcprodno = t_cprodno
+               endif
+            else
+               mcprodno = t_cprodno
+            endif
+         else
+            if .not. (alltr(sysparam.bcode) $ "88,90")
+               sele tempeif
+               locate for cprodno = mcprodno 
+               if found()
+                  if tempeif.qtycs+tempeif.qtypc = 0 or tempeif.qtycs+tempeif.qtypc < 0
+                     mcprodno = t_cprodno
+                  endif 
+               else
+                  if mxcustkey $ "6410012,"
+                  
+                  else
+                     sele tempeif
+                     locate for cprodno = mcprodno 
+                     if found()
+                        if tempeif.qtycs+tempeif.qtypc = 0 or tempeif.qtycs+tempeif.qtypc < 0
+                     
+                        else
+                           mcprodno = t_cprodno    
+                        endif 
+                     endif
+                  endif 
+               endif
+            endif
+         endif
+         if thisform.dgetczone $ mzone3 && RCS,SAVEWISE,METRO GAISANO
+            mcprodno = t_cprodno
+         endif 
+      endif 
+*!*	     if mxcustkey $ "6155831,6153065,6155851,6153064,6152865,6154141,6154131,6154151,6154121,6152900,6152855,6152850,6153050,6153059,6153062"
+*!*	         sele tempeif6
+*!*	         locate for cprodno = mcprodno 
+*!*	         if found()
+*!*	            mqtycs = tempeif6.qtycs
+*!*	            mqtypc = tempeif6.qtypc
+*!*	            if tempeif6.qtycs+tempeif6.qtypc > 0
+*!*	               m =messageb("Unable to add this prodno because there's a remaining balance in EIF Extended WHSE."+CHR(13)+SPACE(5) + "SKU:" + mcprodno + " Quantity cases:" + str(mqtycs) + " Quantity pieces:" + str(mqtypc),64,"Systemtem Validation")
+*!*	               isextwhse = .t.
+*!*	            endif
+*!*	         endif         
+*!*	      endif  
+   else
+      if thisform.fromcol=3 .and. ncolindex=3
+         sele valprodm && acastillano 03/26/2020
+         locate for cprodno = mcprodno
+         if found()
+            mzone1 = alltr(zone1) + "," +  alltr(zone2) &&acastillano 04/30/2025
+            mzone3 = alltr(zone3) &&acastillano 04/30/2025
+            m_cprodno = cprodno
+            m_proddesc = alltr(proddesc)
+            m_pieces = pieces
+            m_packsize = alltr(packsize)
+      
+            t_cprodno = toprodno
+            t_proddesc = alltr(tOproddesc)
+            t_pieces = topieces
+            t_packsize = alltr(topacksize)
+      
+         if thisform.dgetczone $ mzone1 
+         
+            sele tempeif
+            locate for cprodno = mcprodno 
+            if found()
+               if tempeif.qtycs+tempeif.qtypc > 0
+                  if mxcustkey $ "6487621,"
+                  
+                  else
+                     if messageb(m_cprodno + " - " + m_proddesc + " " + str(m_pieces,4) + " x " + m_packsize +  " soon to be deactivated, would you like to replace it with "; 
+                        + t_cprodno + " - " + t_proddesc + " " + str(t_pieces,4) + " x " + t_packsize + "?",4+32+256,"System confirmation" ) = 6
+                        mcprodno = t_cprodno
+                     endif
+                  endif
+               else
+                  mcprodno = t_cprodno
+               endif
+            else
+               mcprodno = t_cprodno
+            endif
+         else
+            if .not. (alltr(sysparam.bcode) $ "88,90")
+               sele tempeif
+               locate for cprodno = mcprodno 
+               if found()
+                  if tempeif.qtycs+tempeif.qtypc = 0 or tempeif.qtycs+tempeif.qtypc < 0
+                     mcprodno = t_cprodno
+                  endif 
+               else
+                  if mxcustkey $ "6410012,"
+                  
+                  else
+                     sele tempeif
+                     locate for cprodno = mcprodno 
+                     if found()
+                        if tempeif.qtycs+tempeif.qtypc = 0 or tempeif.qtycs+tempeif.qtypc < 0
+                     
+                        else
+                           mcprodno = t_cprodno    
+                        endif 
+                     endif
+                  endif   
+               endif
+            endif 
+         endif
+         if thisform.dgetczone $ mzone3 && RCS,SAVEWISE,METRO GAISANO
+            mcprodno = t_cprodno
+         endif 
+         endif 
+*!*	         if mxcustkey $ "6155831,6153065,6155851,6153064,6152865,6154141,6154131,6154151,6154121,6152900,6152855,6152850,6153050,6153059,6153062"
+*!*	         sele tempeif6
+*!*	         locate for cprodno = mcprodno 
+*!*	         if found()
+*!*	            mqtycs = tempeif6.qtycs
+*!*	            mqtypc = tempeif6.qtypc
+*!*	            if tempeif6.qtycs+tempeif6.qtypc > 0
+*!*	               m =messageb("Unable to add this prodno because there's a remaining balance in EIF Extended WHSE."+CHR(13)+SPACE(5) + "SKU:" + mcprodno + " Quantity cases:" + str(mqtycs) + " Quantity pieces:" + str(mqtypc),64,"Systemtem Validation")
+*!*	               isextwhse = .t.
+*!*	            endif
+*!*	         endif         
+*!*	      endif     
+      endif  
+   endif
+   sele tempowkd
+   
+   repl docno with thisform.ddocno,class with 1
+   repl cprodno with mcprodno
+   
+   sele prod4win
+   set order to cprodno
+   seek mcprodno
+      
+   sele tempowkd
+   repl cprodno with mcprodno
+   repl proddesc with prod4win.proddesc, packsize with prod4win.packsize, pieces with prod4win.pieces, taxrate with prod4win.taxrate
+   repl pricelist with prod4win.pricelist, taxrate with prod4win.taxrate
+   mrecno = recno()
+   * harago 05/12/2020 - to detect and removed duplicate prodno
+   
+   mhdupli = .f.
+   xtemp = newname("dbf")
+   sele tempowkd
+   copy to &xtemp for cprodno = mcprodno
+   use &xtemp alias xtemp in 0 excl
+   sele xtemp
+   if reccount()>1
+      messageb("Duplicate prodno "+alltr(mcprodno)+" has been detected.")
+      mhdupli = .t.
+      thisform.grid1.refresh
+   endif
+   m = delfile("xtemp")
+   
+   sele tempowkd
+   go mrecno
+   if mhdupli
+      repl cprodno with "",proddesc with "", packsize with "", pieces with 0, taxrate with 0, qtycs with 0,qtypc with 0
+      repl getmaxcs with 0, getmaxpc with 0
+   endif
+*!*	   if isextwhse && acastillano 11/20/2025 ,&& 12/19/2025 temporarily comment
+*!*	      sele tempowkd
+*!*	      go mrecno
+*!*	      repl cprodno with "",proddesc with "", packsize with "", pieces with 0, taxrate with 0, qtycs with 0,qtypc with 0
+*!*	      repl getmaxcs with 0, getmaxpc with 0
+*!*	   endif
+endif
+
+if thisform.fromcol=4 .and. ncolindex=1 .and. .not. empty(mcprodno)
+    sele tempowkd
+    skip
+    if docno<>thisform.ddocno .or. eof() 
+       append blank
+       repl docno with thisform.ddocno,class with 1
+    endif
+endif
+thisform.refresh
+
+
+ENDPROC
+
+==============================================================================
+REC 4   OBJ=txtPodate   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontName = "Tahoma"
+FontSize = 8
+Alignment = 3
+Value = {}
+Enabled = .F.
+Format = "k"
+Height = 21
+Left = 347
+TabIndex = 3
+Top = 47
+Width = 82
+BackColor = 255,255,255
+Name = "txtPodate"
+
+==============================================================================
+REC 5   OBJ=txtInvrem   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Comment = ""
+FontName = "Tahoma"
+FontSize = 8
+Enabled = .F.
+Format = "!"
+Height = 21
+Left = 100
+MaxLength = 100
+TabIndex = 4
+Top = 75
+Width = 690
+BackColor = 255,255,255
+Name = "txtInvrem"
+
+==============================================================================
+REC 6   OBJ=Label4   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+AutoSize = .T.
+FontBold = .T.
+FontName = "Tahoma"
+FontSize = 9
+BackStyle = 0
+Caption = "Products :"
+Left = 4
+Top = 107
+TabIndex = 17
+Name = "Label4"
+
+==============================================================================
+REC 7   OBJ=cmdclose   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 485
+Left = 736
+Height = 59
+Width = 59
+FontBold = .T.
+FontSize = 8
+Picture = ..\rendell\bitmaps\bnt_exit.gif
+Caption = "Cancel"
+TabIndex = 11
+ToolTipText = "Close"
+Name = "cmdclose"
+--- METHODS ---
+PROCEDURE Click
+moki = .t.
+sele tempowkd
+go top
+do while .not. eof()
+   if .not. empty(cprodno)
+      moki=.f.
+   endif
+   sele tempowkd
+   skip
+enddo
+
+if .not. moki
+   if messageb("Do you want to cancel encoded Sales Order?",4+32+256, "System Validation") = 6
+      thisform.release
+   else
+      return
+   endif
+else
+   thisform.release
+endif
+
+
+ENDPROC
+
+==============================================================================
+REC 8   OBJ=Shape1   CLASS=shape   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 496
+Left = 7
+Height = 38
+Width = 461
+BackStyle = 0
+Curvature = 10
+Visible = .F.
+BorderColor = 192,192,192
+Name = "Shape1"
+
+==============================================================================
+REC 9   OBJ=lblChkdate   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+AutoSize = .T.
+FontBold = .T.
+FontName = "Tahoma"
+FontSize = 8
+BackStyle = 0
+Caption = "Date"
+Left = 181
+Top = 508
+Visible = .F.
+TabIndex = 20
+Name = "lblChkdate"
+
+==============================================================================
+REC 10   OBJ=lblOrno   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+AutoSize = .T.
+FontBold = .T.
+FontName = "Tahoma"
+FontSize = 8
+BackStyle = 0
+Caption = "Number"
+Left = 18
+Top = 508
+Visible = .F.
+TabIndex = 21
+Name = "lblOrno"
+
+==============================================================================
+REC 11   OBJ=lblOramt   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+AutoSize = .T.
+FontBold = .T.
+FontName = "Tahoma"
+FontSize = 8
+BackStyle = 0
+Caption = "Amount"
+Height = 15
+Left = 317
+Top = 508
+Visible = .F.
+Width = 47
+TabIndex = 22
+Name = "lblOramt"
+
+==============================================================================
+REC 12   OBJ=Label3   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+AutoSize = .T.
+FontBold = .T.
+FontName = "Tahoma"
+FontSize = 8
+BackStyle = 0
+Caption = "Customer Key :"
+Left = 8
+Top = 23
+TabIndex = 13
+Name = "Label3"
+
+==============================================================================
+REC 13   OBJ=txtcustname   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Comment = ""
+FontName = "Tahoma"
+FontSize = 8
+Enabled = .F.
+Height = 21
+Left = 347
+MaxLength = 50
+ReadOnly = .T.
+TabIndex = 12
+Top = 20
+Width = 362
+Name = "txtcustname"
+
+==============================================================================
+REC 14   OBJ=txtcustkey   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Comment = ""
+FontName = "Tahoma"
+FontSize = 8
+Enabled = .T.
+Format = "KZ"
+Height = 21
+InputMask = ""
+Left = 100
+MaxLength = 7
+ReadOnly = .F.
+TabIndex = 1
+ToolTipText = "Double click to select customer"
+Top = 20
+Visible = .T.
+Width = 86
+Name = "txtcustkey"
+--- METHODS ---
+PROCEDURE Valid
+mcustkey1= thisform.txtcustkey.value
+if EMPTY(mcustkey1)
+   thisform.txtcustkey.value = ""
+   thisform.txtcustname.value = ""
+endif
+if .not. empty(mcustkey1)
+   sele custdir
+   locate for custkey = mcustkey1
+   if found()      
+      *mcsman = ""
+      *mcolod = thisform.dchkcollection()
+      *minvod = thisform.dchkinvod()
+      mcolod = .f.
+      minvod = .f.
+      mpass = .t.
+      *mpass = thisform.dchkaging()
+      if .not. mpass
+         msomess = "PROCESSING OF S.O. FOR THIS CUSTOMER IS BLOCKED. Please see the reason: " + REPL(CHR(13),2)
+         if mcolod 
+            msomess = msomess + "• COLLECTION OVERDUE MORE THAN 60 DAYS." + CHR(13)
+         endif
+         if minvod
+            msomess = msomess + "• INVOICE DELIVERY AGED MORE THAN 30 DAYS." + chr(13)
+         endif
+         msomess = msomess + chr(13) + "Please settle the above to proceed in S.O. encoding." + chr(13)
+         *msomess = msomess + "B > Pahimosla una ang mga gisulting problema sa dili pa maka-proceed sa S.O. encoding." 
+   
+         messageb(msomess, 16, "SYSTEM VALIDATION")
+         thisform.txtcustkey.value = ""
+   
+      else
+
+         msalesman = 0
+         minvalid = thisform.validcust()
+         thisform.dgetclasscode = classcode
+         if .not. minvalid 
+            *************** RDEGUZMAN 08.16.2018 ADD VALIDATION FOR INACTIVE AND NON-EXISTING SALESMAN
+            merrstat = ""
+            *if alltr(mcsman) <> "777"
+            if msalesman <> 777
+               sele sman4win 
+               *seek mcsman
+               seek msalesman
+               if .not. found()
+                  merrstat = "invalid"
+               endif
+               if .not. activecs
+   			   merrstat = "inactive"          
+               endif 
+               if len(merrstat) > 0
+                  messageb("Salesman for customer "+custdir.custkey+" - "+alltr(custdir.cusname)+" is "+merrstat+"."+ replicate(chr(13),2) + "To validate salesman existence and status, "+;
+                  "Navigate on menu Branch Setup > Salesman File Maintenance > File maintenance and search for salesman #" + alltr(str(msalesman))  +;
+                  ". Please request salesman update to H.O.", 16, "System validation")
+                  thisform.txtcustkey.value = ""
+                  thisform.txtcustname.value = ""
+                  return
+               endif
+            endif
+            ************** RDEGUZMAN - END
+            *if alltr(mcsman) = "777"
+               *thisform.txtinvrem.value = "DUSCKEY: "
+            *endif 
+            thisform.addnew
+         endif &&minvalid 
+      endif &&mcolod 
+      *thisform.txtcustkey.readonly=.f.
+      *thisform.txtcustkey.enabled=.f.
+   else
+      thisform.txtcustkey.value = ""
+      thisform.txtcustname.value = ""
+      messageb("No record found",64,"System Validation")
+   endif
+endif
+this.refresh
+
+
+ENDPROC
+PROCEDURE DblClick
+do form valform with "CUSTOMER","CUSTDIR" to mcustkeyh
+thisform.txtcustkey.value = mcustkeyh
+mcustkey1 =thisform.txtcustkey.value
+this.valid
+thisform.txtponum.setfocus
+this.refresh
+
+
+ENDPROC
+
+==============================================================================
+REC 15   OBJ=txtPonum   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontName = "Tahoma"
+FontSize = 8
+Enabled = .F.
+Format = "k"
+Height = 21
+Left = 100
+MaxLength = 15
+TabIndex = 2
+Top = 47
+Width = 129
+BackColor = 255,255,255
+Name = "txtPonum"
+--- METHODS ---
+PROCEDURE Valid
+mxponum = alltr(this.value) &&acastillano 10/09/2019
+
+if .not. empty(mxponum)
+   sele pofiles
+   seek mxponum
+   if found()
+      m = messageb("PO# " + mxponum + " has already encoded.",48,"System Validation" )
+      return
+   endif
+endif
+ENDPROC
+
+==============================================================================
+REC 16   OBJ=Label2   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+AutoSize = .T.
+FontBold = .T.
+FontName = "Tahoma"
+FontSize = 8
+BackStyle = 0
+Caption = "PO No. :"
+Left = 8
+Top = 50
+TabIndex = 14
+Name = "Label2"
+
+==============================================================================
+REC 17   OBJ=lblInvrem   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+AutoSize = .T.
+FontBold = .T.
+FontName = "Tahoma"
+FontSize = 8
+BackStyle = 0
+Caption = "Remarks :"
+Left = 8
+Top = 78
+TabIndex = 18
+Name = "lblInvrem"
+
+==============================================================================
+REC 18   OBJ=cmdmax   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 485
+Left = 618
+Height = 59
+Width = 59
+FontBold = .F.
+FontSize = 8
+Picture = ..\rendell\bitmaps\bnt_process.gif
+DisabledPicture = ..\rendell\bitmaps\bnt_process_dis.gif
+Caption = "Get Max"
+Enabled = .F.
+TabIndex = 9
+ToolTipText = "Close"
+Name = "cmdmax"
+--- METHODS ---
+PROCEDURE Click
+*!* HARAGO 12/16/2016 - removed po and podate requirement in SO Data Entry.
+*!*	if empty(thisform.txtponum.value) .or. empty(thisform.txtpodate.value)
+*!*	   messagebox("Please Complete the fields",64,"Information")
+*!*	   return
+*!*	endif
+
+m = maxcheck(1)
+mcontinue = maxcheck(2)
+if .not. mcontinue
+   m = messageb("GET MAX has been disabled due to outdated MAXORDER.DBF. Please update.",64,"System Validation")   
+   sele sysparam
+   go top
+   mmaxodate = maxodate
+   m = audtrail("BMS-Order Booking","SO",0,{},"","",0,0,0,0,"Disabled GET MAX, Maxorder mod. date " + dtoc(fdate("maxorder.dbf")) + " but SYSPARAM.MAXODATE is " + dtoc(mmaxodate))
+   return
+endif
+mxponum = alltr(thisform.txtPonum.value) &&acastillano 10/09/2019
+if .not. empty(mxponum)
+   sele pofiles
+   seek mxponum
+   if found()
+      m = messageb("PO# " + mxponum + " has already encoded.",48,"System Validation" )
+      return
+   endif
+endif
+*curdocno = thisform.ddocno
+
+* asdbellen 01/16/2018 - use maxorder in motherbms path if POD
+*m = openfile("maxorder")
+use &pub_dmaxo alias maxorder in 0 shared
+m = openfile("tpsales")
+
+dmaxstat = newname("dbf")
+tempso = newname("dbf")
+midxmax = newname("idx")
+temptpsl = newname("dbf")
+midxtpsl = newname("idx")
+midxso = newname("idx")
+
+sele cust4win
+set order to custkey
+
+*******gbugarin add structures 07.18.13
+sele maxorder
+index on custkey+cprodno to &midxmax
+maxrec = reccount()
+m = audtrail("BMS-Order Booking","SO",0,{},"","",0,0,0,0,"Maxorder mod. date " + dtoc(fdate("maxorder.dbf")) + " with " + allt(str(maxrec)) + " records")
+
+crea table &dmaxstat (docno n(pub_docnosize), custkey c(7), cusname c(50), cprodno c(4), origcs n(7), origpc n(5), newcs n(7), newpc n(5), remarks c(200),;
+           whseno n(pub_whsize), ckey c (5), pono c(30), orderdate d, prodno n(4), proddesc c(35), pieces n(4), qtyperpc n(5), um c(3), maxqtycs n(7), podate d,;
+           maxqtypc n(5),servedcs n(5), servedpc n(5), username c(20), sysdate d, sono n(pub_docnosize), bmsversion c(30), exename c(30), delete l, processed l, prcsmax l,;
+           sugmaxcs n(7),curmaxcs n(7))
+use
+use &dmaxstat alias dmaxstat in 0 excl
+
+sele tempowkh
+repl ponum with thisform.txtPonum.value  && acastillano 08/22/2019
+repl podate with thisform.txtPodate.value 
+replace expectdel with .t. for expectdel = .f. && acastillano to enable to recheck getmax
+repl expectdel with .f. for substr(ckey,1,1) = "0" and expectdel && exclude in checking maximum orders all s.o. for DUS
+copy to &tempso for expectdel .and. status = "1"
+use &tempso alias tempso in 0 excl
+m = thisform.dexclude()
+sele tempowkh
+go top
+if thisform.dgetclasscode <> 2 && acastllano 06/06/2022 - skip GETMAX validation for DUS
+   sele tempowkh
+   if expectdel
+      sele tempso
+      index on custkey to &midxso
+      sele tpsales
+      set rela to custkey into tempso
+      copy to &temptpsl for custkey = tempso.custkey
+      use &temptpsl alias temptpsl in 0 excl
+      sele temptpsl
+      index on custkey+cprodno to &midxtpsl
+      sele tempso
+      set index to
+      erase &midxso
+      thisform.dnewmax
+   else
+      sele tempowkd
+      repl all getmaxcs with tempowkd.qtycs, getmaxpc with tempowkd.qtypc
+   endif
+else
+   sele tempowkh && acastillano 06/07/2022
+   repla expectdel with .f.
+   
+   sele tempowkd
+   repl all getmaxcs with tempowkd.qtycs, getmaxpc with tempowkd.qtypc
+endif
+
+*!*	sele tempso
+*!*	index on custkey to &midxso
+*!*	sele tpsales
+*!*	set rela to custkey into tempso
+*!*	copy to &temptpsl for custkey = tempso.custkey
+*!*	use &temptpsl alias temptpsl in 0 excl
+*!*	sele temptpsl
+*!*	index on custkey+cprodno to &midxtpsl
+
+*!*	sele tempso
+*!*	set index to 
+*!*	erase &midxso
+
+*!*	m = thisform.dnewmax()
+sele dmaxstat
+set deci to 0
+do form maxstat2
+set deci to 2
+
+thisform.daction="GETMAX"
+
+m = delfile("dmaxstat")
+m = delfile("tempso")
+
+m = closedbf("maxorder")
+erase &midxmax
+
+m = delfile("temptpsl")
+*m = closedbf("tpsales")
+
+thisform.grid1.refresh
+thisform.refresh
+
+*return
+
+
+
+
+ENDPROC
+
+==============================================================================
+REC 19   OBJ=cmdSave   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 485
+Left = 677
+Height = 59
+Width = 59
+FontBold = .T.
+FontSize = 8
+Picture = ..\rendell\bitmaps\bnt_save.gif
+Caption = "Save"
+TabIndex = 10
+ToolTipText = "Close"
+Name = "cmdSave"
+--- METHODS ---
+PROCEDURE Click
+mponum = thisform.txtponum.value
+mpodate = thisform.txtpodate.value
+mremarks = thisform.txtinvrem.value
+mhorno = thisform.txtorno.value
+mhchkdate = thisform.txtchkdate.value
+mhoramt = thisform.txtoramt.value
+
+   
+*!*	if thisform.daction = "ADD" && acastillano disable getmax
+*!*	   messageb("Perform GETMAX first.",64,"System Validation")
+*!*	   return
+*!*	endif
+
+*!*	if thisform.dtermzero 
+*!*	   if mhorno=0 .or. mhchkdate={} .or. mhoramt = 0
+*!*	      messageb("Please provide and complete OR Details.",64,"OR Validation")
+*!*	      return
+*!*	   endif
+*!*	endif
+mhoki = .f.
+sele tempowkd
+*dele for getmaxcs = 0 .and. getmaxpc = 0
+count to mrecx
+if mrecx>0
+   sele tempowkd
+   go top
+   do while .not. eof()
+      if .not. empty(cprodno)
+         mhoki=.t.
+      endif
+      sele tempowkd
+      skip
+   enddo
+endif
+if mhoki
+   sele tempowkh
+   if reccount()=0
+      messageb("No record to save.",64,"System Validation")
+      return
+   endif
+else
+   messageb("No record to save. No encoded products.",64,"System Validation")
+   return
+endif
+
+if sysparam.sysdate <> ctod(dtoc(thisform.dlogdatetime)) && rdeguzman 08/05/2020 disable if edited logtime
+   thisform.cmdsave.enabled = .f.
+   thisform.cmdmax.enabled = .f.
+   messageb("YOU ARE UNABLE TO SAVE S.O. AS COMPUTER DATE HAS BEEN TWEAKED.",16, "System Warning!")
+   return
+endif
+
+mtext = "Are you sure you want to save encoded Sales Order?"
+cMessageTitle = 'CONFIRM ACTION'
+if MESSAGEBOX(mtext, 4+32+256, cMessageTitle) = 6
+   msono= docnum("SO",0,"GETSAVE")
+   temphdr = newname("dbf") && acastillano 08/22/2019 to avoid error while 2 user's use same module
+   tempdet = newname("dbf")
+    
+   
+   sele tempowkh
+   mhdocno = docno
+   sele moe
+   seek mhdocno
+   if found()
+      repl all sono with msono for sono = mhdocno
+   endif
+   
+   sele tempowkh
+   repl docno with msono, orderdate with sysparam.transdate,expectdel with .f.
+   repl ponum with mponum, podate with mpodate, invrem with mremarks
+ 
+
+   *if salesman = 777
+      *repl dusckey with right(alltr(mremarks),5) && acastillano 01/20/2020
+   *endif
+   * asdbellen 06/03/2017 - to measure from P.O. processing time .. removed from latest version of BMS dec 2017.
+   *repl timestart with datetime() 
+   * asdbellen 01/21/2020 - to measure order encoding speed rate of BMS operator
+   *repl timestart with thisform.dlogdatetime
+   * asdbellen 04/08/2020 - to better measure order encoding speed rate of BMS operator
+   repl sotymstart with thisform.dlogdatetime
+   
+   mrec1 = RECCOUNT()
+   copy to &temphdr
+   
+   sele tempowkd
+   repl all docno with msono
+   *repl all qtycs with getmaxcs && acastillano 05/18/2024
+   *repl all qtypc with getmaxpc
+   dele for empty(cprodno)
+   
+   sele tempowkd
+   set rela to cprodno into prod4win
+   repl proddesc with prod4win.proddesc, packsize with prod4win.packsize, pricelist with prod4win.pricelist, taxrate with prod4win.taxrate, supplier with prod4win.supplier ,;
+      csupplier with str(prod4win.supplier,2),pieces with prod4win.pieces for cprodno = prod4win.cprodno
+   set rela to
+   repla all mval with tempowkd.qtypc + (tempowkd.qtycs * tempowkd.pieces)
+   repla all qtycs with hconvert(tempowkd.mval,tempowkd.pieces,1)
+   repla all qtypc with hconvert(tempowkd.mval,tempowkd.pieces,2)
+   mrec2 = RECCOUNT()
+   copy to &tempdet
+   
+   thisform.checkponum2 && acastilano
+   
+   if mrec1>0 .and. mrec2>0
+      m = openfile("offwkdet")
+      m = openfile("offwkhdr")
+      menddatetime = datetime()
+      use &temphdr alias temphdr in 0 excl
+      sele temphdr
+      * asdbellen 04/07/2020 to measure order encoding speed rate of BMS operator from new order to save order per VVK advice on same date
+      *repl timeend with menddatetime
+      repl sotymend with menddatetime
+      _elapsed = timeuse(3,temphdr.sotymstart,temphdr.sotymend)
+      sele temphdr
+      repl soelapsed with _elapsed
+      
+      sele oowkhdr
+      appe from &temphdr
+      sele offwkhdr && used for printing picklist with OOS
+      appe from &temphdr
+      
+      
+      sele oowkdet
+      appe from &tempdet
+      sele offwkdet  && used for printing picklist with OOS 
+      appe from &tempdet
+      m = closedbf("offwkdet")
+      m = closedbf("offwkhdr")
+      m = audtrail("BMS-Order Booking","SO",msono,date(),"","",0,0,0,0,"S.O. added, timestart: " + ttoc(thisform.dlogdatetime) + " timeend: " + ttoc(menddatetime))
+      *erase &temphdr && asdbellen 04/07/2020
+      m = delfile("temphdr")
+      erase &tempdet
+      mess2 = "Sales Order # "+alltr(str(msono))+" has been save."+chr(13)+chr(13)
+      if MESSAGEBOX(mess2+"Do you want to Add another Sales Order?", 4+32+256, cMessageTitle) = 6
+         thisform.dlogdatetime = datetime() && asdbellen 01/21/2020 to reset the start time for new order to be encoded
+         thisform.dnewrec
+         thisform.txtcustkey.setfocus
+      else
+         thisform.release
+      endif
+   endif
+   erase &temphdr
+   erase &tempdet
+endif
+thisform.refresh
+ENDPROC
+
+==============================================================================
+REC 20   OBJ=txtChkdate   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Comment = ""
+FontName = "Tahoma"
+FontSize = 8
+Alignment = 3
+Value = {}
+Enabled = .F.
+Height = 23
+Left = 213
+MaxLength = 8
+TabIndex = 7
+Top = 504
+Visible = .F.
+Width = 77
+BackColor = 255,255,255
+Name = "txtChkdate"
+
+==============================================================================
+REC 21   OBJ=txtOrno   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Comment = ""
+FontName = "Tahoma"
+FontSize = 8
+Alignment = 3
+Value = 0
+Enabled = .F.
+Height = 23
+InputMask = "99999999"
+Left = 78
+MaxLength = 6
+TabIndex = 6
+Top = 504
+Visible = .F.
+Width = 77
+BackColor = 255,255,255
+Name = "txtOrno"
+
+==============================================================================
+REC 22   OBJ=txtOramt   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Comment = ""
+FontName = "Tahoma"
+FontSize = 8
+Alignment = 3
+Value = 0
+Enabled = .F.
+Format = ""
+Height = 23
+InputMask = "99,999,999.99"
+Left = 368
+TabIndex = 8
+Top = 504
+Visible = .F.
+Width = 92
+BackColor = 255,255,255
+Name = "txtOramt"
+
+==============================================================================
+REC 23   OBJ=Label5   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+AutoSize = .T.
+FontBold = .T.
+FontName = "Tahoma"
+FontSize = 8
+BackStyle = 1
+Caption = "O.R. Details:"
+Left = 17
+Top = 489
+Visible = .F.
+TabIndex = 19
+Name = "Label5"
+
+==============================================================================
+REC 24   OBJ=Label6   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+AutoSize = .T.
+FontBold = .T.
+FontName = "Tahoma"
+FontSize = 8
+BackStyle = 0
+Caption = "PO Date :"
+Left = 290
+Top = 50
+TabIndex = 14
+Name = "Label6"
+
+==============================================================================
+REC 25   OBJ=Label1   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+AutoSize = .T.
+FontBold = .T.
+FontName = "Tahoma"
+FontSize = 8
+BackStyle = 0
+Caption = "Customer Name :"
+Left = 245
+Top = 23
+TabIndex = 13
+Name = "Label1"
+
+==============================================================================
+REC 26   OBJ=   CLASS=   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Arial, 0, 9, 5, 15, 12, 32, 3, 0
+Tahoma, 0, 9, 5, 14, 12, 29, 2, 0
+Tahoma, 0, 8, 5, 13, 11, 27, 2, 0
+Arial, 1, 8, 5, 14, 11, 29, 3, 0
+Arial, 0, 8, 5, 14, 11, 29, 3, 0
+

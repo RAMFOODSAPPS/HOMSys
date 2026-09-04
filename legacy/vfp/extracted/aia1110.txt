@@ -1,0 +1,600 @@
+# aia1110.SCX  --  25 records, blockSize=1
+
+==============================================================================
+REC 1   OBJ=Dataenvironment   CLASS=dataenvironment   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Name = "Dataenvironment"
+
+==============================================================================
+REC 2   OBJ=Form1   CLASS=form   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Height = 260
+Width = 520
+DoCreate = .T.
+ShowTips = .T.
+AutoCenter = .T.
+BorderStyle = 2
+Caption = "Form1"
+TitleBar = 0
+WindowType = 1
+WindowState = 0
+BackColor = 0,128,128
+Name = "Form1"
+--- METHODS ---
+PROCEDURE Init
+param mdoctypex, mproc
+thisform.dproc = mproc
+do case
+   case mdoctypex = "SO"
+      thisform.chk_SO.visible = .t.
+   otherwise
+      thisform.chk_SO.visible = .f.
+endcase
+
+tempsman = newname("dtmpsman")
+midsman = newname("xsman")
+sele sman4win
+copy to &tempsman for .not. empty(subd)
+use &tempsman alias tempsman in 0 excl
+sele tempsman
+index on csman to &midsman
+go top
+if mproc = "ADD"
+   thisform.dsman = tempsman.salesman
+   thisform.dsname = tempsman.name
+   thisform.drgwno = 0
+   thisform.drgwdate = {}
+   thisform.drgwamt = 0
+   thisform.djobwhse = 0
+   thisform.djobckey = space(5)
+else
+   thisform.dsman = xsman
+   thisform.dsname = xsname
+   if xsocheck
+      thisform.chk_SO.visible = .t.
+      thisform.chk_SO.value = 1
+      thisform.chk_SO.click
+      thisform.drgwno = xrgwno
+      thisform.drgwdate = xrgwdate
+      thisform.drgwamt = xrgwamt
+      thisform.djobwhse = xjobwhse
+      thisform.djobckey = xjobckey
+      thisform.txtJobname.value = xjobname
+   else
+      thisform.chk_SO.visible = .f.
+      thisform.drgwno = 0
+      thisform.drgwdate = {}
+      thisform.drgwamt = 0
+      thisform.djobwhse = 0
+      thisform.djobckey = space(5)
+   endif
+   thisform.cmdOk.enabled = .t.
+endif
+
+*m = openfile("sman4win")
+*mtempsman = newname("ds1")
+*sele sman4win
+*copy to &mtempsman for .not. empty(subd)
+*use &mtempsman alias mtempsman in 0 excl
+*sele mtempsman
+
+*thisform.cboSman.rowsourcetype = 6
+*thisform.cboSman.rowsource = "mtempsman.salesman,name"
+*m = openfile("sman4win")
+thisform.refresh
+
+
+ENDPROC
+PROCEDURE Unload
+*m = closedbf("sman4win")
+m = delfile("tempsman")
+xretval = str(thisform.dsman,4)+thisform.dsname+str(thisform.drgwno,8)+dtoc(thisform.drgwdate)+str(thisform.drgwamt,14,2)+str(thisform.djobwhse,2)+thisform.djobckey+thisform.dcommand
+return xretval
+
+ENDPROC
+
+==============================================================================
+REC 3   OBJ=txtSman   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontBold = .T.
+ControlSource = "thisform.dsman"
+Enabled = .T.
+Height = 24
+Left = 139
+ReadOnly = .T.
+TabIndex = 1
+ToolTipText = "Double click to select salesman"
+Top = 25
+Visible = .T.
+Width = 61
+ForeColor = 0,64,128
+BackColor = 233,241,254
+Name = "txtSman"
+--- METHODS ---
+PROCEDURE Valid
+if thisform.txtSman.value <> 0
+   thisform.cmdOk.enabled = .t.
+else
+   thisform.dsname = ""
+   thisform.cmdOk.enabled = .f.
+endif
+thisform.refresh
+
+
+
+
+ENDPROC
+PROCEDURE DblClick
+msmanx = thisform.dsman
+msnamex = thisform.dsname
+sele tempsman
+do form avalform with "SALESMAN","TEMPSMAN" to mretval
+thisform.dsman = val(mretval)
+midxs = newname("xs1")
+sele tempsman
+index on csman to &midxs
+if thisform.dsman <> 0
+   seek str(thisform.dsman,4)
+   thisform.dsname = tempsman.name
+else
+   thisform.dsman = msmanx
+   thisform.dsname = msnamex
+endif
+thisform.refresh
+
+
+ENDPROC
+
+==============================================================================
+REC 4   OBJ=txtSname   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontBold = .T.
+ControlSource = "thisform.dsname"
+Enabled = .T.
+Height = 25
+Left = 203
+ReadOnly = .T.
+TabIndex = 2
+Top = 24
+Width = 282
+ForeColor = 0,64,128
+BackColor = 233,241,254
+Name = "txtSname"
+
+==============================================================================
+REC 5   OBJ=Label1   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontBold = .T.
+BackStyle = 0
+Caption = "DANCERG SMAN:"
+Height = 17
+Left = 35
+Top = 28
+Width = 108
+TabIndex = 13
+ForeColor = 255,255,255
+Name = "Label1"
+
+==============================================================================
+REC 6   OBJ=chk_SO   CLASS=checkbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 65
+Left = 171
+Height = 25
+Width = 178
+FontBold = .T.
+BackStyle = 0
+Caption = "  S. O. from DANCERG RGW"
+TabIndex = 3
+ForeColor = 255,255,255
+Name = "chk_SO"
+--- METHODS ---
+PROCEDURE Click
+if thisform.chk_SO.value = 1 &&thisform.chk_SO.forecolor = rgb(255,255,255)
+   thisform.chk_SO.forecolor = rgb(255,147,147)
+   mlogical = .t.
+   thisform.cmdOk.enabled = .f.
+else
+   thisform.chk_SO.forecolor = rgb(255,255,255)
+   mlogical = .f.
+   thisform.txtRgwno.value = 0
+   thisform.txtRgwdate.value = {}
+   thisform.txtRgwamt.value = 0
+   thisform.txtJobwhse.value = 0
+   thisform.txtJobckey.value = ""
+   if thisform.txtSman.value = 0
+      thisform.cmdOk.enabled = .f.
+   else
+      thisform.cmdOk.enabled = .t.
+   endif
+endif
+thisform.Label2.visible = mlogical
+thisform.Label3.visible = mlogical
+thisform.Label4.visible = mlogical
+thisform.Label5.visible = mlogical
+thisform.txtRgwno.visible = mlogical
+thisform.txtRgwdate.visible = mlogical
+thisform.txtRgwamt.visible = mlogical
+thisform.Label6.visible = mlogical
+thisform.Label7.visible = mlogical
+thisform.Label8.visible = mlogical
+thisform.Label9.visible = mlogical
+thisform.txtJobwhse.visible = mlogical
+thisform.txtJobckey.visible = mlogical
+thisform.txtJobname.visible = mlogical
+thisform.txtRgwno.setfocus
+thisform.refresh
+ENDPROC
+
+==============================================================================
+REC 7   OBJ=Label2   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontBold = .T.
+BackStyle = 0
+Caption = "Reference RGW "
+Height = 17
+Left = 6
+Top = 105
+Visible = .F.
+Width = 108
+TabIndex = 14
+ForeColor = 255,255,255
+Name = "Label2"
+
+==============================================================================
+REC 8   OBJ=txtRgwno   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+ControlSource = "thisform.drgwno"
+Format = ""
+Height = 25
+InputMask = "########"
+Left = 76
+TabIndex = 4
+Top = 125
+Visible = .F.
+Width = 100
+BackColor = 233,241,254
+Name = "txtRgwno"
+
+==============================================================================
+REC 9   OBJ=Label3   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontBold = .T.
+BackStyle = 0
+Caption = "Number:"
+Height = 17
+Left = 14
+Top = 129
+Visible = .F.
+Width = 60
+TabIndex = 15
+ForeColor = 255,255,255
+Name = "Label3"
+
+==============================================================================
+REC 10   OBJ=txtRgwdate   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+ControlSource = "thisform.drgwdate"
+Height = 25
+Left = 76
+TabIndex = 5
+Top = 151
+Visible = .F.
+Width = 100
+BackColor = 233,241,254
+Name = "txtRgwdate"
+
+==============================================================================
+REC 11   OBJ=Label4   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontBold = .T.
+BackStyle = 0
+Caption = "Date:"
+Height = 17
+Left = 14
+Top = 155
+Visible = .F.
+Width = 60
+TabIndex = 16
+ForeColor = 255,255,255
+Name = "Label4"
+
+==============================================================================
+REC 12   OBJ=txtRgwamt   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+ControlSource = "thisform.drgwamt"
+Format = ""
+Height = 25
+InputMask = "###########.##"
+Left = 76
+TabIndex = 6
+Top = 177
+Visible = .F.
+Width = 100
+BackColor = 233,241,254
+Name = "txtRgwamt"
+
+==============================================================================
+REC 13   OBJ=Label5   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontBold = .T.
+BackStyle = 0
+Caption = "Amount:"
+Height = 17
+Left = 14
+Top = 181
+Visible = .F.
+Width = 60
+TabIndex = 17
+ForeColor = 255,255,255
+Name = "Label5"
+
+==============================================================================
+REC 14   OBJ=Label6   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontBold = .T.
+BackStyle = 0
+Caption = "Jobber"
+Height = 17
+Left = 185
+Top = 105
+Visible = .F.
+Width = 49
+TabIndex = 18
+ForeColor = 255,255,255
+Name = "Label6"
+
+==============================================================================
+REC 15   OBJ=txtJobwhse   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+ControlSource = "thisform.djobwhse"
+Height = 25
+InputMask = "##"
+Left = 277
+TabIndex = 7
+Top = 125
+Visible = .F.
+Width = 41
+BackColor = 233,241,254
+Name = "txtJobwhse"
+
+==============================================================================
+REC 16   OBJ=Label7   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontBold = .T.
+BackStyle = 0
+Caption = "Whseno:"
+Height = 17
+Left = 195
+Top = 129
+Visible = .F.
+Width = 60
+TabIndex = 19
+ForeColor = 255,255,255
+Name = "Label7"
+
+==============================================================================
+REC 17   OBJ=txtJobckey   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+ControlSource = "thisform.djobckey"
+Height = 25
+Left = 277
+TabIndex = 8
+Top = 151
+Visible = .F.
+Width = 74
+BackColor = 233,241,254
+Name = "txtJobckey"
+--- METHODS ---
+PROCEDURE Valid
+mwhsenoai = thisform.djobwhse
+mckeyai = substr(thisform.djobckey,1,5)
+mkey = str(mwhsenoai,2)+mckeyai
+sele cust4win
+*midx = newname("x")
+*inde on str(whseno,2)+ckey to &midx
+set order to whckey
+go top
+*mmm=str(thisform.djobwhse,2)+thisform.djobckey
+
+*seek mmm
+seek mkey
+if found()
+*   wait wind("HI")
+   mchannelai = channel
+   mcusname = cusname
+   if mchannelai <> 50
+      m = messageb("Customer is not a Jobber",32)
+      thisform.cmdOk.enabled = .f.
+   else
+      thisform.txtJobname.value = mcusname
+      thisform.cmdOk.enabled = .t.
+   endif
+else
+   m = messageb("Unknown Jobber",32)
+   thisform.cmdOk.enabled = .f.
+endif
+ENDPROC
+
+==============================================================================
+REC 18   OBJ=Label8   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontBold = .T.
+BackStyle = 0
+Caption = "Ckey:"
+Height = 17
+Left = 195
+Top = 155
+Visible = .F.
+Width = 60
+TabIndex = 20
+ForeColor = 255,255,255
+Name = "Label8"
+
+==============================================================================
+REC 19   OBJ=cmdOk   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 224
+Left = 191
+Height = 30
+Width = 69
+FontBold = .T.
+Caption = "OK"
+Enabled = .T.
+TabIndex = 10
+Name = "cmdOk"
+--- METHODS ---
+PROCEDURE Click
+*xretval = str(thisform.dsman,4)+thisform.dsname+str(thisform.drgwno,8)+dtoc(thisform.drgwdate)+str(thisform.drgwamt,14,2)+str(thisform.djobwhse,2)+thisform.djobckey
+*m = messageb(xretval)
+thisform.dcommand = "OK"
+release thisform
+ENDPROC
+
+==============================================================================
+REC 20   OBJ=cboSman   CLASS=combobox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+ColumnCount = 2
+ColumnWidths = "40"
+ControlSource = "thisform.dsman"
+Height = 25
+Left = 396
+Style = 0
+TabIndex = 12
+Top = 72
+Visible = .F.
+Width = 67
+BackColor = 233,241,254
+InputMask = ""
+Name = "cboSman"
+--- METHODS ---
+PROCEDURE Valid
+
+
+ENDPROC
+PROCEDURE Click
+thisform.txtSname.setfocus
+ENDPROC
+PROCEDURE LostFocus
+thisform.dsname = mtempsman.name
+ENDPROC
+
+==============================================================================
+REC 21   OBJ=cmdcancel   CLASS=commandbutton   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+Top = 224
+Left = 260
+Height = 30
+Width = 69
+FontBold = .T.
+Caption = "CANCEL"
+TabIndex = 11
+Visible = .T.
+ForeColor = 255,0,0
+Name = "cmdcancel"
+--- METHODS ---
+PROCEDURE Click
+*xretval = str(thisform.dsman,4)+thisform.dsname+str(thisform.drgwno,8)+dtoc(thisform.drgwdate)+str(thisform.drgwamt,14,2)+str(thisform.djobwhse,2)+thisform.djobckey
+*m = messageb(xretval)
+if thisform.dproc = "ADD"
+   thisform.dsman = 0
+   thisform.dsname = space(30)
+   thisform.drgwno = 0
+   thisform.drgwdate = {}
+   thisform.drgwamt = 0
+   thisform.djobwhse = 0
+   thisform.djobckey = space(5)
+endif
+thisform.dcommand = "CANCEL"
+release thisform
+ENDPROC
+
+==============================================================================
+REC 22   OBJ=txtJobname   CLASS=textbox   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+ControlSource = ""
+Enabled = .T.
+Height = 25
+Left = 277
+ReadOnly = .T.
+TabIndex = 9
+Top = 177
+Visible = .F.
+Width = 237
+ForeColor = 0,0,255
+BackColor = 233,241,254
+Name = "txtJobname"
+--- METHODS ---
+PROCEDURE Valid
+mwhsenoai = thisform.djobwhse
+mckeyai = substr(thisform.djobckey,1,5)
+mkey = str(mwhsenoai,2)+mckeyai
+sele cust4win
+*midx = newname("x")
+*inde on str(whseno,2)+ckey to &midx
+set order to whckey
+go top
+*mmm=str(thisform.djobwhse,2)+thisform.djobckey
+
+*seek mmm
+seek mkey
+if found()
+*   wait wind("HI")
+   mchannelai = channel
+   if mchannelai <> 50
+      m = messageb("Customer is not a Jobber",32)
+      thisform.cmdOk.enabled = .f.
+   else
+      thisform.cmdOk.enabled = .t.
+   endif
+else
+   m = messageb("Unknown Jobber",32)
+   thisform.cmdOk.enabled = .f.
+endif
+ENDPROC
+
+==============================================================================
+REC 23   OBJ=Label9   CLASS=label   PARENT=Form1
+==============================================================================
+--- PROPERTIES ---
+FontBold = .T.
+BackStyle = 0
+Caption = "Jobber Name:"
+Height = 17
+Left = 195
+Top = 181
+Visible = .F.
+Width = 80
+TabIndex = 21
+ForeColor = 255,255,255
+Name = "Label9"
+
+==============================================================================
+REC 24   OBJ=   CLASS=   PARENT=
+==============================================================================
+--- PROPERTIES ---
+Arial, 0, 9, 5, 15, 12, 32, 3, 0
+Arial, 1, 9, 6, 15, 12, 32, 3, 0
+
