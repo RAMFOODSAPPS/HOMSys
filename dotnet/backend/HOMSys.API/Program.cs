@@ -87,7 +87,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCookiePolicy(new CookiePolicyOptions
 {
-    MinimumSameSitePolicy = SameSiteMode.Strict
+    MinimumSameSitePolicy = SameSiteMode.None
 });
 app.UseCors("Angular");
 app.UseAuthentication();

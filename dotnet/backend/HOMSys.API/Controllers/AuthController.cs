@@ -20,8 +20,8 @@ public class AuthController(AuthService authService) : ControllerBase
         Response.Cookies.Append("refreshToken", result.RefreshToken, new CookieOptions
         {
             HttpOnly = true,
-            Secure = Request.IsHttps,
-            SameSite = SameSiteMode.Strict,
+            Secure = true,
+            SameSite = SameSiteMode.None,
             Expires = DateTimeOffset.UtcNow.AddDays(7)
         });
 
@@ -43,8 +43,8 @@ public class AuthController(AuthService authService) : ControllerBase
         Response.Cookies.Append("refreshToken", result.RefreshToken, new CookieOptions
         {
             HttpOnly = true,
-            Secure = Request.IsHttps,
-            SameSite = SameSiteMode.Strict,
+            Secure = true,
+            SameSite = SameSiteMode.None,
             Expires = DateTimeOffset.UtcNow.AddDays(7)
         });
 
@@ -59,7 +59,12 @@ public class AuthController(AuthService authService) : ControllerBase
         if (!string.IsNullOrEmpty(refreshToken))
             await authService.LogoutAsync(refreshToken);
 
-        Response.Cookies.Delete("refreshToken");
+        Response.Cookies.Delete("refreshToken", new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.None
+        });
         return Ok(new { success = true, message = "Logged out successfully." });
     }
 }
