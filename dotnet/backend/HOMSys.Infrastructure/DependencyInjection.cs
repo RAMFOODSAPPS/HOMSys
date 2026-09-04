@@ -51,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<PricelistExcelBuilder>();
         services.AddScoped<ReferenceDataImporter>();
         services.AddScoped<PricingDataImporter>();
+        services.AddScoped<PricingDeltaImporter>();
         services.AddScoped<SyncStatusService>();
 
         return services;

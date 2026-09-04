@@ -1,3 +1,4 @@
+using HOMSys.Application.DTOs.Pricing;
 using HOMSys.Application.Services;
 using HOMSys.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
@@ -11,7 +12,7 @@ namespace HOMSys.API.Controllers;
 [Authorize]
 public class PricingController(
     PriceCalculationService pricingService,
-    PricingDataImporter pricingImporter,
+    PricingDeltaImporter pricingDeltaImporter,
     IConfiguration config,
     ILogger<PricingController> logger) : ControllerBase
 {
@@ -26,23 +27,25 @@ public class PricingController(
     }
 
     /// <summary>
-    /// Re-check F:\ for changes and re-import if anything is newer than the
-    /// last sync. Called on a timer by the standalone Python watcher service
-    /// (see watcher\pricing_sync_watcher.py) — a call that finds nothing new
-    /// just returns fast, so it's safe to hit this on a short interval.
-    /// Authenticated by a static API key (X-Api-Key header) instead of JWT —
-    /// the watcher is a headless service account of one, not a logged-in
-    /// user, so it skips the login/refresh flow entirely.
+    /// Applies a pricing delta computed and sent by LegacyMasterWatcher.exe,
+    /// which reads and parses F:\ itself (Azure can't reach it) and diffs
+    /// against its own local snapshot — this only ever contains rows that
+    /// changed since the last run, so it's safe to hit this on a short
+    /// interval. Authenticated by a static API key (X-Api-Key header)
+    /// instead of JWT — the watcher is a headless service account of one,
+    /// not a logged-in user, so it skips the login/refresh flow entirely.
     /// </summary>
-    [HttpPost("sync")]
+    [HttpPost("/api/masters/sync")]
     [AllowAnonymous]
-    public async Task<IActionResult> Sync([FromHeader(Name = "X-Api-Key")] string? apiKey)
+    [DisableRequestSizeLimit] // first-run baseline (no prior snapshot) sends every row nationwide — tens of MB, over Kestrel's ~30MB default
+    public async Task<IActionResult> Sync([FromHeader(Name = "X-Api-Key")] string? apiKey, [FromBody] PricingSyncDeltaRequest? request)
     {
         var expected = config["HeadlessApiKey"];
         if (string.IsNullOrEmpty(expected) || apiKey != expected)
             return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
 
-        var result = await pricingImporter.ImportAllAsync(PricingDataImporter.DefaultRoot, msg => logger.LogInformation("{Msg}", msg));
+        request ??= new PricingSyncDeltaRequest(null, null, null, null, null, null);
+        var result = await pricingDeltaImporter.ApplyAsync(request, msg => logger.LogInformation("{Msg}", msg));
         return Ok(new { success = true, data = result.ToString() });
     }
 }

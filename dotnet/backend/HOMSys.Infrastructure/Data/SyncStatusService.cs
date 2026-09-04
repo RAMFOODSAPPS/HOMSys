@@ -56,14 +56,15 @@ public class SyncStatusService(ReferenceDataImporter referenceImporter, PricingD
             ? arr.EnumerateArray().Select(e => e.GetString() ?? "").ToList()
             : [];
 
-    public async Task<ImportResult> TriggerReferenceSyncAsync(Action<string>? log = null)
+    public async Task<ImportResult> TriggerReferenceSyncAsync(Action<string>? log = null, string? path = null)
     {
         if (Interlocked.CompareExchange(ref _referenceSyncRunning, 1, 0) != 0)
             throw new SyncInProgressException("A reference data sync is already in progress. Please wait for it to finish.");
 
         try
         {
-            return await referenceImporter.ImportAllAsync(ReferenceDataImporter.DefaultDbfPath, log);
+            var dbfPath = string.IsNullOrWhiteSpace(path) ? ReferenceDataImporter.DefaultDbfPath : path;
+            return await referenceImporter.ImportAllAsync(dbfPath, log);
         }
         finally
         {
@@ -71,14 +72,15 @@ public class SyncStatusService(ReferenceDataImporter referenceImporter, PricingD
         }
     }
 
-    public async Task<PricingImportResult> TriggerPricingSyncAsync(Action<string>? log = null)
+    public async Task<PricingImportResult> TriggerPricingSyncAsync(Action<string>? log = null, string? path = null)
     {
         if (Interlocked.CompareExchange(ref _pricingSyncRunning, 1, 0) != 0)
             throw new SyncInProgressException("A pricing masters sync is already in progress. Please wait for it to finish.");
 
         try
         {
-            return await pricingImporter.ImportAllAsync(PricingDataImporter.DefaultRoot, log);
+            var root = string.IsNullOrWhiteSpace(path) ? PricingDataImporter.DefaultRoot : path;
+            return await pricingImporter.ImportAllAsync(root, log);
         }
         finally
         {

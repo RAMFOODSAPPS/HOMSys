@@ -1,31 +1,38 @@
-<#
+﻿<#
 .SYNOPSIS
   Registers LegacyMasterWatcher.exe as a Windows Task Scheduler task that
   fires every 5 minutes, at logon and on a clock schedule (per this repo's
-  own convention — see reference_schtasks_onlogon_no_repetition.md: a
+  own convention - see reference_schtasks_onlogon_no_repetition.md: a
   logon-only trigger is dormant until next logon, always pair it with a
   TimeTrigger).
 
-  Generalized runner for HOMSys's legacy-master DBF sync endpoints — today
-  that's just pricing, more are expected over time (see HOMSYS_SYNC_URLS
-  below). One scheduled task hits all configured sync endpoints each run.
+  Runs LegacyMasterWatcher.exe, which reads and parses F:\'s pricing DBFs
+  itself (Azure can't reach F:\), diffs against its own local snapshot, and
+  POSTs only what changed to each configured sync endpoint - today that's
+  just /api/masters/sync; reference data (Customers/Products) stays on the
+  manual `import-reference-data` CLI command, not this watcher.
 
 .NOTES
   Run this ON THE TARGET VM, as Administrator, after:
-    1. Copying dist\LegacyMasterWatcher.exe to a stable path on that machine
-       (this script assumes it sits next to itself in the same folder).
-    2. Setting HOMSYS_SYNC_URLS and HOMSYS_API_KEY as persistent env vars,
-       so the task — which runs headless, no shell to inherit from — can
-       read them. Machine scope (setx /M) needs admin; if you don't have
-       that, User scope works fine as long as the task runs as your own
-       account (the default — no -RunLevel Highest is used below):
-         setx HOMSYS_SYNC_URLS "http://<homsys-host>:5200/api/pricing/sync"
-         setx HOMSYS_API_KEY   "<the real PricingSync:ApiKey value>"
-       Comma-separate multiple URLs as more legacy-master importers get
-       their own sync endpoint, e.g.:
-         "http://host:5200/api/pricing/sync,http://host:5200/api/reference/sync"
-       A new shell/logon may be needed for setx values to take effect for
-       services/scheduled tasks.
+    1. Copying dist\LegacyMasterWatcher.exe and config.example.json to a
+       stable path on that machine (this script assumes the exe sits next
+       to itself in the same folder).
+    2. Copying config.example.json to config.json (same folder) and editing
+       it directly - no env vars, no setx, no reboot needed. This same exe
+       and this same script deploy unchanged everywhere; only config.json
+       differs per machine, e.g.:
+
+         {
+           "apiKey": "<the real HeadlessApiKey value>",
+           "syncs": [
+             { "url": "https://<host>/api/masters/sync", "path": "F:\\" }
+           ]
+         }
+
+       "path" is the local root this exe reads F:\-style pricing DBFs from
+       (read locally only, never sent to the server) - optional, defaults to
+       "F:\". Add more entries to "syncs" if a future legacy-master data
+       family gets its own sync endpoint and reader.
 #>
 
 $exePath = Join-Path $PSScriptRoot "LegacyMasterWatcher.exe"
@@ -33,6 +40,11 @@ $taskName = "HOMSys-LegacyMasterWatcher"
 
 if (-not (Test-Path $exePath)) {
     throw "LegacyMasterWatcher.exe not found next to this script at $exePath"
+}
+
+$configPath = Join-Path $PSScriptRoot "config.json"
+if (-not (Test-Path $configPath)) {
+    throw "config.json not found next to this script at $configPath - copy config.example.json to config.json and fill in apiKey/syncs first."
 }
 
 $action = New-ScheduledTaskAction -Execute $exePath
@@ -53,6 +65,5 @@ Register-ScheduledTask -TaskName $taskName `
     -Force -ErrorAction Stop
 
 Write-Host "Registered task '$taskName' -> $exePath, every 5 min."
-Write-Host "Confirm HOMSYS_SYNC_URLS / HOMSYS_API_KEY are set for the account"
-Write-Host "this task runs as (User or Machine scope, whichever you used)."
+Write-Host "Confirm config.json exists next to the exe and its apiKey/syncs are correct."
 Write-Host "Log file: %LOCALAPPDATA%\HOMSys\legacy_master_watcher.log"

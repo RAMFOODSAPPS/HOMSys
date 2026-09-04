@@ -11,3 +11,6 @@ public record PricingSyncStatusDto(
     List<PricingFileStatusDto> Files);
 
 public record SyncStatusDto(ReferenceSyncStatusDto ReferenceData, PricingSyncStatusDto PricingMasters);
+
+/// <summary>Optional body for the headless sync endpoints, letting the watcher override the server's hardcoded default DBF root/share path.</summary>
+public record SyncOverrideRequest(string? Path);

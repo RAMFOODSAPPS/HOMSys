@@ -1,0 +1,6 @@
+{
+  "apiKey": "REPLACE_WITH_THE_REAL_HeadlessApiKey_VALUE",
+  "syncs": [
+    { "url": "https://homsys-api-cchvdgdkbmhya9d6.southeastasia-01.azurewebsites.net/api/masters/sync", "path": "F:\\" }
+  ]
+}

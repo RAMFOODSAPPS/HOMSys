@@ -29,7 +29,7 @@ public class PricingDataImporter(AppDbContext db)
     /// VAL, no-sales branches like SVS, and unrecognized/legacy folders) is
     /// excluded from both ADDON and CUSTOMER sync, even if it has valid DBFs.
     /// </summary>
-    private static readonly HashSet<string> ActiveBranches = new(StringComparer.OrdinalIgnoreCase)
+    internal static readonly HashSet<string> ActiveBranches = new(StringComparer.OrdinalIgnoreCase)
     {
         "bac", "but", "cdo", "ceb", "dav", "dum", "gen", "hon",
         "ilo", "kid", "oza", "rox", "tac", "tgm", "zam", "pan"

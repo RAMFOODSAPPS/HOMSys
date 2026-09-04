@@ -1,3 +1,4 @@
+using HOMSys.Application.DTOs.Monitoring;
 using HOMSys.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,7 +23,7 @@ public class ReferenceController(
 {
     [HttpPost("sync")]
     [AllowAnonymous]
-    public async Task<IActionResult> Sync([FromHeader(Name = "X-Api-Key")] string? apiKey)
+    public async Task<IActionResult> Sync([FromHeader(Name = "X-Api-Key")] string? apiKey, [FromBody] SyncOverrideRequest? request)
     {
         var expected = config["HeadlessApiKey"];
         if (string.IsNullOrEmpty(expected) || apiKey != expected)
@@ -30,7 +31,7 @@ public class ReferenceController(
 
         try
         {
-            var result = await syncStatusService.TriggerReferenceSyncAsync(msg => logger.LogInformation("{Msg}", msg));
+            var result = await syncStatusService.TriggerReferenceSyncAsync(msg => logger.LogInformation("{Msg}", msg), request?.Path);
             return Ok(new { success = true, data = result.ToString() });
         }
         catch (SyncInProgressException ex)

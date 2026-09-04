@@ -169,7 +169,10 @@ falls back to the `CustomerZone` row's own `Branch` unchanged). Verified
 2026-08-19 against a real `DAG` customer (`2100226`, `CZone=2105`) resolving
 correctly through `hon`'s zone tables with its own distinct `CZone`.
 
-**Change-detection**: two layers, not one global gate.
+**Change-detection** (CLI path only — `import-HoMaster-data` /
+`PricingDataImporter`, the on-prem full-table importer described above; the
+watcher's own path is separate, see "Keeping it running" below): two layers,
+not one global gate.
 
 1. *File-level gate* — `ImportAllAsync` stats the two national PMDM files plus
    every discovered branch's `ZONE`/`ZONE2`/`CUST4WIN` files individually and
@@ -206,21 +209,42 @@ correctly through `hon`'s zone tables with its own distinct `CZone`.
    Every sync after that is truly incremental.
 
 **Keeping it running**: `watcher\legacy_master_watcher.py` — a single-shot
-Python script (no loop of its own) that POSTs once to each configured sync
-endpoint and exits; Task Scheduler owns the recurrence, not the script.
-Named generically, not "pricing" — pricing's `/api/pricing/sync` is the
-first legacy-master sync endpoint, not the only one expected. As more
-legacy VFP master DBFs get their own importer + sync endpoint (e.g. a
-future `/api/reference/sync`), add the URL to `HOMSYS_SYNC_URLS`
-(comma-separated) — no code change needed. The script itself has no
-DBF/change-detection logic — a run that finds nothing new on any endpoint
-just returns fast, so a 5-minute trigger is safe; all real staleness/skip
-logic lives in each importer (`ImportAllAsync` etc.) on the .NET side, one
-per data family. Auth is a static API key (`X-Api-Key` header, checked
-against `PricingSync:ApiKey` in `appsettings.json`/env override for the
-pricing endpoint) rather than JWT — the watcher is a headless service, not
-a logged-in user, so `/sync` actions are `[AllowAnonymous]` at the MVC level
-but gated by the key check inside the action.
+Python script (no loop of its own) that reads and parses `F:\`'s pricing
+DBFs **itself** and POSTs once to each configured sync endpoint before
+exiting; Task Scheduler owns the recurrence, not the script. This exists
+because Azure App Service can't reach `F:\` — the read has to happen on a
+machine that can, which means the exe, not the API. It uses
+`watcher\dbf_reader.py`, a byte-for-byte Python port of
+`Infrastructure\Data\Dbf\DbfReader.cs` (same header/field-descriptor
+offsets, same generic text-then-typed-parse behavior, same 1-based
+physical-slot `RecNo` numbering that skips deleted records without
+renumbering), so its `RecNo` values line up exactly with what's already in
+SQL.
+
+Each run parses the full current state of every pricing DBF (national files
+under `PMDM\`, per-branch `ZONE`/`ZONE2`/`CUST4WIN` — branches are
+discovered from disk, same folder-walk convention as `PricingDataImporter`,
+no hardcoded branch list needed since the server enforces `ActiveBranches`
+when applying the delta) and diffs it against its own last-synced snapshot
+at `%LOCALAPPDATA%\HOMSys\pricing-snapshot.json`, keyed the same way as the
+SQL tables (`ProdNo` / `CategoryCode` / `(CProdNo,Zone)` / `RecNo` /
+`(Branch,RecNo)`). Only genuinely changed rows go in the POST body to
+`/api/masters/sync`; a quiet run sends an empty body. The snapshot is only
+overwritten after a successful POST. `api/reference/sync` is **not** called
+by this watcher — Customers/Products stay on the manual
+`import-reference-data` CLI command.
+
+Server-side, `PricingController.Sync` now binds a `PricingSyncDeltaRequest`
+(`HOMSys.Application\DTOs\Pricing`) and hands it to `PricingDeltaImporter`
+(`HOMSys.Infrastructure\Data`, sibling to `PricingDataImporter`, not a
+replacement — the CLI path above still uses the older full-table importer).
+`PricingDeltaImporter` queries only the keys present in the payload, not
+the whole table, and enforces `PricingDataImporter.ActiveBranches` as the
+per-branch allowlist. Auth is a static API key (`X-Api-Key` header, checked
+against `HeadlessApiKey` in `appsettings.json`/env override) rather than
+JWT — the watcher is a headless service, not a logged-in user, so `/sync`
+is `[AllowAnonymous]` at the MVC level but gated by the key check inside
+the action.
 
 Packaged as `watcher\dist\LegacyMasterWatcher.exe` via PyInstaller
 (`pyinstaller --onefile --name LegacyMasterWatcher --console
@@ -229,11 +253,12 @@ from Task Scheduler with no Python install on the target VM.
 `watcher\register-task.ps1` registers it (5-min repeating trigger + at-logon
 trigger, matching this repo's own schtasks convention — see
 `reference_schtasks_onlogon_no_repetition` memory: a logon-only trigger is
-dormant until next logon, always paired with a clock trigger). Config is
-via persistent **Machine**-scope env vars (`HOMSYS_SYNC_URLS`,
-`HOMSYS_API_KEY`, set with `setx /M`) since a scheduled task has no shell to
-inherit temp env vars from. Logs to
-`%LOCALAPPDATA%\HOMSys\legacy_master_watcher.log`.
+dormant until next logon, always paired with a clock trigger). Config is via
+a plain `config.json` next to the exe (copy `config.example.json` and fill
+it in — no env vars, no `setx`, no reboot needed): the API key, and per
+entry a URL plus an optional `path` — the **local** root this exe reads
+pricing DBFs from directly (defaults to `F:\`), never sent to the server.
+Logs to `%LOCALAPPDATA%\HOMSys\legacy_master_watcher.log`.
 
 `AppDbContext`'s `CommandTimeout` is 120s (`DependencyInjection.cs`) — the
 default 30s was observed failing mid-batch on the ~105k-row `ZoneAddOn`
