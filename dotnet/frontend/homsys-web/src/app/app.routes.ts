@@ -18,7 +18,12 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./layout/app-layout/app-layout.component').then(m => m.AppLayoutComponent),
     children: [
-      { path: '', redirectTo: 'users', pathMatch: 'full' },
+      { path: '', redirectTo: 'home', pathMatch: 'full' },
+      {
+        path: 'home',
+        loadComponent: () =>
+          import('./features/dashboard/dashboard-page.component').then(m => m.DashboardPageComponent)
+      },
       {
         path: 'unauthorized',
         loadComponent: () =>

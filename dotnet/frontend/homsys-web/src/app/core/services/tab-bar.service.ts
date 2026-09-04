@@ -11,6 +11,7 @@ export interface AppTab {
 }
 
 const ROUTE_META: Record<string, { label: string; icon: string }> = {
+  '/home':          { label: 'Home',             icon: 'pi-home'      },
   '/users':         { label: 'New User',        icon: 'pi-user-plus' },
   '/users/list':    { label: 'Users List',      icon: 'pi-list'      },
   '/roles':         { label: 'New Role',        icon: 'pi-shield'    },

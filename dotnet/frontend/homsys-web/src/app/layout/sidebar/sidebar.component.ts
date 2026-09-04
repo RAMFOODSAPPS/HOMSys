@@ -22,6 +22,14 @@ import { LayoutService } from '../../core/services/layout.service';
 
       <ul class="sidebar-menu">
 
+        <li>
+          <a routerLink="/home" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" (click)="onNavClick()">
+            <i class="pi pi-home"></i>
+            <span>Home</span>
+          </a>
+        </li>
+        <li class="menu-sub-divider"></li>
+
         @if (auth.isAdmin() || auth.hasPermission('companies') || auth.hasPermission('departments') || auth.hasPermission('sites') || auth.hasPermission('site-types') || auth.hasPermission('legacy-monitoring')) {
           <li class="menu-group">Master Data</li>
         }
