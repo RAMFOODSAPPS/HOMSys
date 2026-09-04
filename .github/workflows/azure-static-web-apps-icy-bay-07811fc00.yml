@@ -25,7 +25,7 @@ jobs:
           node-version: '20'
 
       - name: Install and Build Angular
-        working-directory: frontend/homsys-web
+        working-directory: dotnet/frontend/homsys-web
         run: |
           npm install --legacy-peer-deps
           npm run build -- --configuration=production
@@ -37,7 +37,7 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ICY_BAY_07811FC00 }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          app_location: "frontend/homsys-web/dist/homsys-web/browser"
+          app_location: "dotnet/frontend/homsys-web/dist/homsys-web/browser"
           api_location: ""
           output_location: ""
           skip_app_build: true
