@@ -1,5 +1,5 @@
 import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
 import { MessageModule } from 'primeng/message';
 import { TableModule } from 'primeng/table';
@@ -11,7 +11,7 @@ import { SyncStatusDto } from '../../core/models/sync-status.model';
 @Component({
   selector: 'app-legacy-monitoring-page',
   standalone: true,
-  imports: [ButtonModule, MessageModule, TableModule, TagModule, DatePipe, DecimalPipe],
+  imports: [ButtonModule, MessageModule, TableModule, TagModule, DatePipe],
   template: `
     <div class="report-card">
       @if (apiError()) {
@@ -27,32 +27,11 @@ import { SyncStatusDto } from '../../core/models/sync-status.model';
 
       <div class="section">
         <div class="section-header">
-          <h3>Reference Data <span class="source">(BMSRAM — Customers / Products)</span></h3>
-          <p-button label="Sync Now" icon="pi pi-refresh" size="small"
-                    [loading]="referenceSyncing()" (onClick)="syncReference()" />
-        </div>
-
-        @if (status(); as s) {
-          @if (s.referenceData.lastRunUtc) {
-            <div class="status-row">
-              <p-tag severity="success" value="Synced" />
-              <span>Last run: {{ s.referenceData.lastRunUtc | date: 'MM/dd/yyyy hh:mm a' }}</span>
-              <span>Customers: {{ s.referenceData.customers | number }}</span>
-              <span>Products: {{ s.referenceData.products | number }}</span>
-            </div>
-          } @else {
-            <div class="status-row">
-              <p-tag severity="warn" value="Never synced" />
-            </div>
-          }
-        }
-      </div>
-
-      <div class="section">
-        <div class="section-header">
           <h3>Pricing Masters <span class="source">(F:\ — zones, customer branches, price history)</span></h3>
-          <p-button label="Sync Now" icon="pi pi-refresh" size="small"
-                    [loading]="pricingSyncing()" (onClick)="syncPricing()" />
+          @if (status()?.pricingMasters?.canTriggerSync) {
+            <p-button label="Sync Now" icon="pi pi-refresh" size="small"
+                      [loading]="pricingSyncing()" (onClick)="syncPricing()" />
+          }
         </div>
 
         @if (status(); as s) {
@@ -70,22 +49,22 @@ import { SyncStatusDto } from '../../core/models/sync-status.model';
           }
 
           <div class="table-scroll">
-            <p-table [value]="s.pricingMasters.files" [paginator]="true" [rows]="10"
-                     dataKey="file" styleClass="p-datatable-sm">
+            <p-table [value]="s.pricingMasters.tables" [paginator]="true" [rows]="10"
+                     dataKey="table" styleClass="p-datatable-sm">
               <ng-template pTemplate="header">
                 <tr>
-                  <th pSortableColumn="file">File <p-sortIcon field="file" /></th>
-                  <th pSortableColumn="lastWriteUtc">Last Write <p-sortIcon field="lastWriteUtc" /></th>
+                  <th pSortableColumn="table">SQL Table <p-sortIcon field="table" /></th>
+                  <th pSortableColumn="lastUpdatedUtc">Last Updated <p-sortIcon field="lastUpdatedUtc" /></th>
                 </tr>
               </ng-template>
-              <ng-template pTemplate="body" let-f>
+              <ng-template pTemplate="body" let-t>
                 <tr>
-                  <td>{{ f.file }}</td>
-                  <td>{{ f.lastWriteUtc | date: 'MM/dd/yyyy hh:mm a' }}</td>
+                  <td>{{ t.table }}</td>
+                  <td>{{ t.lastUpdatedUtc | date: 'MM/dd/yyyy hh:mm a' }}</td>
                 </tr>
               </ng-template>
               <ng-template pTemplate="emptymessage">
-                <tr><td colspan="2">No tracked files yet.</td></tr>
+                <tr><td colspan="2">No tracked tables yet.</td></tr>
               </ng-template>
             </p-table>
           </div>
@@ -111,7 +90,6 @@ export class LegacyMonitoringPageComponent implements OnInit, OnDestroy {
   loading = signal(false);
   apiError = signal<string | null>(null);
   actionMessage = signal<string | null>(null);
-  referenceSyncing = signal(false);
   pricingSyncing = signal(false);
 
   ngOnInit(): void {
@@ -124,23 +102,6 @@ export class LegacyMonitoringPageComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.toolbar.clear();
-  }
-
-  syncReference(): void {
-    this.apiError.set(null);
-    this.actionMessage.set(null);
-    this.referenceSyncing.set(true);
-    this.api.triggerReferenceSync().subscribe({
-      next: res => {
-        this.actionMessage.set(`Reference data sync complete. ${res.data ?? ''}`);
-        this.referenceSyncing.set(false);
-        this.load();
-      },
-      error: err => {
-        this.apiError.set(err?.error?.message ?? 'Reference data sync failed.');
-        this.referenceSyncing.set(false);
-      }
-    });
   }
 
   syncPricing(): void {

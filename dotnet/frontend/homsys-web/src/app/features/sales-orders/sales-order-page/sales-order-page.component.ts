@@ -72,7 +72,7 @@ import {
             <label>Customer Key <span class="required-star">*</span></label>
             <p-autoComplete formControlName="custKey" styleClass="w-full" [inputStyle]="{ width: '100%' }"
                    [suggestions]="customerSuggestions()" field="custKey" [dropdown]="true" [minLength]="2"
-                   [appendTo]="'body'" placeholder="e.g. 0100123"
+                   [delay]="1000" [appendTo]="'body'" placeholder="e.g. 0100123"
                    (completeMethod)="searchCustomers($event)"
                    (onSelect)="onCustomerSelect($event)"
                    (onBlur)="onCustomerKeyBlur()"
@@ -95,7 +95,7 @@ import {
             <p-autoComplete [ngModel]="customer()?.cusName ?? ''" [ngModelOptions]="{ standalone: true }"
                    styleClass="w-full" [inputStyle]="{ width: '100%' }"
                    [suggestions]="customerSuggestions()" field="cusName" [dropdown]="true" [minLength]="2"
-                   [appendTo]="'body'" [disabled]="viewOnly()"
+                   [delay]="1000" [appendTo]="'body'" [disabled]="viewOnly()"
                    (completeMethod)="searchCustomers($event)"
                    (onSelect)="onCustomerSelect($event)">
               <ng-template let-item pTemplate="item">
@@ -212,7 +212,7 @@ import {
                   <p-autoComplete [ngModel]="line.cProdNo" [ngModelOptions]="{ standalone: true }"
                          styleClass="w-full" [inputStyle]="{ width: '100%' }" appendTo="body"
                          [suggestions]="productSuggestions()" field="cProdNo" [dropdown]="true" [minLength]="0"
-                         [disabled]="viewOnly() || !productsEnabled()"
+                         [delay]="150" [disabled]="viewOnly() || !productsEnabled()"
                          (ngModelChange)="onProdNoTyped($index, $event)"
                          (completeMethod)="searchProducts($event)"
                          (onSelect)="onProductSelect($index, $event)"
@@ -228,7 +228,7 @@ import {
                          [ngModelOptions]="{ standalone: true }"
                          styleClass="w-full" [inputStyle]="{ width: '100%' }" appendTo="body"
                          [suggestions]="productSuggestions()" field="prodDesc" [dropdown]="true" [minLength]="0"
-                         [disabled]="viewOnly() || !productsEnabled()"
+                         [delay]="150" [disabled]="viewOnly() || !productsEnabled()"
                          (completeMethod)="searchProducts($event)"
                          (onSelect)="onProductSelect($index, $event)">
                     <ng-template let-item pTemplate="item">
@@ -708,11 +708,27 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
   customerSuggestions = signal<CustomerSuggestionDto[]>([]);
   productSuggestions = signal<ProductSuggestionDto[]>([]);
 
+  // Keyed by sorted lowercase keywords so "Puregold Isabela" and "Isabela Puregold"
+  // share a cache entry, and repeated/backspaced-then-retyped terms skip the API call.
+  private customerSearchCache = new Map<string, CustomerSuggestionDto[]>();
+  private productSearchCache = new Map<string, ProductSuggestionDto[]>();
+
+  private cacheKey(term: string): string {
+    return term.toLowerCase().split(' ').filter(Boolean).sort().join(' ');
+  }
+
   searchCustomers(event: AutoCompleteCompleteEvent): void {
     const term = (event.query ?? '').trim();
     if (!term) { this.customerSuggestions.set([]); return; }
+    const key = this.cacheKey(term);
+    const cached = this.customerSearchCache.get(key);
+    if (cached) { this.customerSuggestions.set(cached); return; }
     this.api.searchCustomers(term).subscribe({
-      next: res => this.customerSuggestions.set(res.data ?? []),
+      next: res => {
+        const data = res.data ?? [];
+        this.customerSearchCache.set(key, data);
+        this.customerSuggestions.set(data);
+      },
       error: () => this.customerSuggestions.set([])
     });
   }
@@ -746,8 +762,15 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
 
   searchProducts(event: AutoCompleteCompleteEvent): void {
     const term = (event.query ?? '').trim();
+    const key = this.cacheKey(term);
+    const cached = this.productSearchCache.get(key);
+    if (cached) { this.productSuggestions.set(cached); return; }
     this.api.searchProducts(term).subscribe({
-      next: res => this.productSuggestions.set(res.data ?? []),
+      next: res => {
+        const data = res.data ?? [];
+        this.productSearchCache.set(key, data);
+        this.productSuggestions.set(data);
+      },
       error: () => this.productSuggestions.set([])
     });
   }

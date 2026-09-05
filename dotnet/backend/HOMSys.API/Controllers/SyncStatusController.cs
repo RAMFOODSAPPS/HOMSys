@@ -17,20 +17,6 @@ public class SyncStatusController(SyncStatusService syncStatusService, ILogger<S
         return Ok(new { success = true, data = status });
     }
 
-    [HttpPost("reference-sync")]
-    public async Task<IActionResult> TriggerReferenceSync()
-    {
-        try
-        {
-            var result = await syncStatusService.TriggerReferenceSyncAsync(msg => logger.LogInformation("{Msg}", msg));
-            return Ok(new { success = true, data = result.ToString() });
-        }
-        catch (SyncInProgressException ex)
-        {
-            return Conflict(new { success = false, message = ex.Message });
-        }
-    }
-
     [HttpPost("pricing-sync")]
     public async Task<IActionResult> TriggerPricingSync()
     {

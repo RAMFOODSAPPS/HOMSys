@@ -122,13 +122,16 @@ class DbfReader:
         self.fields = fields
 
     def records(self):
-        """Non-deleted records, streamed."""
-        for i in range(self.record_count):
-            self._f.seek(self.header_length + i * self.record_length)
-            buffer = self._f.read(self.record_length)
-            if len(buffer) < self.record_length:
-                return  # truncated tail
+        """Non-deleted records. Bulk-read the whole record region in one call
+        instead of one seek()+read() per record — this file is frequently
+        read over an SMB-mapped drive, where per-record syscalls (not the
+        parsing itself) are the dominant cost."""
+        self._f.seek(self.header_length)
+        data = self._f.read(self.record_count * self.record_length)
+        n_complete = len(data) // self.record_length  # excludes a truncated tail
 
+        for i in range(n_complete):
+            buffer = data[i * self.record_length:(i + 1) * self.record_length]
             if buffer[0] == 0x2A:  # deleted
                 continue
 

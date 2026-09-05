@@ -20,14 +20,23 @@ public class CustomerRepository(AppDbContext db) : ICustomerRepository
             .ToDictionaryAsync(c => c.CustKey);
     }
 
-    // StartsWith (not Contains) so both branches can use the CustKey/CusName
-    // indexes — a leading-wildcard LIKE '%term%' over 149k customers can't.
-    public async Task<IEnumerable<CustomerSuggestionDto>> SearchAsync(string term, int take = 50) =>
-        await db.Customers.AsNoTracking()
-            .Where(c => c.CustKey.StartsWith(term) || c.CusName.StartsWith(term))
+    // Each whitespace-separated keyword must match somewhere in CustKey/CusName,
+    // in any order (e.g. "Puregold Isabela" matches "Puregold Price Club - Isabela
+    // St. Manila"). This needs a leading-wildcard LIKE per token, which can't use
+    // the CustKey/CusName indexes — acceptable because the frontend now debounces
+    // 1s before calling this, instead of on every keystroke.
+    public async Task<IEnumerable<CustomerSuggestionDto>> SearchAsync(string term, int take = 50)
+    {
+        var tokens = term.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var query = db.Customers.AsNoTracking();
+        foreach (var token in tokens)
+            query = query.Where(c => c.CustKey.Contains(token) || c.CusName.Contains(token));
+
+        return await query
             .OrderByDescending(c => c.CustKey.StartsWith(term))
             .ThenBy(c => c.CusName)
             .Select(c => new CustomerSuggestionDto { CustKey = c.CustKey, CusName = c.CusName })
             .Take(take)
             .ToListAsync();
+    }
 }

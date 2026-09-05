@@ -101,26 +101,6 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
-// One-off reference-data import from the staged BMS DBF snapshots.
-//   dotnet run --project HOMSys.API -- import-reference-data [path-to-dbf-folder]
-// Runs the import and exits without starting the web host. Kept as a CLI verb
-// rather than an endpoint because it truncates and reloads the reference tables.
-if (args.Length > 0 && args[0].Equals("import-reference-data", StringComparison.OrdinalIgnoreCase))
-{
-    var path = args.Length > 1
-        ? args[1]
-        : HOMSys.Infrastructure.Data.ReferenceDataImporter.DefaultDbfPath;
-
-    using var scope = app.Services.CreateScope();
-    var importer = scope.ServiceProvider
-        .GetRequiredService<HOMSys.Infrastructure.Data.ReferenceDataImporter>();
-
-    Console.WriteLine($"Reference data import from: {path}");
-    var result = await importer.ImportAllAsync(path, Console.WriteLine);
-    Console.WriteLine($"Done. {result}");
-    return;
-}
-
 // One-off head-office masters import, read directly from HO's production drive
 // (F:\PMDM, F:\AUTOPROG\ADDON\{branch}, F:\AUTOPROG\CUSTOMER\{branch}) across
 // every branch found on disk — not a single branch's staged copy. Runs only on

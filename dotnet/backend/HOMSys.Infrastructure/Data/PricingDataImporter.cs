@@ -196,6 +196,7 @@ public class PricingDataImporter(AppDbContext db)
             newMarker.FileMtimes[file] = File.GetLastWriteTimeUtc(file);
 
         SaveMarker(markerPath, newMarker);
+        await db.RecordSyncAsync(SyncLogSections.PricingMasters);
 
         return result;
     }
@@ -236,10 +237,10 @@ public class PricingDataImporter(AppDbContext db)
 
     /// <summary>
     /// Updates existing Product rows (matched on ProdNo) with base price
-    /// fields. Already a proper diff: Products pre-exist from
-    /// ReferenceDataImporter, and SaveChangesAsync's change tracking only
-    /// emits an UPDATE for a row whose pricing columns actually changed —
-    /// no rework needed here for row-level sync.
+    /// fields. Update-only: it never inserts a new Product row.
+    /// SaveChangesAsync's change tracking only emits an UPDATE for a row
+    /// whose pricing columns actually changed — no rework needed here for
+    /// row-level sync.
     /// </summary>
     public async Task<int> ImportProductPricesAsync(string root, Action<string> log)
     {

@@ -107,23 +107,17 @@ customer lookup, and shows the result in a "LP w/ VAT" column — purely
 display-only, never written to `SalesOrderLine.Price/Amt/NetAmt` or sent in
 the save payload.
 
-### Reference data import
+### Reference data import — removed
 
-```powershell
-dotnet run --project backend\HOMSys.API -- import-reference-data
-```
-
-Truncates and reloads `Customers` / `Products` / `PoLog`, read live from
-`\\Acastillano\setup\ADC\BMSRAM` (BMS itself runs against this share — it's a
-live source, not a snapshot). The local `legacy\dbf` copy is kept only as an
-offline fallback; pass its path as `[path]` to use it instead.
-Only seeded PO log rows are cleared — rows HOMSys created are preserved.
-Expected counts (post blank-key/dup-key skip, re-confirmed 2026-08-19 live
-against `\\Acastillano\setup\ADC\BMSRAM`): Customers 149,606 (149,626 raw, 18
-duplicate `CUSTKEY` rows collapsed — last-occurring row per key wins),
-Products 383 (734 raw, blank `CProdNo` skipped), PoLog 9,645 (9,754 raw,
-blank `PoNum` skipped — one more raw row than the 2026-08-18 snapshot, since
-this is now a live share and keeps changing).
+The BMSRAM pull-sync (`ReferenceDataImporter`, `import-reference-data` CLI
+verb, `ReferenceController`, and the Legacy Monitoring page's "Reference
+Data" section) was removed 2026-09-05 — the architecture is push-only
+(HOMSys → BMS via `SalesOrderBridge.exe`), not pull. `Customer`/`Product`
+tables and their repositories are unchanged and still power the Sales Order
+module; only the automated/manual sync-from-BMSRAM mechanism is gone, so
+nothing currently populates new `Customer`/`Product` rows going forward —
+`PricingDataImporter`'s product-pricing import is update-only (matched on
+existing `ProdNo`, never inserts).
 
 ### Pricing masters import
 
@@ -230,9 +224,8 @@ at `%LOCALAPPDATA%\HOMSys\pricing-snapshot.json`, keyed the same way as the
 SQL tables (`ProdNo` / `CategoryCode` / `(CProdNo,Zone)` / `RecNo` /
 `(Branch,RecNo)`). Only genuinely changed rows go in the POST body to
 `/api/masters/sync`; a quiet run sends an empty body. The snapshot is only
-overwritten after a successful POST. `api/reference/sync` is **not** called
-by this watcher — Customers/Products stay on the manual
-`import-reference-data` CLI command.
+overwritten after a successful POST. Customers/Products are no longer synced
+from BMSRAM at all (see "Reference data import — removed" above).
 
 Server-side, `PricingController.Sync` now binds a `PricingSyncDeltaRequest`
 (`HOMSys.Application\DTOs\Pricing`) and hands it to `PricingDeltaImporter`

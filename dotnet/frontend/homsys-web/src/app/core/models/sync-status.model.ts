@@ -1,22 +1,16 @@
-export interface ReferenceSyncStatusDto {
-  lastRunUtc: string | null;
-  customers: number;
-  products: number;
-}
-
-export interface PricingFileStatusDto {
-  file: string;
-  lastWriteUtc: string;
+export interface PricingTableStatusDto {
+  table: string;
+  lastUpdatedUtc: string;
 }
 
 export interface PricingSyncStatusDto {
   lastRunUtc: string | null;
   addonBranches: string[];
   customerBranches: string[];
-  files: PricingFileStatusDto[];
+  tables: PricingTableStatusDto[];
+  canTriggerSync: boolean;
 }
 
 export interface SyncStatusDto {
-  referenceData: ReferenceSyncStatusDto;
   pricingMasters: PricingSyncStatusDto;
 }

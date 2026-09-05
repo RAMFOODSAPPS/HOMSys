@@ -29,7 +29,7 @@ import { CustomerSuggestionDto } from '../../core/models/sales-order.model';
           <label>Customers <span class="required-star">*</span></label>
           <p-autoComplete [(ngModel)]="selectedCustomers" [suggestions]="customerSuggestions()"
                  field="cusName" [multiple]="true" [dropdown]="true" [minLength]="2"
-                 [appendTo]="'body'" placeholder="Search customer key or name"
+                 [delay]="1000" [appendTo]="'body'" placeholder="Search customer key or name"
                  (completeMethod)="searchCustomers($event)" (onChange)="clearPreview()">
             <ng-template let-item pTemplate="item">
               <div class="autocomplete-item">{{ item.custKey }} - {{ item.cusName }}</div>
@@ -176,11 +176,26 @@ export class PricelistExportPageComponent implements OnInit, OnDestroy {
     this.toolbar.clear();
   }
 
+  // Keyed by sorted lowercase keywords so "Puregold Isabela" and "Isabela Puregold"
+  // share a cache entry, and repeated/backspaced-then-retyped terms skip the API call.
+  private customerSearchCache = new Map<string, CustomerSuggestionDto[]>();
+
+  private cacheKey(term: string): string {
+    return term.toLowerCase().split(' ').filter(Boolean).sort().join(' ');
+  }
+
   searchCustomers(event: AutoCompleteCompleteEvent): void {
     const term = (event.query ?? '').trim();
     if (!term) { this.customerSuggestions.set([]); return; }
+    const key = this.cacheKey(term);
+    const cached = this.customerSearchCache.get(key);
+    if (cached) { this.customerSuggestions.set(cached); return; }
     this.api.searchCustomers(term).subscribe({
-      next: res => this.customerSuggestions.set(res.data ?? []),
+      next: res => {
+        const data = res.data ?? [];
+        this.customerSearchCache.set(key, data);
+        this.customerSuggestions.set(data);
+      },
       error: () => this.customerSuggestions.set([])
     });
   }

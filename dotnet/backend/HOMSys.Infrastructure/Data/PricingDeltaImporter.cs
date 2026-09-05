@@ -82,6 +82,10 @@ public class PricingDeltaImporter(AppDbContext db)
                 PrlistXRestrictions: 0, PriceHistoryRows: 0, ZoneAddOns: 0, Zone2AddOns: 0, CustomerBranchZones: 0 })
             log("Empty delta — nothing to apply.");
 
+        // Even an empty delta means the watcher successfully read F:\ and checked in —
+        // that's what "last synced" should reflect, not just whether rows changed.
+        await db.RecordSyncAsync(SyncLogSections.PricingMasters);
+
         return result;
     }
 

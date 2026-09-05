@@ -11,6 +11,5 @@ export class SyncStatusService {
   constructor(private http: HttpClient) {}
 
   getStatus() { return this.http.get<ApiResponse<SyncStatusDto>>(this.base); }
-  triggerReferenceSync() { return this.http.post<ApiResponse<string>>(`${this.base}/reference-sync`, {}); }
   triggerPricingSync() { return this.http.post<ApiResponse<string>>(`${this.base}/pricing-sync`, {}); }
 }

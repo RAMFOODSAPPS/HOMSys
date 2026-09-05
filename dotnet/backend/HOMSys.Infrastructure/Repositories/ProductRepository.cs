@@ -20,13 +20,23 @@ public class ProductRepository(AppDbContext db) : IProductRepository
             .ToDictionaryAsync(p => p.CProdNo);
     }
 
-    public async Task<IEnumerable<Product>> SearchAsync(string term, int take = 50) =>
-        await db.Products.AsNoTracking()
-            .Where(p => p.CProdNo.StartsWith(term) || p.ProdDesc.Contains(term))
+    // Each whitespace-separated keyword must match somewhere in CProdNo/ProdDesc,
+    // in any order — see CustomerRepository.SearchAsync for the same pattern and
+    // why the leading-wildcard Contains cost is acceptable now that the frontend
+    // debounces 1s before calling this.
+    public async Task<IEnumerable<Product>> SearchAsync(string term, int take = 50)
+    {
+        var tokens = term.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var query = db.Products.AsNoTracking();
+        foreach (var token in tokens)
+            query = query.Where(p => p.CProdNo.Contains(token) || p.ProdDesc.Contains(token));
+
+        return await query
             .OrderByDescending(p => p.CProdNo.StartsWith(term))
             .ThenBy(p => p.CProdNo)
             .Take(take)
             .ToListAsync();
+    }
 
     public async Task<List<PriceListProductRow>> GetPriceListWithCategoryAsync()
     {

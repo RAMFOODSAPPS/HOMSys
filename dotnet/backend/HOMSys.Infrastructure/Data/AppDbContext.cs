@@ -56,6 +56,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     // Bridge-synced oowkdet snapshot for the OOS report — see OosSyncLine.
     public DbSet<OosSyncLine> OosSyncLines => Set<OosSyncLine>();
 
+    // Per-section "last synced" timestamp for the Legacy Monitoring page,
+    // updated by every path that actually applies a sync — see SyncLogExtensions.
+    public DbSet<SyncLog> SyncLogs => Set<SyncLog>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<UserRole>()
@@ -172,6 +176,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<SiteType>()
             .HasIndex(st => st.Code).IsUnique()
             .HasFilter("[Code] != ''");
+
+        modelBuilder.Entity<SyncLog>()
+            .HasIndex(s => s.Section).IsUnique();
+
+        modelBuilder.Entity<SyncLog>()
+            .Property(s => s.Section).HasMaxLength(50).IsRequired();
 
         // Seed roles
         modelBuilder.Entity<Role>().HasData(
