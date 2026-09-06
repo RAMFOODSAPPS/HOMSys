@@ -71,6 +71,7 @@ import { LayoutService } from '../../core/services/layout.service';
 
     .layout-content {
       flex: 1;
+      min-width: 0;
       overflow-y: auto;
       overflow-x: hidden;
       padding: 1.25rem;

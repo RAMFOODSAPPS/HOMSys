@@ -20,6 +20,7 @@ public class UserDto
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }
+    public DateTime? LastLoginAt { get; set; }
     public IEnumerable<string> Roles { get; set; } = [];
     public IEnumerable<int> RoleIds { get; set; } = [];
 }

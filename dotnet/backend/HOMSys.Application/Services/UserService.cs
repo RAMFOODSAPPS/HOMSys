@@ -123,6 +123,7 @@ public class UserService(IUserRepository userRepo, IRoleRepository roleRepo, IHt
         CreatedAt = u.CreatedAt,
         CreatedBy = u.CreatedBy,
         UpdatedAt = u.UpdatedAt,
+        LastLoginAt = u.LastLoginAt,
         UpdatedBy = u.UpdatedBy,
         Roles = u.UserRoles.Select(ur => ur.Role?.Name ?? string.Empty).Where(n => n != string.Empty),
         RoleIds = u.UserRoles.Select(ur => ur.RoleId)

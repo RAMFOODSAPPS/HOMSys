@@ -88,6 +88,7 @@ const IMPORT_COLS: ImportColumn[] = [
           <th pSortableColumn="createdBy">Created By <p-sortIcon field="createdBy" /></th>
           <th pSortableColumn="updatedAt">Updated At <p-sortIcon field="updatedAt" /></th>
           <th pSortableColumn="updatedBy">Updated By <p-sortIcon field="updatedBy" /></th>
+          <th pSortableColumn="lastLoginAt">Last Login <p-sortIcon field="lastLoginAt" /></th>
         </tr>
       </ng-template>
 
@@ -114,11 +115,12 @@ const IMPORT_COLS: ImportColumn[] = [
           <td>{{ user.createdBy || '—' }}</td>
           <td>{{ user.updatedAt ? (user.updatedAt | date:'MM/dd/yyyy hh:mm a') : '—' }}</td>
           <td>{{ user.updatedBy || '—' }}</td>
+          <td>{{ user.lastLoginAt ? (user.lastLoginAt | date:'MM/dd/yyyy hh:mm a') : 'Never' }}</td>
         </tr>
       </ng-template>
 
       <ng-template pTemplate="emptymessage">
-        <tr><td colspan="12" class="text-center">No users found.</td></tr>
+        <tr><td colspan="13" class="text-center">No users found.</td></tr>
       </ng-template>
     </p-table>
   `,

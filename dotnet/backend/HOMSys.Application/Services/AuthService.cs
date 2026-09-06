@@ -27,6 +27,8 @@ public class AuthService(IUserRepository userRepo, IRefreshTokenRepository refre
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             return null;
 
+        await userRepo.UpdateLastLoginAsync(user.Id, DateTime.UtcNow);
+
         return await GenerateTokensAsync(user);
     }
 

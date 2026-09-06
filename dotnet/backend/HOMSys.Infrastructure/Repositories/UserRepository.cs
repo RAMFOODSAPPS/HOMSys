@@ -77,6 +77,10 @@ public class UserRepository(AppDbContext db) : IUserRepository
         await db.SaveChangesAsync();
     }
 
+    public async Task UpdateLastLoginAsync(int userId, DateTime at) =>
+        await db.Users.Where(u => u.Id == userId).ExecuteUpdateAsync(s => s
+            .SetProperty(u => u.LastLoginAt, at));
+
     public async Task DeleteAsync(int id)
     {
         var user = await db.Users.FindAsync(id);

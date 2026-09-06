@@ -17,6 +17,7 @@ export interface UserDto {
   createdBy: string;
   updatedAt?: string;
   updatedBy?: string;
+  lastLoginAt?: string;
   roles: string[];
   roleIds: number[];
 }

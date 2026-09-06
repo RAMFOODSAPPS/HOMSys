@@ -26,6 +26,7 @@ public class User
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }
+    public DateTime? LastLoginAt { get; set; }
 
     public ICollection<UserRole> UserRoles { get; set; } = [];
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
