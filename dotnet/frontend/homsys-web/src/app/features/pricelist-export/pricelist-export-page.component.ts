@@ -35,8 +35,17 @@ type ReportType = 'account' | 'zone' | 'grouped';
       }
 
       <div class="pe-body" [hidden]="isFullscreen()">
+        @if (sidebarCollapsed()) {
+          <div class="sidebar-expand-tab" (click)="sidebarCollapsed.set(false)" title="Show export options">
+            <i class="pi pi-chevron-right"></i>
+          </div>
+        }
+        @if (!sidebarCollapsed()) {
         <div class="pe-sidebar">
-          <div class="sidebar-heading">Export Mode</div>
+          <div class="sidebar-heading-row">
+            <div class="sidebar-heading no-margin">Export Mode</div>
+            <a class="hide-link" (click)="sidebarCollapsed.set(true)">Hide</a>
+          </div>
           @for (opt of reportTypeOptions; track opt.value) {
             <label class="mode-radio">
               <input type="radio" name="mode" [checked]="reportType() === opt.value" (change)="onReportTypeChange(opt.value)" />
@@ -129,6 +138,7 @@ type ReportType = 'account' | 'zone' | 'grouped';
             </div>
           }
         </div>
+        }
 
         <div class="pe-main">
           @if (reportType() !== 'zone') {
@@ -309,6 +319,17 @@ type ReportType = 'account' | 'zone' | 'grouped';
     .sidebar-heading { font-size: 11px; font-weight: 700; color: #6b6b6b; margin: 14px 0 5px; }
     .sidebar-heading:first-child { margin-top: 0; }
     .sidebar-heading.no-margin { margin: 0; }
+    .sidebar-heading-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .hide-link { font-size: 11px; color: var(--p-text-muted-color, #888); cursor: pointer; white-space: nowrap; text-decoration: underline; }
+    .hide-link:hover { color: #6b6b6b; }
+    .sidebar-expand-tab {
+      position: fixed; top: 120px; left: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: center;
+      width: 20px; height: 40px; border-radius: 0 6px 6px 0;
+      background: var(--p-surface-100, #f1f5f9); border: 1px solid var(--p-surface-200, #e7e3dd); border-left: none;
+      color: var(--p-text-muted-color, #6b6b6b); cursor: pointer;
+    }
+    .sidebar-expand-tab:hover { background: var(--p-surface-200, #e7e3dd); }
     .mode-radio { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 8px; cursor: pointer; }
     .pe-sidebar ::ng-deep .sidebar-input,
     .pe-sidebar ::ng-deep .sidebar-input .p-select,
@@ -476,6 +497,7 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
     { label: 'Grouped by Price', value: 'grouped' },
   ];
   reportType = signal<ReportType>('account');
+  sidebarCollapsed = signal(false);
 
   branches = signal<BranchOptionDto[]>([]);
   selectedBranch = signal<string | null>(null);
