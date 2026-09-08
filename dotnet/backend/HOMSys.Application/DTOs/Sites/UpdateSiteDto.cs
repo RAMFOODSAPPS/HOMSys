@@ -25,6 +25,11 @@ public class UpdateSiteDto
     [MaxLength(300)]
     public string Description { get; set; } = string.Empty;
 
+    [MaxLength(200)]
+    public string Cuwhsenos { get; set; } = string.Empty;
+
+    public bool PricesOffHon { get; set; }
+
     public bool IsActive { get; set; }
 
     public int? SiteTypeId { get; set; }

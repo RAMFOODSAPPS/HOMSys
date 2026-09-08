@@ -7,7 +7,7 @@ namespace HOMSys.Application.Services;
 /// PriceCalculationService (single-SKU quote) and PricelistExportService
 /// (bulk pricelist export) so the branch-mapping rule lives in one place.
 /// </summary>
-public class CustomerBranchResolver(ICustomerRepository customerRepo, IPricingRepository pricingRepo)
+public class CustomerBranchResolver(IPricingRepository pricingRepo)
 {
     /// <summary>
     /// F:\AUTOPROG\CUSTOMER\{branch} folder name -> F:\AUTOPROG\ADDON\{branch}
@@ -30,10 +30,8 @@ public class CustomerBranchResolver(ICustomerRepository customerRepo, IPricingRe
     public const string DefaultBranch = "hon";
 
     /// <summary>
-    /// CustomerBranchZone (F:\AUTOPROG\CUSTOMER\{branch}\cust4win.dbf) carries both
-    /// the real branch tag and CZone for this customer â€” the trustworthy
-    /// source. Falls back to the BMSRAM-sourced Customer.CZone/DefaultBranch
-    /// only if this customer hasn't been backfilled into CustomerBranchZone yet.
+    /// Customer (F:\AUTOPROG\CUSTOMER\{branch}\cust4win.dbf) carries both the
+    /// real branch tag and CZone for this customer directly.
     /// </summary>
     public async Task<(string Branch, string CZone)> ResolveAsync(string? custKey)
     {
@@ -42,13 +40,10 @@ public class CustomerBranchResolver(ICustomerRepository customerRepo, IPricingRe
             return (DefaultBranch, string.Empty);
 
         var zone = await pricingRepo.GetCustomerBranchZoneAsync(custKey);
-        if (zone is not null)
-        {
-            var branch = CustomerBranchToPricingFolder.GetValueOrDefault(zone.Value.Branch, zone.Value.Branch);
-            return (branch, zone.Value.CZone);
-        }
+        if (zone is null)
+            return (DefaultBranch, string.Empty);
 
-        var customer = await customerRepo.GetByCustKeyAsync(custKey);
-        return (DefaultBranch, customer?.CZone ?? string.Empty);
+        var branch = CustomerBranchToPricingFolder.GetValueOrDefault(zone.Value.Branch, zone.Value.Branch);
+        return (branch, zone.Value.CZone);
     }
 }

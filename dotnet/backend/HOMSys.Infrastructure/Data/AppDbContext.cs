@@ -16,7 +16,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Site> Sites => Set<Site>();
     public DbSet<SiteType> SiteTypes => Set<SiteType>();
 
-    // BMS reference data (seeded from DBF, read-only in HOMSys)
+    // Customer master, live-synced from F:\AUTOPROG\CUSTOMER\{branch}\cust4win.dbf
+    // (PricingDataImporter / LegacyMasterWatcher) — one row per (Branch, RecNo).
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<PoLog> PoLogs => Set<PoLog>();
@@ -40,10 +41,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ZoneAddOn> ZoneAddOns => Set<ZoneAddOn>();
     public DbSet<Zone2AddOn> Zone2AddOns => Set<Zone2AddOn>();
 
-    // Per-branch CZone from F:\AUTOPROG\CUSTOMER\{branch}\cust4win.dbf — the
-    // pricing-lookup source of truth for CZone (Customer.CZone is BMSRAM-sourced
-    // and may lag branch-side updates). See PricingDataImporter.
-    public DbSet<CustomerBranchZone> CustomerBranchZones => Set<CustomerBranchZone>();
+    // Zone code -> description only, for labeling the Pricelist by Zone
+    // report's zone picker. See PricingDataImporter.
+    public DbSet<ZoneMast> ZoneMasts => Set<ZoneMast>();
 
     // Free-text customer identifier -> CustKey, learned from the "Import by
     // Customer Name" SO import mapping dialog.
@@ -200,7 +200,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new Permission { Id = 8, Key = "sales-orders",  Name = "Sales Order Encoding",      Description = "Encode and view sales orders" },
             new Permission { Id = 9, Key = "oos-report",     Name = "OOS Report",                Description = "View out-of-stock report for sales orders" },
             new Permission { Id = 10, Key = "pricelist-export", Name = "Pricelist Export",       Description = "Generate branch pricelist Excel exports" },
-            new Permission { Id = 11, Key = "legacy-monitoring", Name = "Legacy Monitoring",      Description = "View legacy DBF sync status and trigger manual syncs" }
+            new Permission { Id = 11, Key = "legacy-monitoring", Name = "Legacy Monitoring",      Description = "View legacy DBF sync status and trigger manual syncs" },
+            new Permission { Id = 12, Key = "pricelist-zone-export", Name = "Pricelist by Zone",  Description = "Generate branch pricelist Excel exports by zone" }
         );
 
         // Admin gets all permissions by default
@@ -215,7 +216,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new RolePermission { RoleId = 1, PermissionId = 8 },
             new RolePermission { RoleId = 1, PermissionId = 9 },
             new RolePermission { RoleId = 1, PermissionId = 10 },
-            new RolePermission { RoleId = 1, PermissionId = 11 }
+            new RolePermission { RoleId = 1, PermissionId = 11 },
+            new RolePermission { RoleId = 1, PermissionId = 12 }
         );
 
         // Seed default admin user (password: Admin@1234)
@@ -244,11 +246,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// </summary>
     private static void ConfigureSalesOrderModule(ModelBuilder b)
     {
-        // ── Customer (from cust4win.DBF) ─────────────────────────────────────
+        // ── Customer (from F:\AUTOPROG\CUSTOMER\{branch}\cust4win.DBF) ───────
         b.Entity<Customer>(e =>
         {
-            e.HasIndex(x => x.CustKey).IsUnique();
+            // Not unique: CustKey lives in exactly one branch's file in practice,
+            // but the identity key is (Branch, RecNo) like every other per-branch
+            // pricing table, not CustKey alone.
+            e.HasIndex(x => x.CustKey);
             e.HasIndex(x => x.CusName);
+            e.HasIndex(x => x.Branch);
+            e.HasIndex(x => new { x.Branch, x.RecNo });
+            e.Property(x => x.Branch).HasMaxLength(10).IsRequired();
             e.Property(x => x.CustKey).HasMaxLength(7).IsRequired();
             e.Property(x => x.CKey).HasMaxLength(5);
             e.Property(x => x.CusName).HasMaxLength(50);
@@ -258,7 +266,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.DelAddrLn2).HasMaxLength(75);
             e.Property(x => x.DelArea).HasMaxLength(75);
             e.Property(x => x.CsMan).HasMaxLength(4);
-            e.Property(x => x.CZone).HasMaxLength(4);
+            e.Property(x => x.CZone).HasMaxLength(4).IsRequired();
             e.Property(x => x.VatId).HasMaxLength(1);
             e.Property(x => x.Subd).HasMaxLength(20);
             e.Property(x => x.Tin).HasMaxLength(20);
@@ -322,15 +330,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.FixAmt).HasPrecision(9, 4);
         });
 
-        // ── CustomerBranchZone (from F:\AUTOPROG\CUSTOMER\{branch}\cust4win.DBF) ──
-        b.Entity<CustomerBranchZone>(e =>
+        // ── ZoneMast (from addon\{branch}\zonemast.DBF) ──────────────────────
+        b.Entity<ZoneMast>(e =>
         {
-            e.HasIndex(x => x.CustKey);
-            e.HasIndex(x => x.Branch);
-            e.HasIndex(x => new { x.Branch, x.RecNo });
+            e.HasIndex(x => new { x.Branch, x.CZone });
             e.Property(x => x.Branch).HasMaxLength(10).IsRequired();
-            e.Property(x => x.CustKey).HasMaxLength(7).IsRequired();
             e.Property(x => x.CZone).HasMaxLength(4).IsRequired();
+            e.Property(x => x.CDesc).HasMaxLength(20);
         });
 
         // ── CustomerIdentifierMap (learned from "Import by Customer Name") ──

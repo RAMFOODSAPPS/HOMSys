@@ -10,6 +10,7 @@ export interface SiteDto {
   phone: string;
   contactPerson: string;
   description: string;
+  cuwhsenos: string;
   isActive: boolean;
   createdAt: string;
   createdBy: string;
@@ -26,6 +27,7 @@ export interface CreateSiteDto {
   phone: string;
   contactPerson: string;
   description: string;
+  cuwhsenos: string;
 }
 
 export interface UpdateSiteDto {
@@ -37,5 +39,6 @@ export interface UpdateSiteDto {
   phone: string;
   contactPerson: string;
   description: string;
+  cuwhsenos: string;
   isActive: boolean;
 }

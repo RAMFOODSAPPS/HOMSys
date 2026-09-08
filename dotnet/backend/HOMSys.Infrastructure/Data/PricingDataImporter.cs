@@ -113,6 +113,14 @@ public class PricingDataImporter(AppDbContext db)
         foreach (var file in zoneFiles.Concat(zone2Files).Concat(custFiles).Select(x => x.File))
             RequireFile(file);
 
+        // zonemast.dbf coverage isn't guaranteed for every branch (it's a
+        // write-path-only file in the Pricing Adjustment subsystem) — skip
+        // branches without one rather than requiring it.
+        var zoneMastFiles = addonBranches
+            .Select(b => (Branch: b, File: Path.Combine(AddonRoot(root), b, "zonemast.dbf")))
+            .Where(x => File.Exists(x.File))
+            .ToArray();
+
         var markerPath = MarkerPath;
         var marker = LoadMarker(markerPath);
 
@@ -123,7 +131,8 @@ public class PricingDataImporter(AppDbContext db)
             !marker.FileMtimes.TryGetValue(file, out var prev) || File.GetLastWriteTimeUtc(file) > prev;
 
         var anyChange = branchesChanged || Changed(prod4win) || Changed(prchst) || Changed(prodcat) || Changed(prlistx2) || Changed(prlistx)
-            || zoneFiles.Any(x => Changed(x.File)) || zone2Files.Any(x => Changed(x.File)) || custFiles.Any(x => Changed(x.File));
+            || zoneFiles.Any(x => Changed(x.File)) || zone2Files.Any(x => Changed(x.File)) || custFiles.Any(x => Changed(x.File))
+            || zoneMastFiles.Any(x => Changed(x.File));
 
         if (!anyChange)
         {
@@ -169,21 +178,27 @@ public class PricingDataImporter(AppDbContext db)
             if (Changed(file))
                 result.Zone2AddOns += await ImportZone2AddOnsAsync(root, branch, log);
         }
+        foreach (var (branch, file) in zoneMastFiles)
+        {
+            if (Changed(file))
+                result.ZoneMasts += await ImportZoneMastAsync(root, branch, log);
+        }
 
         log($"Discovered {customerBranches.Length} CUSTOMER branch folder(s): {string.Join(", ", customerBranches)}");
         foreach (var (branch, file) in custFiles)
         {
             if (Changed(file))
-                result.CustomerBranchZones += await ImportCustomerBranchZonesAsync(root, branch, log);
+                result.CustomerBranchZones += await ImportCustomersAsync(root, branch, log);
         }
 
         if (branchesChanged)
         {
             var staleZone = await db.ZoneAddOns.Where(z => !addonBranches.Contains(z.Branch)).ExecuteDeleteAsync();
             var staleZone2 = await db.Zone2AddOns.Where(z => !addonBranches.Contains(z.Branch)).ExecuteDeleteAsync();
-            var staleCustomerBranchZone = await db.CustomerBranchZones.Where(z => !customerBranches.Contains(z.Branch)).ExecuteDeleteAsync();
-            if (staleZone + staleZone2 + staleCustomerBranchZone > 0)
-                log($"Purged stale rows for branches no longer in the active list: ZoneAddOns={staleZone}, Zone2AddOns={staleZone2}, CustomerBranchZones={staleCustomerBranchZone}");
+            var staleZoneMast = await db.ZoneMasts.Where(z => !addonBranches.Contains(z.Branch)).ExecuteDeleteAsync();
+            var staleCustomerBranchZone = await db.Customers.Where(z => !customerBranches.Contains(z.Branch)).ExecuteDeleteAsync();
+            if (staleZone + staleZone2 + staleZoneMast + staleCustomerBranchZone > 0)
+                log($"Purged stale rows for branches no longer in the active list: ZoneAddOns={staleZone}, Zone2AddOns={staleZone2}, ZoneMasts={staleZoneMast}, CustomerBranchZones={staleCustomerBranchZone}");
         }
 
         var newMarker = new ImportMarker
@@ -737,27 +752,96 @@ public class PricingDataImporter(AppDbContext db)
         return inserted + updated + deleted;
     }
 
-    public async Task<int> ImportCustomerBranchZonesAsync(string root, string branch, Action<string> log)
+    /// <summary>Small reference table (~121 rows for hon) — plain truncate+reload
+    /// per branch rather than a RecNo diff.</summary>
+    public async Task<int> ImportZoneMastAsync(string root, string branch, Action<string> log)
+    {
+        var file = Path.Combine(AddonRoot(root), branch, "zonemast.dbf");
+        RequireFile(file);
+
+        log($"Reloading zone descriptions for branch '{branch}' from {file} ...");
+
+        var existing = await db.ZoneMasts.Where(z => z.Branch == branch).ToListAsync();
+        db.ZoneMasts.RemoveRange(existing);
+
+        using var reader = new DbfReader(file);
+        var toInsert = new List<ZoneMast>();
+        foreach (var r in reader.Records())
+        {
+            var czone = r.GetString("CZONE");
+            if (string.IsNullOrWhiteSpace(czone)) continue;
+            toInsert.Add(new ZoneMast { Branch = branch, CZone = czone, CDesc = r.GetString("CDESC") });
+        }
+        await db.ZoneMasts.AddRangeAsync(toInsert);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        log($"  loaded {toInsert.Count:N0} zone descriptions");
+        return toInsert.Count;
+    }
+
+    // All cust4win.dbf fields the Customer entity carries, aside from the
+    // (Branch, RecNo, CustKey) identity — used to build a diffable snapshot per
+    // record instead of a long hand-written field-by-field comparison.
+    private readonly record struct CustomerFields(
+        string CKey, string CusName, string AddrLn1, string AddrLn2, string DelAddrLn1, string DelAddrLn2,
+        string DelArea, int WhseNo, int CustWhse, int ServeWh, int DelWhse, int Salesman, string CsMan,
+        int Term, int TermDays, string CZone, string VatId, string Subd, bool Tpc, bool Offshore, bool ExBranch,
+        int CCode, int OldCCode, DateOnly? IEffDate, bool BlockInv, string Tin, string AliasKey, string ConsoMax2,
+        DateOnly? FirstOrder, bool Inactive);
+
+    private static CustomerFields ReadCustomerFields(DbfRecord r) => new(
+        CKey: r.GetString("CKEY"), CusName: r.GetString("CUSNAME"), AddrLn1: r.GetString("ADDRLN1"),
+        AddrLn2: r.GetString("ADDRLN2"), DelAddrLn1: r.GetString("DELADDRLN1"), DelAddrLn2: r.GetString("DELADDRLN2"),
+        DelArea: r.GetString("DELAREA"), WhseNo: r.GetInt("WHSENO"), CustWhse: r.GetInt("CUSTWHSE"),
+        ServeWh: r.GetInt("SERVEWH"), DelWhse: r.GetInt("DELWHSE"), Salesman: r.GetInt("SALESMAN"),
+        CsMan: r.GetString("CSMAN"), Term: r.GetInt("TERM"), TermDays: r.GetInt("TERMDAYS"),
+        CZone: r.GetString("CZONE"), VatId: r.GetString("VATID"), Subd: r.GetString("SUBD"),
+        Tpc: r.GetBool("TPC"), Offshore: r.GetBool("OFFSHORE"), ExBranch: r.GetBool("EX_BRANCH"),
+        CCode: r.GetInt("CCODE"), OldCCode: r.GetInt("OLDCCODE"), IEffDate: r.GetDate("IEFFDATE"),
+        BlockInv: r.GetBool("BLOCKINV"), Tin: r.GetString("TIN"), AliasKey: r.GetString("ALIASKEY"),
+        ConsoMax2: r.GetString("CONSOMAX2"), FirstOrder: r.GetDate("FIRSTORDER"), Inactive: r.GetBool("INACTIVE"));
+
+    private static CustomerFields SnapshotOf(Customer c) => new(
+        CKey: c.CKey, CusName: c.CusName, AddrLn1: c.AddrLn1, AddrLn2: c.AddrLn2, DelAddrLn1: c.DelAddrLn1,
+        DelAddrLn2: c.DelAddrLn2, DelArea: c.DelArea, WhseNo: c.WhseNo, CustWhse: c.CustWhse, ServeWh: c.ServeWh,
+        DelWhse: c.DelWhse, Salesman: c.Salesman, CsMan: c.CsMan, Term: c.Term, TermDays: c.TermDays,
+        CZone: c.CZone, VatId: c.VatId, Subd: c.Subd, Tpc: c.Tpc, Offshore: c.Offshore, ExBranch: c.ExBranch,
+        CCode: c.CCode, OldCCode: c.OldCCode, IEffDate: c.IEffDate, BlockInv: c.BlockInv, Tin: c.Tin,
+        AliasKey: c.AliasKey, ConsoMax2: c.ConsoMax2, FirstOrder: c.FirstOrder, Inactive: c.Inactive);
+
+    private static void ApplyFields(Customer c, CustomerFields f)
+    {
+        c.CKey = f.CKey; c.CusName = f.CusName; c.AddrLn1 = f.AddrLn1; c.AddrLn2 = f.AddrLn2;
+        c.DelAddrLn1 = f.DelAddrLn1; c.DelAddrLn2 = f.DelAddrLn2; c.DelArea = f.DelArea; c.WhseNo = f.WhseNo;
+        c.CustWhse = f.CustWhse; c.ServeWh = f.ServeWh; c.DelWhse = f.DelWhse; c.Salesman = f.Salesman;
+        c.CsMan = f.CsMan; c.Term = f.Term; c.TermDays = f.TermDays; c.CZone = f.CZone; c.VatId = f.VatId;
+        c.Subd = f.Subd; c.Tpc = f.Tpc; c.Offshore = f.Offshore; c.ExBranch = f.ExBranch; c.CCode = f.CCode;
+        c.OldCCode = f.OldCCode; c.IEffDate = f.IEffDate; c.BlockInv = f.BlockInv; c.Tin = f.Tin;
+        c.AliasKey = f.AliasKey; c.ConsoMax2 = f.ConsoMax2; c.FirstOrder = f.FirstOrder; c.Inactive = f.Inactive;
+    }
+
+    public async Task<int> ImportCustomersAsync(string root, string branch, Action<string> log)
     {
         var file = Path.Combine(CustomerRoot(root), branch, "CUST4WIN.DBF");
         RequireFile(file);
 
-        log($"Diffing customer zones for branch '{branch}' from {file} ...");
+        log($"Diffing customers for branch '{branch}' from {file} ...");
 
-        var legacyRows = await db.CustomerBranchZones.Where(z => z.Branch == branch && z.RecNo == 0).CountAsync();
+        var legacyRows = await db.Customers.Where(z => z.Branch == branch && z.RecNo == 0).CountAsync();
         var isFullRewrite = legacyRows > 1;
         if (isFullRewrite)
         {
             log($"  First diff since RecNo backfill — reconciling {legacyRows:N0} pre-RecNo row(s), full rewrite this run (not logging individual rows)");
-            await db.CustomerBranchZones.Where(z => z.Branch == branch && z.RecNo == 0).ExecuteDeleteAsync();
+            await db.Customers.Where(z => z.Branch == branch && z.RecNo == 0).ExecuteDeleteAsync();
         }
 
-        var existing = await db.CustomerBranchZones.Where(z => z.Branch == branch).ToDictionaryAsync(x => x.RecNo);
+        var existing = await db.Customers.Where(z => z.Branch == branch).ToDictionaryAsync(x => x.RecNo);
 
         using var reader = new DbfReader(file);
         log($"  {reader.RecordCount:N0} records in source");
 
-        var toInsert = new List<CustomerBranchZone>(BatchSize);
+        var toInsert = new List<Customer>(BatchSize);
         var inserted = 0;
         var updated = 0;
 
@@ -770,24 +854,26 @@ public class PricingDataImporter(AppDbContext db)
                 continue;
             }
 
-            var cZone = r.GetString("CZONE");
+            var fields = ReadCustomerFields(r);
 
             if (existing.Remove(r.RecNo, out var row))
             {
-                if (row.CustKey != custKey || row.CZone != cZone)
+                if (row.CustKey != custKey || !SnapshotOf(row).Equals(fields))
                 {
                     if (!isFullRewrite)
-                        log($"  update {branch} RecNo={r.RecNo} CustKey={custKey} CZone={row.CZone}->{cZone}");
+                        log($"  update {branch} RecNo={r.RecNo} CustKey={custKey} CusName={fields.CusName} Inactive={row.Inactive}->{fields.Inactive}");
                     row.CustKey = custKey;
-                    row.CZone = cZone;
+                    ApplyFields(row, fields);
                     updated++;
                 }
             }
             else
             {
                 if (!isFullRewrite)
-                    log($"  insert {branch} RecNo={r.RecNo} CustKey={custKey} CZone={cZone}");
-                toInsert.Add(new CustomerBranchZone { Branch = branch, RecNo = r.RecNo, CustKey = custKey, CZone = cZone });
+                    log($"  insert {branch} RecNo={r.RecNo} CustKey={custKey} CusName={fields.CusName}");
+                var newRow = new Customer { Branch = branch, RecNo = r.RecNo, CustKey = custKey };
+                ApplyFields(newRow, fields);
+                toInsert.Add(newRow);
                 inserted++;
                 await FlushInsertsIfFullAsync(toInsert, log);
             }
@@ -798,8 +884,8 @@ public class PricingDataImporter(AppDbContext db)
         {
             if (!isFullRewrite)
                 foreach (var row in existing.Values)
-                    log($"  delete {branch} RecNo={row.RecNo} CustKey={row.CustKey} CZone={row.CZone}");
-            db.CustomerBranchZones.RemoveRange(existing.Values);
+                    log($"  delete {branch} RecNo={row.RecNo} CustKey={row.CustKey} CusName={row.CusName}");
+            db.Customers.RemoveRange(existing.Values);
         }
 
         await FlushInsertsAsync(toInsert, log);
@@ -858,6 +944,7 @@ public class PricingImportResult
     public int ZoneAddOns { get; set; }
     public int Zone2AddOns { get; set; }
     public int CustomerBranchZones { get; set; }
+    public int ZoneMasts { get; set; }
 
     public override string ToString() =>
         Skipped
@@ -865,5 +952,5 @@ public class PricingImportResult
             : $"ProductsPriced={ProductsPriced:N0}  PriceHistory={PriceHistoryRows:N0}  " +
               $"ProductCategories={ProductCategories:N0}  PrlistX2Restrictions={PrlistX2Restrictions:N0}  " +
               $"PrlistXRestrictions={PrlistXRestrictions:N0}  " +
-              $"ZoneAddOns={ZoneAddOns:N0}  Zone2AddOns={Zone2AddOns:N0}  CustomerBranchZones={CustomerBranchZones:N0}";
+              $"ZoneAddOns={ZoneAddOns:N0}  Zone2AddOns={Zone2AddOns:N0}  CustomerBranchZones={CustomerBranchZones:N0}  ZoneMasts={ZoneMasts:N0}";
 }

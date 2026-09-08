@@ -218,12 +218,47 @@ def read_zone2_addons(branch_dir: str) -> dict:
 
 
 def read_customer_branch_zones(branch_dir: str) -> dict:
+    """Reads every Customer field the merged HOMSys entity carries (see
+    HOMSys.Domain.Entities.Customer / CustomerBranchZoneDelta) — this is now
+    the ONE customer master, sourced entirely from F:\\, not BMSRAM."""
     result = {}
     with DbfReader(os.path.join(branch_dir, "CUST4WIN.DBF")) as reader:
         for r in reader.records():
             cust_key = r.get_string("CUSTKEY")
             if cust_key:
-                result[str(r.recno)] = {"custKey": cust_key, "cZone": r.get_string("CZONE")}
+                result[str(r.recno)] = {
+                    "custKey": cust_key,
+                    "cKey": r.get_string("CKEY"),
+                    "cusName": r.get_string("CUSNAME"),
+                    "addrLn1": r.get_string("ADDRLN1"),
+                    "addrLn2": r.get_string("ADDRLN2"),
+                    "delAddrLn1": r.get_string("DELADDRLN1"),
+                    "delAddrLn2": r.get_string("DELADDRLN2"),
+                    "delArea": r.get_string("DELAREA"),
+                    "cZone": r.get_string("CZONE"),
+                    "whseNo": r.get_int("WHSENO"),
+                    "custWhse": r.get_int("CUSTWHSE"),
+                    "serveWh": r.get_int("SERVEWH"),
+                    "delWhse": r.get_int("DELWHSE"),
+                    "salesman": r.get_int("SALESMAN"),
+                    "csMan": r.get_string("CSMAN"),
+                    "term": r.get_int("TERM"),
+                    "termDays": r.get_int("TERMDAYS"),
+                    "vatId": r.get_string("VATID"),
+                    "subd": r.get_string("SUBD"),
+                    "tpc": r.get_bool("TPC"),
+                    "offshore": r.get_bool("OFFSHORE"),
+                    "exBranch": r.get_bool("EX_BRANCH"),
+                    "cCode": r.get_int("CCODE"),
+                    "oldCCode": r.get_int("OLDCCODE"),
+                    "iEffDate": r.get_date("IEFFDATE"),
+                    "blockInv": r.get_bool("BLOCKINV"),
+                    "tin": r.get_string("TIN"),
+                    "aliasKey": r.get_string("ALIASKEY"),
+                    "consoMax2": r.get_string("CONSOMAX2"),
+                    "firstOrder": r.get_date("FIRSTORDER"),
+                    "inactive": r.get_bool("INACTIVE"),
+                }
     return result
 
 

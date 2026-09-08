@@ -38,6 +38,8 @@ public class SiteService(ISiteRepository siteRepo, IHttpContextAccessor http)
             Phone         = dto.Phone,
             ContactPerson = dto.ContactPerson,
             Description   = dto.Description,
+            Cuwhsenos     = dto.Cuwhsenos,
+            PricesOffHon  = dto.PricesOffHon,
             IsActive      = true,
             CreatedBy     = CurrentUser
         };
@@ -62,6 +64,8 @@ public class SiteService(ISiteRepository siteRepo, IHttpContextAccessor http)
         site.Phone         = dto.Phone;
         site.ContactPerson = dto.ContactPerson;
         site.Description   = dto.Description;
+        site.Cuwhsenos     = dto.Cuwhsenos;
+        site.PricesOffHon  = dto.PricesOffHon;
         site.IsActive      = dto.IsActive;
         site.UpdatedAt     = DateTime.UtcNow;
         site.UpdatedBy     = CurrentUser;
@@ -91,6 +95,8 @@ public class SiteService(ISiteRepository siteRepo, IHttpContextAccessor http)
         Phone         = s.Phone,
         ContactPerson = s.ContactPerson,
         Description   = s.Description,
+        Cuwhsenos     = s.Cuwhsenos,
+        PricesOffHon  = s.PricesOffHon,
         IsActive      = s.IsActive,
         CreatedAt     = s.CreatedAt,
         CreatedBy     = s.CreatedBy,

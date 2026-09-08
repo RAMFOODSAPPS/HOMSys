@@ -48,7 +48,12 @@ public record Zone2AddOnDelta(int RecNo, string CustKey, string CProdNo, DateOnl
 
 public record Zone2AddOnDeltaSection(List<Zone2AddOnDelta> Upserts, List<int> Deletes);
 
-public record CustomerBranchZoneDelta(int RecNo, string CustKey, string CZone);
+public record CustomerBranchZoneDelta(
+    int RecNo, string CustKey, string CKey, string CusName, string AddrLn1, string AddrLn2,
+    string DelAddrLn1, string DelAddrLn2, string DelArea, string CZone, int WhseNo, int CustWhse,
+    int ServeWh, int DelWhse, int Salesman, string CsMan, int Term, int TermDays, string VatId,
+    string Subd, bool Tpc, bool Offshore, bool ExBranch, int CCode, int OldCCode, DateOnly? IEffDate,
+    bool BlockInv, string Tin, string AliasKey, string ConsoMax2, DateOnly? FirstOrder, bool Inactive);
 
 public record CustomerBranchZoneDeltaSection(List<CustomerBranchZoneDelta> Upserts, List<int> Deletes);
 

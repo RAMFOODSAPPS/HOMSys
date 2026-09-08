@@ -27,6 +27,7 @@ const EXPORT_COLS: ExportColumn[] = [
   { header: 'Phone',          field: 'phone' },
   { header: 'Address',        field: 'address' },
   { header: 'Description',    field: 'description' },
+  { header: 'Cuwhsenos',      field: 'cuwhsenos' },
   { header: 'Status',         field: 'isActive', formatter: v => v ? 'Active' : 'Inactive' },
 ];
 
@@ -38,6 +39,7 @@ const IMPORT_COLS: ImportColumn[] = [
   { header: 'Phone',          field: 'phone' },
   { header: 'Address',        field: 'address' },
   { header: 'Description',    field: 'description' },
+  { header: 'Cuwhsenos',      field: 'cuwhsenos' },
 ];
 
 @Component({
@@ -74,6 +76,7 @@ const IMPORT_COLS: ImportColumn[] = [
           <th pSortableColumn="companyName">Company <p-sortIcon field="companyName" /></th>
           <th pSortableColumn="address">Address <p-sortIcon field="address" /></th>
           <th pSortableColumn="contactPerson">Contact <p-sortIcon field="contactPerson" /></th>
+          <th pSortableColumn="cuwhsenos">Cuwhsenos <p-sortIcon field="cuwhsenos" /></th>
           <th pSortableColumn="isActive">Status <p-sortIcon field="isActive" /></th>
           <th pSortableColumn="createdAt">Created At <p-sortIcon field="createdAt" /></th>
           <th pSortableColumn="createdBy">Created By <p-sortIcon field="createdBy" /></th>
@@ -90,6 +93,7 @@ const IMPORT_COLS: ImportColumn[] = [
           <td>{{ site.companyName }}</td>
           <td>{{ site.address || '—' }}</td>
           <td>{{ site.contactPerson || '—' }}</td>
+          <td>{{ site.cuwhsenos || '—' }}</td>
           <td>
             <p-tag [value]="site.isActive ? 'Active' : 'Inactive'"
               [severity]="site.isActive ? 'success' : 'danger'" />
@@ -202,6 +206,7 @@ export class SiteListPageComponent implements OnInit, OnDestroy {
               phone:         r['phone']         || '',
               address:       r['address']       || '',
               description:   r['description']   || '',
+              cuwhsenos:     r['cuwhsenos']      || '',
             };
           })
           .filter((d): d is CreateSiteDto => d !== null);

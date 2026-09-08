@@ -49,6 +49,10 @@ public static class DependencyInjection
         services.AddScoped<PriceCalculationService>();
         services.AddScoped<PricelistExportService>();
         services.AddScoped<PricelistExcelBuilder>();
+        services.AddScoped<ZonePricelistExportService>();
+        services.AddScoped<ZonePricelistExcelBuilder>();
+        services.AddScoped<GroupedPricelistService>();
+        services.AddScoped<GroupedPricelistExcelBuilder>();
         services.AddScoped<PricingDataImporter>();
         services.AddScoped<PricingDeltaImporter>();
         services.AddScoped<SyncStatusService>();

@@ -7,7 +7,7 @@ namespace HOMSys.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class SalesOrdersController(SalesOrderService salesOrderService) : ControllerBase
+public class SalesOrdersController(SalesOrderService salesOrderService, ZonePricelistExportService zonePricelistExport) : ControllerBase
 {
     [HttpGet, Authorize(Policy = "sales-orders")]
     public async Task<IActionResult> GetAll() =>
@@ -69,8 +69,20 @@ public class SalesOrdersController(SalesOrderService salesOrderService) : Contro
     /// <summary>Typeahead suggestions for the Customer Key field. Also used by Pricelist Export.</summary>
     [HttpGet("search/customer")]
     [Authorize(Policy = "customer-search")]
-    public async Task<IActionResult> SearchCustomers([FromQuery] string? term) =>
-        Ok(new { success = true, data = await salesOrderService.SearchCustomersAsync(term ?? "") });
+    public async Task<IActionResult> SearchCustomers(
+        [FromQuery] string? term, [FromQuery] string? branch, [FromQuery] int? take)
+    {
+        var effectiveTake = Math.Clamp(take ?? 50, 1, 20000);
+
+        if (string.IsNullOrWhiteSpace(branch))
+            return Ok(new { success = true, data = await salesOrderService.SearchCustomersAsync(term ?? "", take: effectiveTake) });
+
+        var honBranches = await zonePricelistExport.GetHonBranchesAsync();
+        var pricingFolder = ZonePricelistExportService.ResolvePricingFolder(branch, honBranches.Keys);
+        honBranches.TryGetValue(branch, out var whseNos);
+        var data = await salesOrderService.SearchCustomersAsync(term ?? "", pricingFolder, whseNos, effectiveTake);
+        return Ok(new { success = true, data });
+    }
 
     /// <summary>Typeahead suggestions for the Prodno field.</summary>
     [HttpGet("search/product"), Authorize(Policy = "sales-orders")]

@@ -4,6 +4,7 @@ using HOMSys.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HOMSys.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260907025603_AddPricelistZoneExportPermission")]
+    partial class AddPricelistZoneExportPermission
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -108,11 +111,6 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<bool>("BlockInv")
                         .HasColumnType("bit");
 
-                    b.Property<string>("Branch")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
                     b.Property<int>("CCode")
                         .HasColumnType("int");
 
@@ -170,25 +168,16 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<bool>("ExBranch")
                         .HasColumnType("bit");
 
-                    b.Property<DateOnly?>("FirstOrder")
-                        .HasColumnType("date");
-
                     b.Property<DateOnly?>("IEffDate")
                         .HasColumnType("date");
 
                     b.Property<DateTime>("ImportedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<bool>("Inactive")
-                        .HasColumnType("bit");
-
                     b.Property<bool>("Offshore")
                         .HasColumnType("bit");
 
                     b.Property<int>("OldCCode")
-                        .HasColumnType("int");
-
-                    b.Property<int>("RecNo")
                         .HasColumnType("int");
 
                     b.Property<int>("Salesman")
@@ -226,15 +215,52 @@ namespace HOMSys.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Branch");
-
                     b.HasIndex("CusName");
+
+                    b.HasIndex("CustKey")
+                        .IsUnique();
+
+                    b.ToTable("Customers");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.CustomerBranchZone", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Branch")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CZone")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("nvarchar(4)");
+
+                    b.Property<string>("CustKey")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<DateTime>("ImportedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RecNo")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Branch");
 
                     b.HasIndex("CustKey");
 
                     b.HasIndex("Branch", "RecNo");
 
-                    b.ToTable("Customers");
+                    b.ToTable("CustomerBranchZones");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.CustomerIdentifierMap", b =>
@@ -1752,10 +1778,6 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Cuwhsenos")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -1770,9 +1792,6 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("PricesOffHon")
-                        .HasColumnType("bit");
 
                     b.Property<int?>("SiteTypeId")
                         .HasColumnType("int");
@@ -2089,39 +2108,6 @@ namespace HOMSys.Infrastructure.Migrations
                     b.HasIndex("Branch", "CProdNo", "CZone");
 
                     b.ToTable("ZoneAddOns");
-                });
-
-            modelBuilder.Entity("HOMSys.Domain.Entities.ZoneMast", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Branch")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("CDesc")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("CZone")
-                        .IsRequired()
-                        .HasMaxLength(4)
-                        .HasColumnType("nvarchar(4)");
-
-                    b.Property<DateTime>("ImportedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Branch", "CZone");
-
-                    b.ToTable("ZoneMasts");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.Department", b =>

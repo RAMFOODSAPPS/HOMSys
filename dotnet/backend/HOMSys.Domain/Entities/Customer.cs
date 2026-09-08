@@ -1,15 +1,29 @@
 namespace HOMSys.Domain.Entities;
 
 /// <summary>
-/// Customer reference data, seeded from the BMS <c>cust4win.DBF</c>.
-/// Read-only in HOMSys — maintained in BMS.
+/// The customer master — one row per (Branch, RecNo) from
+/// F:\AUTOPROG\CUSTOMER\{branch}\cust4win.dbf, kept live-synced (the
+/// PricingDataImporter CLI path and the LegacyMasterWatcher delta path).
 ///
-/// This is the real customer master. <c>CUSTDIR.DBF</c> is only the lookup
-/// picker in the legacy form and is deliberately not imported.
+/// This used to be two separate tables: a BMSRAM-sourced "Customer" master
+/// (name/address/terms, synced by the now-removed ReferenceDataImporter) and
+/// a narrower "CustomerBranchZone" (CustKey/CZone/WhseNo only, sourced live
+/// from F:\). The BMSRAM sync stopped 2026-09-05, so the two drifted apart —
+/// customers present in the live F:\ copy but never captured into BMSRAM (or
+/// added afterward) went missing from search entirely (caught 2026-09-08,
+/// ISABELA undercounted by 139). Merged into this single entity so there is
+/// only one customer table, always sourced from F:\, never from BMSRAM.
 /// </summary>
 public class Customer
 {
     public int Id { get; set; }
+
+    /// <summary>1-based physical record position in CUST4WIN.DBF (VFP RECNO()) —
+    /// stable row identity used to diff-sync.</summary>
+    public int RecNo { get; set; }
+
+    /// <summary>F:\AUTOPROG\CUSTOMER folder name, e.g. "hon", "DAG", "ISA".</summary>
+    public string Branch { get; set; } = string.Empty;
 
     /// <summary>cust4win.CUSTKEY C(7) — the key the operator types.</summary>
     public string CustKey { get; set; } = string.Empty;
@@ -27,7 +41,11 @@ public class Customer
     public string DelAddrLn2 { get; set; } = string.Empty;
     public string DelArea { get; set; } = string.Empty;
 
+    /// <summary>cust4win.WHSENO — used both as the encode-flow warehouse and to filter
+    /// this row to a specific branch's cuwhsenos set when multiple real branches
+    /// share one CUSTOMER folder (e.g. "hon").</summary>
     public int WhseNo { get; set; }
+
     public int CustWhse { get; set; }
 
     /// <summary>cust4win.SERVEWH — the warehouse that services the order. Falls back to WhseNo when 0.</summary>
@@ -71,6 +89,17 @@ public class Customer
 
     /// <summary>Chain consolidation key used by order limits (out of scope).</summary>
     public string ConsoMax2 { get; set; } = string.Empty;
+
+    /// <summary>cust4win.FIRSTORDER — date of the customer's first order, used to
+    /// pick the "most recently onboarded" representative when grouping customers
+    /// by identical pricing (Isabela grouped-pricelist report, 2026-09-08).</summary>
+    public DateOnly? FirstOrder { get; set; }
+
+    /// <summary>cust4win.INACTIVE — a closed/inactive account. Distinct from the
+    /// separate cust4win.ACTIVE flag (a smaller, differently-scoped set observed
+    /// live 2026-09-09); INACTIVE is the one that should exclude a customer from
+    /// pricing-search results.</summary>
+    public bool Inactive { get; set; }
 
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
 }

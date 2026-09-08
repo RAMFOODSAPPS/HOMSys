@@ -32,8 +32,9 @@ public class PricingRepository(AppDbContext db) : IPricingRepository
 
     public async Task<(string Branch, string CZone)?> GetCustomerBranchZoneAsync(string custKey)
     {
-        var row = await db.CustomerBranchZones.AsNoTracking()
+        var row = await db.Customers.AsNoTracking()
             .Where(z => z.CustKey == custKey)
+            .OrderByDescending(z => z.ImportedAt)
             .Select(z => new { z.Branch, z.CZone })
             .FirstOrDefaultAsync();
         return row is null ? null : (row.Branch, row.CZone);
@@ -77,4 +78,42 @@ public class PricingRepository(AppDbContext db) : IPricingRepository
 
     public async Task<HashSet<string>> GetPrlistXRestrictedProdNosAsync() =>
         (await db.PrlistXRestrictions.AsNoTracking().Select(x => x.CProdNo).ToListAsync()).ToHashSet();
+
+    public async Task<List<string>> GetBranchesWithZonesAsync() =>
+        await db.ZoneAddOns.AsNoTracking()
+            .Select(z => z.Branch)
+            .Distinct()
+            .OrderBy(b => b)
+            .ToListAsync();
+
+    public async Task<List<string>> GetZonesForBranchAsync(string branch) =>
+        await db.ZoneAddOns.AsNoTracking()
+            .Where(z => z.Branch == branch)
+            .Select(z => z.CZone)
+            .Distinct()
+            .OrderBy(z => z)
+            .ToListAsync();
+
+    public async Task<List<string>> GetZonesForBranchWhseNosAsync(string pricingFolder, IReadOnlyCollection<int> whseNos)
+    {
+        var custZones = await db.Customers.AsNoTracking()
+            .Where(z => z.Branch == pricingFolder && whseNos.Contains(z.WhseNo))
+            .Select(z => z.CZone)
+            .Distinct()
+            .ToListAsync();
+
+        return await db.ZoneAddOns.AsNoTracking()
+            .Where(z => z.Branch == pricingFolder && custZones.Contains(z.CZone))
+            .Select(z => z.CZone)
+            .Distinct()
+            .OrderBy(z => z)
+            .ToListAsync();
+    }
+
+    public async Task<Dictionary<string, string>> GetZoneDescriptionsAsync(string branch) =>
+        await db.ZoneMasts.AsNoTracking()
+            .Where(z => z.Branch == branch)
+            .GroupBy(z => z.CZone)
+            .Select(g => g.First())
+            .ToDictionaryAsync(z => z.CZone, z => z.CDesc);
 }

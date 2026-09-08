@@ -126,9 +126,11 @@ public class SalesOrderService(
         Supplier = p.Supplier
     };
 
-    /// <summary>Typeahead for the Customer Key field — matches on key or name.</summary>
-    public Task<IEnumerable<CustomerSuggestionDto>> SearchCustomersAsync(string term) =>
-        customerRepo.SearchAsync((term ?? string.Empty).Trim());
+    /// <summary>Typeahead for the Customer Key field — matches on key or name.
+    /// Optionally scoped to one branch (Pricelist Export's branch filter).</summary>
+    public Task<IEnumerable<CustomerSuggestionDto>> SearchCustomersAsync(
+        string term, string? pricingFolder = null, IReadOnlyCollection<int>? whseNos = null, int take = 50) =>
+        customerRepo.SearchAsync((term ?? string.Empty).Trim(), take, pricingFolder, whseNos);
 
     /// <summary>Typeahead for the Prodno field — matches on code or description.</summary>
     public async Task<IEnumerable<ProductSuggestionDto>> SearchProductsAsync(string term) =>

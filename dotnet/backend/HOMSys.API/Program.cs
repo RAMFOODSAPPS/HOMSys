@@ -123,4 +123,35 @@ if (args.Length > 0 && args[0].Equals("import-HoMaster-data", StringComparison.O
     return;
 }
 
+// One-off CLI entry point for the Grouped-by-Price report, now a real
+// Pricelist Export mode (GroupedPricelistService/GroupedPricelistExcelBuilder,
+// also used by PricelistController) — kept as a dev convenience.
+//   dotnet run --project HOMSys.API -- export-grouped-pricelist <siteName> [baselineCustKey] [effDate yyyy-MM-dd] [srpMarkup] [outputPath]
+if (args.Length > 0 && args[0].Equals("export-grouped-pricelist", StringComparison.OrdinalIgnoreCase))
+{
+    var siteName = args.Length > 1 ? args[1] : throw new ArgumentException("Site name is required.");
+    var baselineCustKey = args.Length > 2 ? args[2] : null;
+    var effDate = args.Length > 3 ? DateOnly.Parse(args[3]) : DateOnly.FromDateTime(DateTime.Today);
+    var srpMarkup = args.Length > 4 ? decimal.Parse(args[4]) : 3m;
+    var outputPath = args.Length > 5 ? args[5] : $@"C:\claude\output\GroupedPricelist_{siteName}_{effDate:yyyyMMdd}.xlsx";
+
+    using var scope = app.Services.CreateScope();
+    var sp = scope.ServiceProvider;
+    var groupedService = sp.GetRequiredService<HOMSys.Application.Services.GroupedPricelistService>();
+    var excelBuilder = sp.GetRequiredService<HOMSys.Application.Services.PricelistExcelBuilder>();
+    var diffExcelBuilder = sp.GetRequiredService<HOMSys.Application.Services.GroupedPricelistExcelBuilder>();
+
+    var (result, baseline) = await groupedService.BuildAsync(siteName, effDate, srpMarkup, baselineCustKey);
+    Console.WriteLine($"{result.Customers.Count:N0} distinct price groups for {siteName}");
+
+    var bytes = excelBuilder.Build(result);
+    if (baseline is not null)
+        bytes = diffExcelBuilder.AddDiffSheets(bytes, result, baseline);
+
+    Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+    await File.WriteAllBytesAsync(outputPath, bytes);
+    Console.WriteLine($"Wrote {outputPath}");
+    return;
+}
+
 app.Run();

@@ -127,6 +127,11 @@ import { SiteTypeDto } from '../../../core/models/site-type.model';
             autoResize="true" placeholder="Brief description of this site"></textarea>
         </div>
 
+        <div class="field">
+          <label>Cuwhsenos <span class="optional-label">(optional)</span></label>
+          <input pInputText formControlName="cuwhsenos" class="w-full" placeholder="e.g. 21,26,45,86" />
+        </div>
+
         @if (selectedSite()) {
           <div class="field-inline">
             <label>Active</label>
@@ -278,6 +283,7 @@ export class SitePageComponent implements OnInit, OnDestroy {
     phone:         [''],
     address:       [''],
     description:   [''],
+    cuwhsenos:     [''],
     isActive:      [true]
   });
 
@@ -313,7 +319,7 @@ export class SitePageComponent implements OnInit, OnDestroy {
 
   private isNewFormDirty(): boolean {
     const v = this.form.value;
-    return !!(v.name?.trim() || v.code?.trim() || v.description?.trim() ||
+    return !!(v.name?.trim() || v.code?.trim() || v.description?.trim() || v.cuwhsenos?.trim() ||
               v.contactPerson?.trim() || v.phone?.trim() || v.address?.trim() || v.companyId);
   }
 
@@ -384,6 +390,7 @@ export class SitePageComponent implements OnInit, OnDestroy {
     { header: 'Phone',          field: 'phone' },
     { header: 'Address',        field: 'address' },
     { header: 'Description',    field: 'description' },
+    { header: 'Cuwhsenos',      field: 'cuwhsenos' },
     { header: 'Status',         field: 'isActive', formatter: v => v ? 'Active' : 'Inactive' },
   ];
 
@@ -441,6 +448,7 @@ export class SitePageComponent implements OnInit, OnDestroy {
       phone:         site.phone,
       address:       site.address,
       description:   site.description,
+      cuwhsenos:     site.cuwhsenos,
       isActive:      site.isActive
     });
     this.form.markAsUntouched();
@@ -515,6 +523,7 @@ export class SitePageComponent implements OnInit, OnDestroy {
           phone:         v.phone ?? '',
           address:       v.address ?? '',
           description:   v.description ?? '',
+          cuwhsenos:     v.cuwhsenos ?? '',
           isActive:      v.isActive!
         })
       : this.siteService.create({
@@ -525,7 +534,8 @@ export class SitePageComponent implements OnInit, OnDestroy {
           contactPerson: v.contactPerson ?? '',
           phone:         v.phone ?? '',
           address:       v.address ?? '',
-          description:   v.description ?? ''
+          description:   v.description ?? '',
+          cuwhsenos:     v.cuwhsenos ?? ''
         });
 
     req$.subscribe({

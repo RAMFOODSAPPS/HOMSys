@@ -36,4 +36,22 @@ public interface IPricingRepository
     /// </summary>
     Task<Dictionary<string, HashSet<string>>> GetPrlistX2RestrictedZonesAsync();
     Task<HashSet<string>> GetPrlistXRestrictedProdNosAsync();
+
+    /// <summary>Distinct branches that have ZoneAddOn rows (ground truth for a branch picklist).</summary>
+    Task<List<string>> GetBranchesWithZonesAsync();
+
+    /// <summary>Distinct CZone values for a branch's ZoneAddOn rows (ground truth for a zone picklist).</summary>
+    Task<List<string>> GetZonesForBranchAsync(string branch);
+
+    /// <summary>
+    /// Distinct CZone values for a pricing folder's ZoneAddOn rows, restricted to
+    /// only the zones actually used by CustomerBranchZone rows in that folder
+    /// whose WhseNo is in whseNos (C:\dump\branch.xlsx "cuwhsenos") — narrows a
+    /// shared pricing folder (e.g. "hon") down to one real branch's zones.
+    /// </summary>
+    Task<List<string>> GetZonesForBranchWhseNosAsync(string pricingFolder, IReadOnlyCollection<int> whseNos);
+
+    /// <summary>CZone -&gt; description, from ZoneMast (not every branch has one — labeling
+    /// only, never used for price lookup). Empty dictionary if the branch has none.</summary>
+    Task<Dictionary<string, string>> GetZoneDescriptionsAsync(string branch);
 }

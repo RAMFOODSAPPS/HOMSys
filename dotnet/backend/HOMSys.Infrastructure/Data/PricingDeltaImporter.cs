@@ -368,10 +368,22 @@ public class PricingDeltaImporter(AppDbContext db)
         return inserted + updated + deleted;
     }
 
+    private static void ApplyCustomerFields(Customer c, CustomerBranchZoneDelta u)
+    {
+        c.CustKey = u.CustKey; c.CKey = u.CKey; c.CusName = u.CusName; c.AddrLn1 = u.AddrLn1;
+        c.AddrLn2 = u.AddrLn2; c.DelAddrLn1 = u.DelAddrLn1; c.DelAddrLn2 = u.DelAddrLn2; c.DelArea = u.DelArea;
+        c.CZone = u.CZone; c.WhseNo = u.WhseNo; c.CustWhse = u.CustWhse; c.ServeWh = u.ServeWh;
+        c.DelWhse = u.DelWhse; c.Salesman = u.Salesman; c.CsMan = u.CsMan; c.Term = u.Term;
+        c.TermDays = u.TermDays; c.VatId = u.VatId; c.Subd = u.Subd; c.Tpc = u.Tpc; c.Offshore = u.Offshore;
+        c.ExBranch = u.ExBranch; c.CCode = u.CCode; c.OldCCode = u.OldCCode; c.IEffDate = u.IEffDate;
+        c.BlockInv = u.BlockInv; c.Tin = u.Tin; c.AliasKey = u.AliasKey; c.ConsoMax2 = u.ConsoMax2;
+        c.FirstOrder = u.FirstOrder; c.Inactive = u.Inactive;
+    }
+
     private async Task<int> ApplyCustomerBranchZonesAsync(string branch, CustomerBranchZoneDeltaSection section, Action<string> log)
     {
         var recNos = section.Upserts.Select(u => u.RecNo).Concat(section.Deletes).ToHashSet();
-        var existing = await db.CustomerBranchZones.Where(x => x.Branch == branch && recNos.Contains(x.RecNo)).ToDictionaryAsync(x => x.RecNo);
+        var existing = await db.Customers.Where(x => x.Branch == branch && recNos.Contains(x.RecNo)).ToDictionaryAsync(x => x.RecNo);
 
         var inserted = 0;
         var updated = 0;
@@ -379,19 +391,14 @@ public class PricingDeltaImporter(AppDbContext db)
         {
             if (existing.Remove(u.RecNo, out var row))
             {
-                row.CustKey = u.CustKey;
-                row.CZone = u.CZone;
+                ApplyCustomerFields(row, u);
                 updated++;
             }
             else
             {
-                db.CustomerBranchZones.Add(new CustomerBranchZone
-                {
-                    Branch = branch,
-                    RecNo = u.RecNo,
-                    CustKey = u.CustKey,
-                    CZone = u.CZone,
-                });
+                var newRow = new Customer { Branch = branch, RecNo = u.RecNo };
+                ApplyCustomerFields(newRow, u);
+                db.Customers.Add(newRow);
                 inserted++;
             }
         }
@@ -401,14 +408,14 @@ public class PricingDeltaImporter(AppDbContext db)
         {
             if (existing.Remove(recNo, out var row))
             {
-                db.CustomerBranchZones.Remove(row);
+                db.Customers.Remove(row);
                 deleted++;
             }
         }
 
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
-        log($" {branch} CustomerBranchZone: inserted={inserted:N0} updated={updated:N0} deleted={deleted:N0}");
+        log($" {branch} Customer: inserted={inserted:N0} updated={updated:N0} deleted={deleted:N0}");
         return inserted + updated + deleted;
     }
 }

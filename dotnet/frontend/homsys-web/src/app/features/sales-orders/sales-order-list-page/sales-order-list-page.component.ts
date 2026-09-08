@@ -111,9 +111,10 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
         </p-message>
       }
 
-      <div class="table-scroll">
+      <div class="table-wrapper">
       <p-table [value]="filtered()" [loading]="loading()" [paginator]="true" [rows]="25"
-               [rowsPerPageOptions]="[25, 50, 100]" styleClass="p-datatable-sm">
+               [rowsPerPageOptions]="[25, 50, 100]" styleClass="p-datatable-sm"
+               [scrollable]="true" scrollHeight="flex">
         <ng-template pTemplate="header">
           <tr>
             <th pSortableColumn="soId">SOID <p-sortIcon field="soId" /></th>
@@ -167,9 +168,9 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
             </td>
             <td>{{ o.createdBy }}</td>
             <td>
-              <p-button icon="pi pi-eye" [text]="true" (onClick)="view(o)" pTooltip="View" />
+              <p-button icon="pi pi-eye" [text]="true" (onClick)="view(o)" pTooltip="View" tooltipPosition="left" />
               <p-button icon="pi pi-pencil" [text]="true" [disabled]="!!o.invNo || !!o.isLocked" (onClick)="edit(o)"
-                        [class.edit-disabled]="!!o.invNo || !!o.isLocked"
+                        [class.edit-disabled]="!!o.invNo || !!o.isLocked" tooltipPosition="left"
                         [pTooltip]="o.invNo ? 'Already invoiced — cannot edit' : (o.isLocked ? (o.needsResync ? 'Locked — syncing edit to BMS' : 'Locked — pushed to BMS') : 'Edit')" />
             </td>
           </tr>
@@ -212,8 +213,38 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
     </div>
   `,
   styles: [`
-    .table-scroll { overflow-x: auto; }
-    .table-scroll ::ng-deep .p-datatable-table { min-width: 900px; }
+    /* scrollHeight="flex" makes PrimeNG size the scrollable row body to
+       exactly whatever space is left in its container (PrimeNG itself sets
+       height:100% on .p-datatable-flex-scrollable when this mode is on —
+       confirmed straight from primeng-table.mjs), instead of a guessed vh
+       fraction or calc(100vh - chromePx) that can over/undershoot on a
+       shorter window (both were tried and both broke: a fixed vh let the
+       table+paginator combo exceed a short window's real remaining space,
+       causing the paginator to render over the last row instead of below
+       it). For "height: 100%" to resolve, every ancestor down to .p-datatable
+       needs a real (not auto) height — that's what the chain below builds:
+       :host and .list-card get height:100% (definite, because .layout-content
+       in app-layout.component.ts is a flex item with a resolved height), and
+       .table-wrapper is the flex:1 sibling that actually receives the leftover
+       space after the dialogs/toast/error-message above it. min-height:0 on
+       every flex step is required — without it a flex item's default auto
+       min-height keeps it sized to its content, silently breaking the whole
+       chain (this is what went wrong in an earlier attempt). */
+    :host { display: block; height: 100%; overflow: hidden; }
+    .list-card { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+    .table-wrapper { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    /* <p-table> itself is a custom element with no default CSS display, so the
+       browser treats it as display:inline — meaning it never actually filled
+       .table-wrapper's flex-computed height, which is why .p-datatable's own
+       internal height:100% (PrimeNG sets that when scrollHeight="flex") had
+       nothing real to resolve against. This was the actual missing link. */
+    .table-wrapper > p-table { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+    .table-wrapper ::ng-deep .p-datatable-table { min-width: 900px; }
+
+    @media (max-width: 600px) {
+      .table-wrapper ::ng-deep .p-paginator { justify-content: center; gap: 0.25rem; }
+      .table-wrapper ::ng-deep .p-paginator .p-paginator-pages .p-paginator-page { min-width: 2rem; height: 2rem; }
+    }
     .edit-disabled ::ng-deep .p-button-icon { color: #9e9e9e; }
     .so-link { cursor: pointer; }
     .detail-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }

@@ -47,6 +47,10 @@ public class ProductRepository(AppDbContext db) : IProductRepository
                 && p.Brand != "INACTIVE"
                 && p.Pieces > 0
                 && !p.PhOut
+                // Delisted (ProductCategory "99x"/"Delisted") is excluded regardless of
+                // Brand/SBrand/NewPrice — a delisted SKU can still carry valid-looking
+                // pricing data but must never appear in a generated pricelist.
+                && p.Category.ToUpper() != "99X"
             join c in db.ProductCategories.AsNoTracking()
                 on p.Category equals c.CategoryCode into cj
             from c in cj.DefaultIfEmpty()
