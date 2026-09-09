@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using HOMSys.Application.Interfaces;
 using HOMSys.Application.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -10,6 +11,7 @@ public class ExportPricelistRequest
     public List<string> CustKeys { get; set; } = [];
     public DateOnly EffectivityDate { get; set; }
     public decimal SrpMarkupPercent { get; set; } = 3m;
+    public string? SkuFilter { get; set; }
 }
 
 public class ExportZonePricelistRequest
@@ -18,6 +20,7 @@ public class ExportZonePricelistRequest
     public List<string> Zones { get; set; } = [];
     public DateOnly EffectivityDate { get; set; }
     public decimal SrpMarkupPercent { get; set; } = 3m;
+    public string? SkuFilter { get; set; }
 }
 
 public class ExportGroupedPricelistRequest
@@ -26,6 +29,7 @@ public class ExportGroupedPricelistRequest
     public DateOnly EffectivityDate { get; set; }
     public decimal SrpMarkupPercent { get; set; } = 3m;
     public string? BaselineCustKey { get; set; }
+    public string? SkuFilter { get; set; }
 }
 
 /// <summary>Zone picker option: code + description + a representative-customer label,
@@ -57,8 +61,7 @@ public class PricelistController(
     ICustomerRepository customerRepo,
     ISiteRepository siteRepo) : ControllerBase
 {
-    [HttpGet("branches")]
-    public async Task<IActionResult> GetBranches()
+    private async Task<List<BranchOptionDto>> BuildBranchOptionsAsync()
     {
         var branches = await pricingRepo.GetBranchesWithZonesAsync();
         var honBranches = await zoneExportService.GetHonBranchesAsync();
@@ -80,10 +83,66 @@ public class PricelistController(
             .Select(b => new BranchOptionDto(b, displayNameByCode.GetValueOrDefault(b, b)));
         var honOptions = honBranches.Keys.Select(name => new BranchOptionDto(name, name));
 
-        var expanded = independentOptions.Concat(honOptions)
+        return independentOptions.Concat(honOptions)
             .OrderBy(b => b.Label, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    [HttpGet("branches")]
+    public async Task<IActionResult> GetBranches()
+    {
+        var expanded = await BuildBranchOptionsAsync();
         return Ok(new { success = true, data = expanded });
+    }
+
+    /// <summary>
+    /// Resolves the signed-in user's own User.BranchCode (a free-text field on
+    /// the Users page, entered in whatever format the Sites page shows — the
+    /// Site *Code*, e.g. "CDC-B", not the raw pricing-folder code/Site name
+    /// the branch picker's Value actually uses) down to the exact
+    /// BranchOptionDto.Value from GetBranches, so branch-locked roles
+    /// (Branch Administrator, Sales Encoder) always land on a real, selectable
+    /// option instead of a client-side guess that can silently fail to match
+    /// (e.g. hon-priced sites like Cabuyao, whose Value is the Site Name
+    /// "CABUYAO", not "cdc" or "CDC-B").
+    /// </summary>
+    [HttpGet("my-branch")]
+    public async Task<IActionResult> GetMyBranch()
+    {
+        var rawCode = User.FindFirstValue("branch");
+        if (string.IsNullOrWhiteSpace(rawCode))
+            return Ok(new { success = true, data = (string?)null });
+
+        var strippedCode = rawCode.EndsWith("-B", StringComparison.OrdinalIgnoreCase)
+            ? rawCode[..^2]
+            : rawCode;
+
+        // Find the Site this user's BranchCode actually names — try the raw
+        // value as a full Site.Code first ("CDC-B"), then as the stripped
+        // folder code ("CDC" against a Code of "CDC-B").
+        var sites = await siteRepo.GetAllAsync();
+        var site =
+            sites.FirstOrDefault(s => string.Equals(s.Code, rawCode, StringComparison.OrdinalIgnoreCase)) ??
+            sites.FirstOrDefault(s => string.Equals(s.Code, strippedCode + "-B", StringComparison.OrdinalIgnoreCase));
+
+        // hon-priced sites (no ADDON folder of their own) are keyed by
+        // Site.Name in the picker (see BuildBranchOptionsAsync's honOptions);
+        // everything else is keyed by the raw pricing-folder code — resolve
+        // that code's real casing off the live ZoneAddOns branch list rather
+        // than trusting whatever case ended up in the free-text field.
+        string? value;
+        if (site is { PricesOffHon: true })
+        {
+            value = site.Name;
+        }
+        else
+        {
+            var branches = await pricingRepo.GetBranchesWithZonesAsync();
+            value = branches.FirstOrDefault(b => string.Equals(b, strippedCode, StringComparison.OrdinalIgnoreCase))
+                    ?? strippedCode;
+        }
+
+        return Ok(new { success = true, data = value });
     }
 
     [HttpPost("preview")]
@@ -103,6 +162,7 @@ public class PricelistController(
             return BadRequest(new { success = false, message = "At least one customer must be selected." });
 
         var result = await exportService.BuildAsync(request.CustKeys, request.EffectivityDate, request.SrpMarkupPercent);
+        result = ApplySkuFilter(result, request.SkuFilter);
         var bytes = excelBuilder.Build(result);
 
         var fileName = $"Pricelist_{request.EffectivityDate:yyyyMMdd}.xlsx";
@@ -156,6 +216,7 @@ public class PricelistController(
             return BadRequest(new { success = false, message = "At least one zone must be selected." });
 
         var result = await zoneExportService.BuildAsync(request.Branch, request.Zones, request.EffectivityDate, request.SrpMarkupPercent);
+        result = ApplySkuFilter(result, request.SkuFilter);
         var bytes = zoneExcelBuilder.Build(result);
 
         var fileName = $"ZonePricelist_{request.Branch}_{request.EffectivityDate:yyyyMMdd}.xlsx";
@@ -190,6 +251,7 @@ public class PricelistController(
         {
             var (result, baseline) = await groupedService.BuildAsync(
                 request.Branch, request.EffectivityDate, request.SrpMarkupPercent, request.BaselineCustKey);
+            result = ApplySkuFilter(result, request.SkuFilter);
 
             var bytes = excelBuilder.Build(result);
             if (baseline is not null)
@@ -202,5 +264,33 @@ public class PricelistController(
         {
             return BadRequest(new { success = false, message = ex.Message });
         }
+    }
+
+    // Mirrors the frontend's live-preview SKU/description filter, so the
+    // exported file only contains whatever the user was actually looking at.
+    private static PricelistExportResult ApplySkuFilter(PricelistExportResult result, string? skuFilter)
+    {
+        if (string.IsNullOrWhiteSpace(skuFilter)) return result;
+        var term = skuFilter.Trim();
+        var groups = result.Groups
+            .Select(g => new PricelistCategoryGroup(g.Header, g.Rows.Where(r =>
+                r.CProdNo.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                r.ProdDesc.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList()))
+            .Where(g => g.Rows.Count > 0)
+            .ToList();
+        return result with { Groups = groups };
+    }
+
+    private static ZonePricelistExportResult ApplySkuFilter(ZonePricelistExportResult result, string? skuFilter)
+    {
+        if (string.IsNullOrWhiteSpace(skuFilter)) return result;
+        var term = skuFilter.Trim();
+        var groups = result.Groups
+            .Select(g => new ZonePricelistCategoryGroup(g.Header, g.Rows.Where(r =>
+                r.CProdNo.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                r.ProdDesc.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList()))
+            .Where(g => g.Rows.Count > 0)
+            .ToList();
+        return result with { Groups = groups };
     }
 }

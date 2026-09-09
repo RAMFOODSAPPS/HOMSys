@@ -6,6 +6,7 @@ export interface ExportPricelistRequest {
   custKeys: string[];
   effectivityDate: string;
   srpMarkupPercent: number;
+  skuFilter?: string;
 }
 
 export interface ExportZonePricelistRequest {
@@ -13,6 +14,7 @@ export interface ExportZonePricelistRequest {
   zones: string[];
   effectivityDate: string;
   srpMarkupPercent: number;
+  skuFilter?: string;
 }
 
 export interface ExportGroupedPricelistRequest {
@@ -20,6 +22,7 @@ export interface ExportGroupedPricelistRequest {
   effectivityDate: string;
   srpMarkupPercent: number;
   baselineCustKey?: string;
+  skuFilter?: string;
 }
 
 export interface PricelistCustomerColumn {
@@ -105,6 +108,12 @@ export class PricelistService {
 
   getBranches() {
     return this.http.get<{ success: boolean; data: BranchOptionDto[] }>(`${this.base}/branches`);
+  }
+
+  /** Resolves the signed-in user's own BranchCode down to a real BranchOptionDto.value
+   * (or null) — see PricelistController.GetMyBranch for why this can't be done client-side. */
+  getMyBranch() {
+    return this.http.get<{ success: boolean; data: string | null }>(`${this.base}/my-branch`);
   }
 
   // --- Per Account ---

@@ -15,25 +15,28 @@ public record GroupedPricelistResult(PricelistExportResult Result, Customer? Bas
 /// against Isabela before becoming this Pricelist Export report mode.
 /// </summary>
 public class GroupedPricelistService(
-    ISiteRepository siteRepo,
     ZonePricelistExportService zoneExport,
     ICustomerRepository customerRepo,
     PricelistExportService pricelistExport)
 {
     public async Task<GroupedPricelistResult> BuildAsync(
-        string branchSiteName, DateOnly effectivityDate, decimal srpMarkupPercent, string? baselineCustKey)
+        string branch, DateOnly effectivityDate, decimal srpMarkupPercent, string? baselineCustKey)
     {
-        var sites = await siteRepo.GetAllAsync();
-        var site = sites.FirstOrDefault(s => s.Name.Equals(branchSiteName, StringComparison.OrdinalIgnoreCase))
-            ?? throw new ArgumentException($"Branch '{branchSiteName}' not found.", nameof(branchSiteName));
+        // `branch` is the branch picker's value, same as Per Zone: the raw
+        // pricing-folder code for an independent branch (e.g. "bac"), or the
+        // Site.Name itself for an hon-priced one — never a Site.Name to look
+        // up unconditionally, which is what broke independent branches here.
+        var branchKey = branch.Trim();
+        if (branchKey.Length == 0)
+            throw new ArgumentException("A branch must be selected.", nameof(branch));
 
         var honBranches = await zoneExport.GetHonBranchesAsync();
-        var pricingFolder = ZonePricelistExportService.ResolvePricingFolder(site.Name, honBranches.Keys);
-        honBranches.TryGetValue(site.Name, out var whseNos);
+        var pricingFolder = ZonePricelistExportService.ResolvePricingFolder(branchKey, honBranches.Keys);
+        honBranches.TryGetValue(branchKey, out var whseNos);
 
         var customers = await customerRepo.GetActiveBranchCustomersAsync(pricingFolder, whseNos);
         if (customers.Count == 0)
-            throw new ArgumentException($"No active customers found for branch '{branchSiteName}'.", nameof(branchSiteName));
+            throw new ArgumentException($"No active customers found for branch '{branchKey}'.", nameof(branch));
 
         // The baseline may not be an active customer of this branch (different
         // branch, or itself inactive) — fetch it separately and fold it into the

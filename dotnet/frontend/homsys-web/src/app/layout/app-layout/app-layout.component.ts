@@ -78,15 +78,24 @@ import { LayoutService } from '../../core/services/layout.service';
       background: var(--p-surface-ground);
     }
 
+    /* Pricelist Export manages its own internal spacing (sidebar + results
+       pane each pad themselves) — the shared shell padding just wastes
+       screen space around its full-bleed table. */
+    .layout-content:has(app-pricelist-export-page) {
+      padding: 0;
+    }
+
     .sidebar-backdrop { display: none; }
 
-    /* ── Sidebar hidden by default, slides in as overlay over main-area only ── */
+    /* ── Sidebar hidden by default, slides in as overlay over main-area only ──
+       Above the topbar/modulebar/toolbar (all z-index: 200) so an open
+       overlay sidebar fully covers them instead of being covered itself. */
     ::ng-deep app-sidebar .sidebar {
       position: absolute !important;
       top: 0;
       left: -220px;
       height: 100% !important;
-      z-index: 100;
+      z-index: 300;
       transition: left 0.22s ease;
       box-shadow: none;
     }
@@ -100,7 +109,7 @@ import { LayoutService } from '../../core/services/layout.service';
       display: block;
       position: absolute;
       inset: 0;
-      z-index: 99;
+      z-index: 299;
       background: transparent;
       pointer-events: none;
       transition: background 0.22s;

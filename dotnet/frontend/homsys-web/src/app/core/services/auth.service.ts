@@ -15,9 +15,11 @@ export class AuthService {
   readonly isAuthenticated = computed(() => this._user() !== null);
   readonly isAdmin = computed(() => this._user()?.roles.includes('Admin') ?? false);
 
+  // Case-insensitive: role names aren't guaranteed consistent casing (e.g.
+  // seeded "Admin" vs. an admin-typed "BRANCH ADMINISTRATOR").
   hasRole(...roles: string[]): boolean {
-    const userRoles = this._user()?.roles ?? [];
-    return roles.some(r => userRoles.includes(r));
+    const userRoles = (this._user()?.roles ?? []).map(r => r.toLowerCase());
+    return roles.some(r => userRoles.includes(r.toLowerCase()));
   }
 
   hasPermission(key: string): boolean {

@@ -12,12 +12,14 @@ import { LayoutService } from '../../core/services/layout.service';
 
       <div class="sidebar-header">
         <span class="sidebar-section">Navigation</span>
-        <button class="pin-btn"
-                [class.pinned]="layout.sidebarPinned()"
-                (click)="layout.togglePin()"
-                [title]="layout.sidebarPinned() ? 'Unpin sidebar' : 'Pin sidebar'">
-          <i class="pi" [class.pi-lock]="layout.sidebarPinned()" [class.pi-lock-open]="!layout.sidebarPinned()"></i>
-        </button>
+        @if (!layout.isPortrait()) {
+          <button class="pin-btn"
+                  [class.pinned]="layout.sidebarPinned()"
+                  (click)="layout.togglePin()"
+                  [title]="layout.sidebarPinned() ? 'Unpin sidebar' : 'Pin sidebar'">
+            <i class="pi" [class.pi-lock]="layout.sidebarPinned()" [class.pi-lock-open]="!layout.sidebarPinned()"></i>
+          </button>
+        }
       </div>
 
       <ul class="sidebar-menu">

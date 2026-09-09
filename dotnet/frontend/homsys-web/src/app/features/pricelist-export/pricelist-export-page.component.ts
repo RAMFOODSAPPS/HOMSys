@@ -8,11 +8,12 @@ import { DatePickerModule } from 'primeng/datepicker';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { ButtonModule } from 'primeng/button';
 import { MessageModule } from 'primeng/message';
-import { TableModule } from 'primeng/table';
+import { Table, TableModule } from 'primeng/table';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { Menu, MenuModule } from 'primeng/menu';
+import { AuthService } from '../../core/services/auth.service';
 import { GlobalToolbarService } from '../../core/services/global-toolbar.service';
 import { SalesOrderService } from '../../core/services/sales-order.service';
 import { PricelistService, PricelistPreviewResult, ZonePricelistPreviewResult, BranchOptionDto } from '../../core/services/pricelist.service';
@@ -55,8 +56,8 @@ type ReportType = 'account' | 'zone' | 'grouped';
 
           <div class="sidebar-heading">Branch @if (reportType() !== 'account') { <span class="required-star">*</span> }</div>
           <p-select [options]="branches()" optionLabel="label" optionValue="value"
-                    [ngModel]="selectedBranch()" (ngModelChange)="selectedBranch.set($event)" [showClear]="reportType() === 'account'"
-                    placeholder="All branches" [appendTo]="'body'" (onChange)="onBranchChange()" styleClass="sidebar-input" />
+                    [ngModel]="selectedBranch()" (ngModelChange)="selectedBranch.set($event)" [showClear]="reportType() === 'account' && !branchLocked()"
+                    [disabled]="branchLocked()" placeholder="All branches" [appendTo]="'body'" (onChange)="onBranchChange()" styleClass="sidebar-input" />
 
           @if (reportType() === 'zone') {
             <div class="sidebar-heading">Zones <span class="required-star">*</span></div>
@@ -92,6 +93,13 @@ type ReportType = 'account' | 'zone' | 'grouped';
           <p-button label="Generate" icon="pi pi-table" [loading]="generating()"
                  [disabled]="generateDisabled()" styleClass="generate-btn"
                  (onClick)="generate()" />
+
+          @if (previewResult() || zonePreviewResult()) {
+            <button type="button" class="pe-export-btn sidebar-export-btn" [disabled]="exporting()" (click)="onExportClick($event, exportMenu)">
+              <i class="pi pi-download"></i> Export
+            </button>
+            <p-menu #exportMenu [model]="exportMenuItems()" [popup]="true" appendTo="body" />
+          }
 
           @if (reportType() === 'account') {
             <div class="customers-header-row">
@@ -150,7 +158,7 @@ type ReportType = 'account' | 'zone' | 'grouped';
                     <span class="p-input-icon-left filter-field">
                       <i class="pi pi-search"></i>
                       <input type="text" pInputText placeholder="Filter by SKU or description"
-                             [ngModel]="filterText()" (ngModelChange)="filterText.set($event)" />
+                             [ngModel]="filterText()" (ngModelChange)="onFilterTextChange($event)" />
                     </span>
                     <span class="freeze-field">
                       <i class="pi pi-thumbtack"></i>
@@ -159,57 +167,55 @@ type ReportType = 'account' | 'zone' | 'grouped';
                     </span>
                     <i class="pi fullscreen-toggle" [class.pi-window-maximize]="!isFullscreen()" [class.pi-window-minimize]="isFullscreen()"
                        (click)="toggleFullscreen()" [title]="isFullscreen() ? 'Exit full screen' : 'Full screen'"></i>
-                    <button type="button" class="pe-export-btn" [disabled]="exporting()" (click)="onExportClick($event, exportMenu)">
-                      <i class="pi pi-download"></i> Export
-                    </button>
-                    <p-menu #exportMenu [model]="exportMenuItems()" [popup]="true" appendTo="body" />
                   </div>
                 </div>
 
                 <div class="pe-results-scroll">
                   <p-table #pricelistTable [value]="filteredRows()" styleClass="p-datatable-sm pricelist-table"
-                         [scrollable]="true" scrollHeight="flex">
+                         [scrollable]="true" scrollHeight="flex"
+                         [tableStyle]="{ 'min-width': minTableWidth(result.customers.length) }"
+                         [paginator]="true" [rows]="pageSize">
                     <ng-template pTemplate="header">
                       <tr>
-                        <th [class.frozen-col]="isFrozen(0)" [class.frozen-edge]="isLastFrozen(0)" [style.left.px]="isFrozen(0) ? colOffsets()[0] : null"><div class="frozen-th-inner">SKU</div></th>
-                        <th [class.frozen-col]="isFrozen(1)" [class.frozen-edge]="isLastFrozen(1)" [style.left.px]="isFrozen(1) ? colOffsets()[1] : null"><div class="frozen-th-inner">Description</div></th>
-                        <th [class.frozen-col]="isFrozen(2)" [class.frozen-edge]="isLastFrozen(2)" [style.left.px]="isFrozen(2) ? colOffsets()[2] : null"><div class="frozen-th-inner">Category</div></th>
-                        <th [class.frozen-col]="isFrozen(3)" [class.frozen-edge]="isLastFrozen(3)" [style.left.px]="isFrozen(3) ? colOffsets()[3] : null"><div class="frozen-th-inner">Packing</div></th>
-                        <th [class.frozen-col]="isFrozen(4)" [class.frozen-edge]="isLastFrozen(4)" [style.left.px]="isFrozen(4) ? colOffsets()[4] : null"><div class="frozen-th-inner">Pieces</div></th>
-                        <th>Case Barcode</th>
-                        <th>Barcode</th>
+                        <th class="resizable-col" [class.frozen-col]="isFrozen(0)" [class.frozen-edge]="isLastFrozen(0)" [style.left.px]="isFrozen(0) ? colOffsets()[0] : null" [style.width.px]="colWidth('sku', 70)"><div class="frozen-th-inner">SKU</div><span class="col-resize-handle" (mousedown)="startColumnResize($event, 'sku', 70)"></span></th>
+                        <th class="resizable-col" [class.frozen-col]="isFrozen(1)" [class.frozen-edge]="isLastFrozen(1)" [style.left.px]="isFrozen(1) ? colOffsets()[1] : null" [style.width.px]="colWidth('description', 200)"><div class="frozen-th-inner">Description</div><span class="col-resize-handle" (mousedown)="startColumnResize($event, 'description', 200)"></span></th>
+                        <th class="resizable-col" [class.frozen-col]="isFrozen(2)" [class.frozen-edge]="isLastFrozen(2)" [style.left.px]="isFrozen(2) ? colOffsets()[2] : null" [style.width.px]="colWidth('category', 90)"><div class="frozen-th-inner">Category</div><span class="col-resize-handle" (mousedown)="startColumnResize($event, 'category', 90)"></span></th>
+                        <th class="resizable-col" [class.frozen-col]="isFrozen(3)" [class.frozen-edge]="isLastFrozen(3)" [style.left.px]="isFrozen(3) ? colOffsets()[3] : null" [style.width.px]="colWidth('packing', 80)"><div class="frozen-th-inner">Packing</div><span class="col-resize-handle" (mousedown)="startColumnResize($event, 'packing', 80)"></span></th>
+                        <th class="resizable-col" [class.frozen-col]="isFrozen(4)" [class.frozen-edge]="isLastFrozen(4)" [style.left.px]="isFrozen(4) ? colOffsets()[4] : null" [style.width.px]="colWidth('pieces', 60)"><div class="frozen-th-inner">Pieces</div><span class="col-resize-handle" (mousedown)="startColumnResize($event, 'pieces', 60)"></span></th>
+                        <th class="resizable-col" [style.width.px]="colWidth('caseBarcode', 130)">Case Barcode<span class="col-resize-handle" (mousedown)="startColumnResize($event, 'caseBarcode', 130)"></span></th>
+                        <th class="resizable-col" [style.width.px]="colWidth('barcode', 130)">Barcode<span class="col-resize-handle" (mousedown)="startColumnResize($event, 'barcode', 130)"></span></th>
                         @for (cust of result.customers; track cust.custKey) {
                           <th colspan="3" class="cust-header">({{ cust.custKey }}) {{ cust.cusName }}</th>
                         }
                       </tr>
                       <tr>
-                        <th [class.frozen-col]="isFrozen(0)" [class.frozen-edge]="isLastFrozen(0)" [style.left.px]="isFrozen(0) ? colOffsets()[0] : null"><div class="frozen-th-inner"></div></th>
-                        <th [class.frozen-col]="isFrozen(1)" [class.frozen-edge]="isLastFrozen(1)" [style.left.px]="isFrozen(1) ? colOffsets()[1] : null"><div class="frozen-th-inner"></div></th>
-                        <th [class.frozen-col]="isFrozen(2)" [class.frozen-edge]="isLastFrozen(2)" [style.left.px]="isFrozen(2) ? colOffsets()[2] : null"><div class="frozen-th-inner"></div></th>
-                        <th [class.frozen-col]="isFrozen(3)" [class.frozen-edge]="isLastFrozen(3)" [style.left.px]="isFrozen(3) ? colOffsets()[3] : null"><div class="frozen-th-inner"></div></th>
-                        <th [class.frozen-col]="isFrozen(4)" [class.frozen-edge]="isLastFrozen(4)" [style.left.px]="isFrozen(4) ? colOffsets()[4] : null"><div class="frozen-th-inner"></div></th>
-                        <th></th>
-                        <th></th>
+                        <th [class.frozen-col]="isFrozen(0)" [class.frozen-edge]="isLastFrozen(0)" [style.left.px]="isFrozen(0) ? colOffsets()[0] : null" [style.width.px]="colWidth('sku', 70)"><div class="frozen-th-inner"></div></th>
+                        <th [class.frozen-col]="isFrozen(1)" [class.frozen-edge]="isLastFrozen(1)" [style.left.px]="isFrozen(1) ? colOffsets()[1] : null" [style.width.px]="colWidth('description', 200)"><div class="frozen-th-inner"></div></th>
+                        <th [class.frozen-col]="isFrozen(2)" [class.frozen-edge]="isLastFrozen(2)" [style.left.px]="isFrozen(2) ? colOffsets()[2] : null" [style.width.px]="colWidth('category', 90)"><div class="frozen-th-inner"></div></th>
+                        <th [class.frozen-col]="isFrozen(3)" [class.frozen-edge]="isLastFrozen(3)" [style.left.px]="isFrozen(3) ? colOffsets()[3] : null" [style.width.px]="colWidth('packing', 80)"><div class="frozen-th-inner"></div></th>
+                        <th [class.frozen-col]="isFrozen(4)" [class.frozen-edge]="isLastFrozen(4)" [style.left.px]="isFrozen(4) ? colOffsets()[4] : null" [style.width.px]="colWidth('pieces', 60)"><div class="frozen-th-inner"></div></th>
+                        <th [style.width.px]="colWidth('caseBarcode', 130)"></th>
+                        <th [style.width.px]="colWidth('barcode', 130)"></th>
                         @for (cust of result.customers; track cust.custKey) {
-                          <th>Case w/ VAT</th>
-                          <th>Unit w/ VAT</th>
-                          <th>SRP</th>
+                          <th class="resizable-col" [style.width.px]="colWidth(cust.custKey + '_case', 90)">Case w/ VAT<span class="col-resize-handle" (mousedown)="startColumnResize($event, cust.custKey + '_case', 90)"></span></th>
+                          <th class="resizable-col" [style.width.px]="colWidth(cust.custKey + '_unit', 90)">Unit w/ VAT<span class="col-resize-handle" (mousedown)="startColumnResize($event, cust.custKey + '_unit', 90)"></span></th>
+                          <th class="resizable-col" [style.width.px]="colWidth(cust.custKey + '_srp', 70)">SRP<span class="col-resize-handle" (mousedown)="startColumnResize($event, cust.custKey + '_srp', 70)"></span></th>
                         }
                       </tr>
                     </ng-template>
                     <ng-template pTemplate="body" let-row>
                       <tr>
-                        <td [class.frozen-col]="isFrozen(0)" [class.frozen-edge]="isLastFrozen(0)" [style.left.px]="isFrozen(0) ? colOffsets()[0] : null">{{ row.cProdNo }}</td>
-                        <td [class.frozen-col]="isFrozen(1)" [class.frozen-edge]="isLastFrozen(1)" [style.left.px]="isFrozen(1) ? colOffsets()[1] : null" [title]="row.prodDesc">{{ row.prodDesc }}</td>
-                        <td [class.frozen-col]="isFrozen(2)" [class.frozen-edge]="isLastFrozen(2)" [style.left.px]="isFrozen(2) ? colOffsets()[2] : null">{{ row.category }}</td>
-                        <td [class.frozen-col]="isFrozen(3)" [class.frozen-edge]="isLastFrozen(3)" [style.left.px]="isFrozen(3) ? colOffsets()[3] : null">{{ row.packSize }}</td>
-                        <td [class.frozen-col]="isFrozen(4)" [class.frozen-edge]="isLastFrozen(4)" [style.left.px]="isFrozen(4) ? colOffsets()[4] : null">{{ row.pieces }}</td>
-                        <td>{{ row.caseBarcode }}</td>
-                        <td>{{ row.barcode }}</td>
+                        <td [class.frozen-col]="isFrozen(0)" [class.frozen-edge]="isLastFrozen(0)" [style.left.px]="isFrozen(0) ? colOffsets()[0] : null" [style.width.px]="colWidth('sku', 70)">{{ row.cProdNo }}</td>
+                        <td [class.frozen-col]="isFrozen(1)" [class.frozen-edge]="isLastFrozen(1)" [style.left.px]="isFrozen(1) ? colOffsets()[1] : null" [style.width.px]="colWidth('description', 200)" [title]="row.prodDesc">{{ row.prodDesc }}</td>
+                        <td [class.frozen-col]="isFrozen(2)" [class.frozen-edge]="isLastFrozen(2)" [style.left.px]="isFrozen(2) ? colOffsets()[2] : null" [style.width.px]="colWidth('category', 90)">{{ row.category }}</td>
+                        <td [class.frozen-col]="isFrozen(3)" [class.frozen-edge]="isLastFrozen(3)" [style.left.px]="isFrozen(3) ? colOffsets()[3] : null" [style.width.px]="colWidth('packing', 80)">{{ row.packSize }}</td>
+                        <td [class.frozen-col]="isFrozen(4)" [class.frozen-edge]="isLastFrozen(4)" [style.left.px]="isFrozen(4) ? colOffsets()[4] : null" [style.width.px]="colWidth('pieces', 60)">{{ row.pieces }}</td>
+                        <td [style.width.px]="colWidth('caseBarcode', 130)">{{ row.caseBarcode }}</td>
+                        <td [style.width.px]="colWidth('barcode', 130)">{{ row.barcode }}</td>
                         @for (cust of result.customers; track cust.custKey) {
-                          <td>{{ formatValue(row.byCustKey[cust.custKey]?.casePriceWithVat) }}</td>
-                          <td>{{ formatValue(row.byCustKey[cust.custKey]?.unitPriceWithVat) }}</td>
-                          <td>{{ formatValue(row.byCustKey[cust.custKey]?.srp) }}</td>
+                          <td [style.width.px]="colWidth(cust.custKey + '_case', 90)">{{ formatValue(row.byCustKey[cust.custKey]?.casePriceWithVat) }}</td>
+                          <td [style.width.px]="colWidth(cust.custKey + '_unit', 90)">{{ formatValue(row.byCustKey[cust.custKey]?.unitPriceWithVat) }}</td>
+                          <td [style.width.px]="colWidth(cust.custKey + '_srp', 70)">{{ formatValue(row.byCustKey[cust.custKey]?.srp) }}</td>
                         }
                       </tr>
                     </ng-template>
@@ -229,7 +235,7 @@ type ReportType = 'account' | 'zone' | 'grouped';
                     <span class="p-input-icon-left filter-field">
                       <i class="pi pi-search"></i>
                       <input type="text" pInputText placeholder="Filter by SKU or description"
-                             [ngModel]="filterText()" (ngModelChange)="filterText.set($event)" />
+                             [ngModel]="filterText()" (ngModelChange)="onFilterTextChange($event)" />
                     </span>
                     <span class="freeze-field">
                       <i class="pi pi-thumbtack"></i>
@@ -238,57 +244,55 @@ type ReportType = 'account' | 'zone' | 'grouped';
                     </span>
                     <i class="pi fullscreen-toggle" [class.pi-window-maximize]="!isFullscreen()" [class.pi-window-minimize]="isFullscreen()"
                        (click)="toggleFullscreen()" [title]="isFullscreen() ? 'Exit full screen' : 'Full screen'"></i>
-                    <button type="button" class="pe-export-btn" [disabled]="exporting()" (click)="onExportClick($event, exportMenu)">
-                      <i class="pi pi-download"></i> Export
-                    </button>
-                    <p-menu #exportMenu [model]="exportMenuItems()" [popup]="true" appendTo="body" />
                   </div>
                 </div>
 
                 <div class="pe-results-scroll">
                   <p-table #pricelistTable [value]="zoneFilteredRows()" styleClass="p-datatable-sm pricelist-table"
-                         [scrollable]="true" scrollHeight="flex">
+                         [scrollable]="true" scrollHeight="flex"
+                         [tableStyle]="{ 'min-width': minTableWidth(zresult.zones.length) }"
+                         [paginator]="true" [rows]="pageSize">
                     <ng-template pTemplate="header">
                       <tr>
-                        <th [class.frozen-col]="isFrozen(0)" [class.frozen-edge]="isLastFrozen(0)" [style.left.px]="isFrozen(0) ? colOffsets()[0] : null"><div class="frozen-th-inner">SKU</div></th>
-                        <th [class.frozen-col]="isFrozen(1)" [class.frozen-edge]="isLastFrozen(1)" [style.left.px]="isFrozen(1) ? colOffsets()[1] : null"><div class="frozen-th-inner">Description</div></th>
-                        <th [class.frozen-col]="isFrozen(2)" [class.frozen-edge]="isLastFrozen(2)" [style.left.px]="isFrozen(2) ? colOffsets()[2] : null"><div class="frozen-th-inner">Category</div></th>
-                        <th [class.frozen-col]="isFrozen(3)" [class.frozen-edge]="isLastFrozen(3)" [style.left.px]="isFrozen(3) ? colOffsets()[3] : null"><div class="frozen-th-inner">Packing</div></th>
-                        <th [class.frozen-col]="isFrozen(4)" [class.frozen-edge]="isLastFrozen(4)" [style.left.px]="isFrozen(4) ? colOffsets()[4] : null"><div class="frozen-th-inner">Pieces</div></th>
-                        <th>Case Barcode</th>
-                        <th>Barcode</th>
+                        <th class="resizable-col" [class.frozen-col]="isFrozen(0)" [class.frozen-edge]="isLastFrozen(0)" [style.left.px]="isFrozen(0) ? colOffsets()[0] : null" [style.width.px]="colWidth('sku', 70)"><div class="frozen-th-inner">SKU</div><span class="col-resize-handle" (mousedown)="startColumnResize($event, 'sku', 70)"></span></th>
+                        <th class="resizable-col" [class.frozen-col]="isFrozen(1)" [class.frozen-edge]="isLastFrozen(1)" [style.left.px]="isFrozen(1) ? colOffsets()[1] : null" [style.width.px]="colWidth('description', 200)"><div class="frozen-th-inner">Description</div><span class="col-resize-handle" (mousedown)="startColumnResize($event, 'description', 200)"></span></th>
+                        <th class="resizable-col" [class.frozen-col]="isFrozen(2)" [class.frozen-edge]="isLastFrozen(2)" [style.left.px]="isFrozen(2) ? colOffsets()[2] : null" [style.width.px]="colWidth('category', 90)"><div class="frozen-th-inner">Category</div><span class="col-resize-handle" (mousedown)="startColumnResize($event, 'category', 90)"></span></th>
+                        <th class="resizable-col" [class.frozen-col]="isFrozen(3)" [class.frozen-edge]="isLastFrozen(3)" [style.left.px]="isFrozen(3) ? colOffsets()[3] : null" [style.width.px]="colWidth('packing', 80)"><div class="frozen-th-inner">Packing</div><span class="col-resize-handle" (mousedown)="startColumnResize($event, 'packing', 80)"></span></th>
+                        <th class="resizable-col" [class.frozen-col]="isFrozen(4)" [class.frozen-edge]="isLastFrozen(4)" [style.left.px]="isFrozen(4) ? colOffsets()[4] : null" [style.width.px]="colWidth('pieces', 60)"><div class="frozen-th-inner">Pieces</div><span class="col-resize-handle" (mousedown)="startColumnResize($event, 'pieces', 60)"></span></th>
+                        <th class="resizable-col" [style.width.px]="colWidth('caseBarcode', 130)">Case Barcode<span class="col-resize-handle" (mousedown)="startColumnResize($event, 'caseBarcode', 130)"></span></th>
+                        <th class="resizable-col" [style.width.px]="colWidth('barcode', 130)">Barcode<span class="col-resize-handle" (mousedown)="startColumnResize($event, 'barcode', 130)"></span></th>
                         @for (zone of zresult.zones; track zone.zone) {
                           <th colspan="3" class="cust-header">ZONE {{ zone.zone }}</th>
                         }
                       </tr>
                       <tr>
-                        <th [class.frozen-col]="isFrozen(0)" [class.frozen-edge]="isLastFrozen(0)" [style.left.px]="isFrozen(0) ? colOffsets()[0] : null"><div class="frozen-th-inner"></div></th>
-                        <th [class.frozen-col]="isFrozen(1)" [class.frozen-edge]="isLastFrozen(1)" [style.left.px]="isFrozen(1) ? colOffsets()[1] : null"><div class="frozen-th-inner"></div></th>
-                        <th [class.frozen-col]="isFrozen(2)" [class.frozen-edge]="isLastFrozen(2)" [style.left.px]="isFrozen(2) ? colOffsets()[2] : null"><div class="frozen-th-inner"></div></th>
-                        <th [class.frozen-col]="isFrozen(3)" [class.frozen-edge]="isLastFrozen(3)" [style.left.px]="isFrozen(3) ? colOffsets()[3] : null"><div class="frozen-th-inner"></div></th>
-                        <th [class.frozen-col]="isFrozen(4)" [class.frozen-edge]="isLastFrozen(4)" [style.left.px]="isFrozen(4) ? colOffsets()[4] : null"><div class="frozen-th-inner"></div></th>
-                        <th></th>
-                        <th></th>
+                        <th [class.frozen-col]="isFrozen(0)" [class.frozen-edge]="isLastFrozen(0)" [style.left.px]="isFrozen(0) ? colOffsets()[0] : null" [style.width.px]="colWidth('sku', 70)"><div class="frozen-th-inner"></div></th>
+                        <th [class.frozen-col]="isFrozen(1)" [class.frozen-edge]="isLastFrozen(1)" [style.left.px]="isFrozen(1) ? colOffsets()[1] : null" [style.width.px]="colWidth('description', 200)"><div class="frozen-th-inner"></div></th>
+                        <th [class.frozen-col]="isFrozen(2)" [class.frozen-edge]="isLastFrozen(2)" [style.left.px]="isFrozen(2) ? colOffsets()[2] : null" [style.width.px]="colWidth('category', 90)"><div class="frozen-th-inner"></div></th>
+                        <th [class.frozen-col]="isFrozen(3)" [class.frozen-edge]="isLastFrozen(3)" [style.left.px]="isFrozen(3) ? colOffsets()[3] : null" [style.width.px]="colWidth('packing', 80)"><div class="frozen-th-inner"></div></th>
+                        <th [class.frozen-col]="isFrozen(4)" [class.frozen-edge]="isLastFrozen(4)" [style.left.px]="isFrozen(4) ? colOffsets()[4] : null" [style.width.px]="colWidth('pieces', 60)"><div class="frozen-th-inner"></div></th>
+                        <th [style.width.px]="colWidth('caseBarcode', 130)"></th>
+                        <th [style.width.px]="colWidth('barcode', 130)"></th>
                         @for (zone of zresult.zones; track zone.zone) {
-                          <th>Case w/ VAT</th>
-                          <th>Unit w/ VAT</th>
-                          <th>SRP</th>
+                          <th class="resizable-col" [style.width.px]="colWidth(zone.zone + '_case', 90)">Case w/ VAT<span class="col-resize-handle" (mousedown)="startColumnResize($event, zone.zone + '_case', 90)"></span></th>
+                          <th class="resizable-col" [style.width.px]="colWidth(zone.zone + '_unit', 90)">Unit w/ VAT<span class="col-resize-handle" (mousedown)="startColumnResize($event, zone.zone + '_unit', 90)"></span></th>
+                          <th class="resizable-col" [style.width.px]="colWidth(zone.zone + '_srp', 70)">SRP<span class="col-resize-handle" (mousedown)="startColumnResize($event, zone.zone + '_srp', 70)"></span></th>
                         }
                       </tr>
                     </ng-template>
                     <ng-template pTemplate="body" let-row>
                       <tr>
-                        <td [class.frozen-col]="isFrozen(0)" [class.frozen-edge]="isLastFrozen(0)" [style.left.px]="isFrozen(0) ? colOffsets()[0] : null">{{ row.cProdNo }}</td>
-                        <td [class.frozen-col]="isFrozen(1)" [class.frozen-edge]="isLastFrozen(1)" [style.left.px]="isFrozen(1) ? colOffsets()[1] : null" [title]="row.prodDesc">{{ row.prodDesc }}</td>
-                        <td [class.frozen-col]="isFrozen(2)" [class.frozen-edge]="isLastFrozen(2)" [style.left.px]="isFrozen(2) ? colOffsets()[2] : null">{{ row.category }}</td>
-                        <td [class.frozen-col]="isFrozen(3)" [class.frozen-edge]="isLastFrozen(3)" [style.left.px]="isFrozen(3) ? colOffsets()[3] : null">{{ row.packSize }}</td>
-                        <td [class.frozen-col]="isFrozen(4)" [class.frozen-edge]="isLastFrozen(4)" [style.left.px]="isFrozen(4) ? colOffsets()[4] : null">{{ row.pieces }}</td>
-                        <td>{{ row.caseBarcode }}</td>
-                        <td>{{ row.barcode }}</td>
+                        <td [class.frozen-col]="isFrozen(0)" [class.frozen-edge]="isLastFrozen(0)" [style.left.px]="isFrozen(0) ? colOffsets()[0] : null" [style.width.px]="colWidth('sku', 70)">{{ row.cProdNo }}</td>
+                        <td [class.frozen-col]="isFrozen(1)" [class.frozen-edge]="isLastFrozen(1)" [style.left.px]="isFrozen(1) ? colOffsets()[1] : null" [style.width.px]="colWidth('description', 200)" [title]="row.prodDesc">{{ row.prodDesc }}</td>
+                        <td [class.frozen-col]="isFrozen(2)" [class.frozen-edge]="isLastFrozen(2)" [style.left.px]="isFrozen(2) ? colOffsets()[2] : null" [style.width.px]="colWidth('category', 90)">{{ row.category }}</td>
+                        <td [class.frozen-col]="isFrozen(3)" [class.frozen-edge]="isLastFrozen(3)" [style.left.px]="isFrozen(3) ? colOffsets()[3] : null" [style.width.px]="colWidth('packing', 80)">{{ row.packSize }}</td>
+                        <td [class.frozen-col]="isFrozen(4)" [class.frozen-edge]="isLastFrozen(4)" [style.left.px]="isFrozen(4) ? colOffsets()[4] : null" [style.width.px]="colWidth('pieces', 60)">{{ row.pieces }}</td>
+                        <td [style.width.px]="colWidth('caseBarcode', 130)">{{ row.caseBarcode }}</td>
+                        <td [style.width.px]="colWidth('barcode', 130)">{{ row.barcode }}</td>
                         @for (zone of zresult.zones; track zone.zone) {
-                          <td>{{ formatValue(row.byZone[zone.zone]?.casePriceWithVat) }}</td>
-                          <td>{{ formatValue(row.byZone[zone.zone]?.unitPriceWithVat) }}</td>
-                          <td>{{ formatValue(row.byZone[zone.zone]?.srp) }}</td>
+                          <td [style.width.px]="colWidth(zone.zone + '_case', 90)">{{ formatValue(row.byZone[zone.zone]?.casePriceWithVat) }}</td>
+                          <td [style.width.px]="colWidth(zone.zone + '_unit', 90)">{{ formatValue(row.byZone[zone.zone]?.unitPriceWithVat) }}</td>
+                          <td [style.width.px]="colWidth(zone.zone + '_srp', 70)">{{ formatValue(row.byZone[zone.zone]?.srp) }}</td>
                         }
                       </tr>
                     </ng-template>
@@ -309,7 +313,7 @@ type ReportType = 'account' | 'zone' | 'grouped';
     .pe-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; font-size: 0.85rem; }
     .required-star { color: var(--p-red-500, #ef4444); margin-left: 2px; }
 
-    .pe-body { display: flex; flex: 1 1 auto; min-height: 0; }
+    .pe-body { display: flex; flex: 1 1 auto; min-height: 0; position: relative; }
 
     /* ── Sidebar ── */
     .pe-sidebar {
@@ -323,7 +327,7 @@ type ReportType = 'account' | 'zone' | 'grouped';
     .hide-link { font-size: 11px; color: var(--p-text-muted-color, #888); cursor: pointer; white-space: nowrap; text-decoration: underline; }
     .hide-link:hover { color: #6b6b6b; }
     .sidebar-expand-tab {
-      position: fixed; top: 120px; left: 0; z-index: 50;
+      position: sticky; top: 18px; left: 0; float: left; z-index: 5;
       display: flex; align-items: center; justify-content: center;
       width: 20px; height: 40px; border-radius: 0 6px 6px 0;
       background: var(--p-surface-100, #f1f5f9); border: 1px solid var(--p-surface-200, #e7e3dd); border-left: none;
@@ -387,7 +391,7 @@ type ReportType = 'account' | 'zone' | 'grouped';
     .pe-summary { font-size: 13px; font-weight: 700; white-space: nowrap; }
     .pe-toolbar-actions { display: flex; align-items: center; gap: 0.75rem; flex: none; flex-wrap: wrap; }
 
-    .pe-results-scroll { flex: 1 1 auto; min-height: 0; padding: 0 20px 20px; }
+    .pe-results-scroll { flex: 1 1 auto; min-height: 0; }
     .pe-results-scroll > p-table { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; height: 100%; }
 
     .pe-export-btn {
@@ -397,10 +401,33 @@ type ReportType = 'account' | 'zone' | 'grouped';
     }
     .pe-export-btn:hover:not(:disabled) { background: #256640; }
     .pe-export-btn:disabled { opacity: 0.6; cursor: default; }
+    .sidebar-export-btn { width: 100%; justify-content: center; margin: -10px 0 20px; padding: 8px 14px; }
 
-    ::ng-deep .pricelist-table.p-datatable { display: block; width: 100%; min-width: 0; }
+    /* PrimeNG's own ".p-datatable-flex-scrollable" rule (added automatically
+       for scrollHeight="flex") makes .p-datatable a flex column with
+       height:100%, and its .p-datatable-table-container child flex:1 with
+       height:100% too — that's what correctly reserves the paginator its
+       own space below. We used to override .p-datatable to display:block,
+       which breaks that: with a plain block layout, .p-datatable-table-container's
+       height:100% is 100% of .p-datatable's own height, so it (and its
+       content) can render taller than that box and bleed straight through/
+       over the paginator instead of stopping above it — worse whenever
+       vertical space is tight, i.e. portrait. Keeping this as a real flex
+       column (matching PrimeNG's own intent) instead of fighting it with
+       one-off height overrides is what actually reserves the paginator's
+       space correctly. */
+    ::ng-deep .pricelist-table.p-datatable {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      min-width: 0;
+      height: 100%;
+      min-height: 0;
+    }
     ::ng-deep .pricelist-table .p-datatable-table-container {
       width: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
       overflow-x: scroll !important;
       scrollbar-width: auto;
     }
@@ -416,6 +443,25 @@ type ReportType = 'account' | 'zone' | 'grouped';
     }
     ::ng-deep .pricelist-table .p-datatable-table-container::-webkit-scrollbar-thumb:hover {
       background: var(--p-surface-500, #64748b);
+    }
+
+    /* Excel-style manual column resize (see startColumnResize in the component
+       class) — a visible grab strip on the right edge of each resizable
+       header cell, highlighted on hover so it's actually discoverable. */
+    /* Sticky (frozen) columns already establish a positioning context for the
+       handle via position:sticky — don't override that with position:relative
+       or the freeze/sticky-offset behavior breaks. */
+    .resizable-col:not(.frozen-col) { position: relative; }
+    .resizable-col { box-sizing: border-box; }
+    .col-resize-handle {
+      position: absolute; top: 0; right: 0; bottom: 0; width: 6px;
+      cursor: col-resize; touch-action: none; z-index: 3;
+      border-right: 2px solid var(--p-surface-300, #cbd5e1);
+    }
+    .col-resize-handle:hover, .col-resize-handle:active {
+      background: var(--p-primary-color, #2c7a4b);
+      border-right-color: var(--p-primary-color, #2c7a4b);
+      opacity: 0.5;
     }
 
     ::ng-deep .p-autocomplete-option { padding: 0 !important; align-items: stretch !important; }
@@ -437,20 +483,10 @@ type ReportType = 'account' | 'zone' | 'grouped';
     ::ng-deep .pricelist-table .p-datatable-tbody > tr > td { padding: 0.3rem 0.5rem; }
     .cust-header { text-align: center; }
 
-    ::ng-deep .pricelist-table .p-datatable-table th:nth-child(-n+5),
-    ::ng-deep .pricelist-table .p-datatable-table td:nth-child(-n+5) {
+    ::ng-deep .pricelist-table .p-datatable-table th,
+    ::ng-deep .pricelist-table .p-datatable-table td {
       box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    ::ng-deep .pricelist-table .p-datatable-table th:nth-child(1),
-    ::ng-deep .pricelist-table .p-datatable-table td:nth-child(1) { width: 70px; max-width: 70px; }
-    ::ng-deep .pricelist-table .p-datatable-table th:nth-child(2),
-    ::ng-deep .pricelist-table .p-datatable-table td:nth-child(2) { width: 200px; max-width: 200px; }
-    ::ng-deep .pricelist-table .p-datatable-table th:nth-child(3),
-    ::ng-deep .pricelist-table .p-datatable-table td:nth-child(3) { width: 90px; max-width: 90px; }
-    ::ng-deep .pricelist-table .p-datatable-table th:nth-child(4),
-    ::ng-deep .pricelist-table .p-datatable-table td:nth-child(4) { width: 80px; max-width: 80px; }
-    ::ng-deep .pricelist-table .p-datatable-table th:nth-child(5),
-    ::ng-deep .pricelist-table .p-datatable-table td:nth-child(5) { width: 60px; max-width: 60px; }
 
     ::ng-deep .pricelist-table .frozen-col {
       position: sticky;
@@ -483,6 +519,7 @@ type ReportType = 'account' | 'zone' | 'grouped';
 export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDestroy {
   private api = inject(SalesOrderService);
   private pricelistApi = inject(PricelistService);
+  private auth = inject(AuthService);
   private toolbar = inject(GlobalToolbarService);
   private confirmSvc = inject(ConfirmationService);
   private injector = inject(Injector);
@@ -490,6 +527,7 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
 
   @ViewChild('customersRow') customersRowRef?: ElementRef<HTMLDivElement>;
   @ViewChild('pricelistTable', { read: ElementRef }) pricelistTableRef?: ElementRef<HTMLElement>;
+  @ViewChild('pricelistTable') pricelistTableInstance?: Table;
 
   readonly reportTypeOptions: { label: string; value: ReportType }[] = [
     { label: 'Per Account', value: 'account' },
@@ -501,6 +539,12 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
 
   branches = signal<BranchOptionDto[]>([]);
   selectedBranch = signal<string | null>(null);
+
+  // Branch Administrator and Sales Encoder are branch-scoped roles — they
+  // must always generate pricelists for their own signed-in branch, never
+  // pick another one. Locked to the branch on their own user record
+  // (BranchCode / JWT "branch" claim), not user-changeable.
+  branchLocked = computed(() => this.auth.hasRole('Branch Administrator', 'Sales Encoder'));
 
   customerSuggestions = signal<CustomerSuggestionDto[]>([]);
   selectedCustomers = signal<CustomerSuggestionDto[]>([]);
@@ -518,6 +562,7 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
   baselineSuggestions = signal<CustomerSuggestionDto[]>([]);
 
   isFullscreen = signal(false);
+  readonly pageSize = 28;
   effectivityDate = signal<Date>(new Date());
   srpMarkupPercent = signal<number>(3);
   generating = signal(false);
@@ -608,19 +653,50 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
   ngOnInit(): void {
     this.toolbar.set({ title: 'Pricelist Export' });
     this.pricelistApi.getBranches().subscribe({
-      next: res => this.branches.set(res.data ?? []),
+      next: res => {
+        this.branches.set(res.data ?? []);
+        this.applyBranchLock();
+      },
       error: () => this.branches.set([])
     });
+
+    if (this.branchLocked()) {
+      this.pricelistApi.getMyBranch().subscribe({
+        next: res => { this.lockedBranchValue = res.data ?? null; this.applyBranchLock(); },
+        error: () => { this.lockedBranchValue = null; }
+      });
+    }
+  }
+
+  // Resolved server-side (PricelistController.GetMyBranch) from the signed-in
+  // user's BranchCode — that field is free text on the Users page, entered in
+  // whatever format the Sites page shows (the Site Code, e.g. "CDC-B"), which
+  // doesn't line up with what this picker's Value actually uses (a raw
+  // pricing-folder code, or the Site Name itself for hon-priced branches like
+  // Cabuyao/"CABUYAO"). Resolving that mapping needs the Sites/ZoneAddOns
+  // tables, so it's done once on the server rather than guessed here.
+  private lockedBranchValue: string | null = null;
+
+  // Pins selectedBranch to the resolved value once both branches() and
+  // lockedBranchValue are in hand (either can arrive first). Called
+  // defensively from onBranchChange/onReportTypeChange too so a locked user
+  // can never end up with another branch selected.
+  private applyBranchLock(): void {
+    if (!this.branchLocked() || !this.lockedBranchValue) return;
+    const match = this.branches().find(b => b.value.toLowerCase() === this.lockedBranchValue!.toLowerCase());
+    if (match) this.selectedBranch.set(match.value);
   }
 
   onReportTypeChange(type: ReportType): void {
     this.reportType.set(type);
     this.clearPreview();
     this.apiError.set(null);
+    this.applyBranchLock();
     if (type === 'zone' && this.selectedBranch()) this.loadZonesForBranch(this.selectedBranch()!);
   }
 
   onBranchChange(): void {
+    this.applyBranchLock();
     this.customerSearchCache.clear();
     this.selectedCustomers.set([]);
     this.allCustomers.set(false);
@@ -910,6 +986,66 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
     this.filterText.set('');
   }
 
+  onFilterTextChange(value: string): void {
+    this.filterText.set(value);
+    // The paginator keeps its current page offset when the underlying
+    // [value] array shrinks (PrimeNG doesn't reset it for you), so a filter
+    // typed while on page 2+ looked like it was only searching that page's
+    // leftover slice instead of the whole result — snap back to page 1.
+    if (this.pricelistTableInstance) this.pricelistTableInstance.first = 0;
+  }
+
+  // Guarantees the table is always wider than its viewport once there are
+  // enough customer/zone columns, so the container reliably overflows and
+  // shows its horizontal scrollbar. min-width on the <table> element itself
+  // is a hard floor regardless of individual column sizing.
+  minTableWidth(columnGroupCount: number): string {
+    const fixedColumnsWidth = 760; // SKU+Description+Category+Packing+Pieces+CaseBarcode+Barcode
+    const perGroupWidth = 270; // Case w/VAT + Unit w/VAT + SRP, ~90px each
+    return `${fixedColumnsWidth + columnGroupCount * perGroupWidth}px`;
+  }
+
+  // Excel-style column resize, done by hand: PrimeNG's own resizableColumns
+  // feature assumes one flat header row, but ours has a grouped customer/zone
+  // name row (colspan=3) sitting above the real per-column leaf headers —
+  // PrimeNG resolves a dragged column purely by its DOM sibling index and
+  // reapplies that same index across every header row via nth-child, so
+  // dragging a leaf sub-column (e.g. customer 2's "Unit w/ VAT") would also
+  // force that width onto whatever unrelated cell sits at the same index in
+  // the colspan row, corrupting the grouped header. Keyed width map + plain
+  // mouse events sidesteps that entirely.
+  columnWidths = signal<Record<string, number>>({});
+
+  colWidth(key: string, defaultWidth: number): number {
+    return this.columnWidths()[key] ?? defaultWidth;
+  }
+
+  private columnResizeState: { key: string; startX: number; startWidth: number } | null = null;
+
+  startColumnResize(event: MouseEvent, key: string, defaultWidth: number): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.columnResizeState = { key, startX: event.clientX, startWidth: this.colWidth(key, defaultWidth) };
+    window.addEventListener('mousemove', this.onColumnResizeMove);
+    window.addEventListener('mouseup', this.onColumnResizeEnd);
+  }
+
+  private onColumnResizeMove = (event: MouseEvent): void => {
+    const state = this.columnResizeState;
+    if (!state) return;
+    const newWidth = Math.max(40, state.startWidth + (event.clientX - state.startX));
+    this.columnWidths.update(widths => ({ ...widths, [state.key]: newWidth }));
+  };
+
+  private onColumnResizeEnd = (): void => {
+    this.columnResizeState = null;
+    window.removeEventListener('mousemove', this.onColumnResizeMove);
+    window.removeEventListener('mouseup', this.onColumnResizeEnd);
+    // Resizing one of the frozen columns shifts where the ones after it need
+    // to stick — recompute their sticky left offsets against the new widths.
+    setTimeout(() => this.measureFreezeOffsets(), 0);
+  };
+
   formatValue(value: number | null | undefined): string {
     return value == null ? '—' : value.toFixed(2);
   }
@@ -1034,7 +1170,8 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
     this.pricelistApi.export({
       custKeys: [customer.custKey],
       effectivityDate,
-      srpMarkupPercent: this.srpMarkupPercent() ?? 3
+      srpMarkupPercent: this.srpMarkupPercent() ?? 3,
+      skuFilter: this.filterText().trim() || undefined
     }).subscribe({
       next: res => {
         this.pricelistApi.download(res, `Pricelist_${customer.custKey}_${effectivityDate.replace(/-/g, '')}.xlsx`);
@@ -1058,7 +1195,8 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
 
     const effectivityDate = this.toIsoDate(date);
     this.pricelistApi.zoneExport({
-      branch, zones, effectivityDate, srpMarkupPercent: this.srpMarkupPercent() ?? 3
+      branch, zones, effectivityDate, srpMarkupPercent: this.srpMarkupPercent() ?? 3,
+      skuFilter: this.filterText().trim() || undefined
     }).subscribe({
       next: res => {
         this.pricelistApi.download(res, `ZonePricelist_${branch}_${effectivityDate.replace(/-/g, '')}.xlsx`);
@@ -1096,7 +1234,8 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
     return {
       custKeys: customers.map(c => c.custKey),
       effectivityDate: this.toIsoDate(date),
-      srpMarkupPercent: this.srpMarkupPercent() ?? 3
+      srpMarkupPercent: this.srpMarkupPercent() ?? 3,
+      skuFilter: this.filterText().trim() || undefined
     };
   }
 
@@ -1105,7 +1244,8 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
       branch,
       effectivityDate: this.toIsoDate(date),
       srpMarkupPercent: this.srpMarkupPercent() ?? 3,
-      baselineCustKey: this.baselineCustomer()?.custKey
+      baselineCustKey: this.baselineCustomer()?.custKey,
+      skuFilter: this.filterText().trim() || undefined
     };
   }
 

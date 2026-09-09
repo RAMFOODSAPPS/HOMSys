@@ -10,6 +10,7 @@ export interface UserInfo {
   firstName: string;
   lastName: string;
   mustChangePassword: boolean;
+  branchCode: string | null;
   roles: string[];
   permissions: string[];
 }

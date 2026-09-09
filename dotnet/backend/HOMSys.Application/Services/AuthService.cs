@@ -116,6 +116,7 @@ public class AuthService(IUserRepository userRepo, IRefreshTokenRepository refre
                 FirstName = user.FirstName,
                 LastName = user.LastName,
                 MustChangePassword = user.MustChangePassword,
+                BranchCode = user.BranchCode,
                 Roles = roles,
                 Permissions = permissions
             }

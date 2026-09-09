@@ -17,6 +17,7 @@ public class UserInfo
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public bool MustChangePassword { get; set; }
+    public string? BranchCode { get; set; }
     public IEnumerable<string> Roles { get; set; } = [];
     public IEnumerable<string> Permissions { get; set; } = [];
 }
