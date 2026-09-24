@@ -107,11 +107,14 @@ public class PricelistController(
     /// "CABUYAO", not "cdc" or "CDC-B").
     /// </summary>
     [HttpGet("my-branch")]
-    public async Task<IActionResult> GetMyBranch()
+    public async Task<IActionResult> GetMyBranch() =>
+        Ok(new { success = true, data = await ResolveMyBranchAsync() });
+
+    private async Task<string?> ResolveMyBranchAsync()
     {
         var rawCode = User.FindFirstValue("branch");
         if (string.IsNullOrWhiteSpace(rawCode))
-            return Ok(new { success = true, data = (string?)null });
+            return null;
 
         var strippedCode = rawCode.EndsWith("-B", StringComparison.OrdinalIgnoreCase)
             ? rawCode[..^2]
@@ -130,19 +133,61 @@ public class PricelistController(
         // everything else is keyed by the raw pricing-folder code — resolve
         // that code's real casing off the live ZoneAddOns branch list rather
         // than trusting whatever case ended up in the free-text field.
-        string? value;
         if (site is { PricesOffHon: true })
-        {
-            value = site.Name;
-        }
-        else
-        {
-            var branches = await pricingRepo.GetBranchesWithZonesAsync();
-            value = branches.FirstOrDefault(b => string.Equals(b, strippedCode, StringComparison.OrdinalIgnoreCase))
-                    ?? strippedCode;
-        }
+            return site.Name;
 
-        return Ok(new { success = true, data = value });
+        var branches = await pricingRepo.GetBranchesWithZonesAsync();
+        return branches.FirstOrDefault(b => string.Equals(b, strippedCode, StringComparison.OrdinalIgnoreCase))
+               ?? strippedCode;
+    }
+
+    // ── Branch lock, enforced server-side ────────────────────────────────
+    // The page disables the branch picker for these roles, but that is only
+    // UI — every endpoint that returns prices re-checks the request against
+    // the caller's own JWT "branch" claim. Role names are admin-typed, so
+    // compare case-insensitively (same as the frontend's hasRole).
+    private static readonly string[] BranchLockedRoles = ["Branch Administrator", "Sales Encoder"];
+
+    private bool IsBranchLocked() =>
+        User.FindAll(ClaimTypes.Role)
+            .Any(c => BranchLockedRoles.Contains(c.Value, StringComparer.OrdinalIgnoreCase));
+
+    private ObjectResult BranchForbidden() =>
+        StatusCode(StatusCodes.Status403Forbidden,
+            new { success = false, message = "You can only generate pricelists for your own branch." });
+
+    /// <summary>Null when allowed; otherwise the 403 to return.</summary>
+    private async Task<IActionResult?> CheckBranchAccessAsync(string branch)
+    {
+        if (!IsBranchLocked()) return null;
+        var own = await ResolveMyBranchAsync();
+        return own is not null && string.Equals(own, branch, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : BranchForbidden();
+    }
+
+    /// <summary>
+    /// Null when every customer belongs to the caller's branch; otherwise the
+    /// 403 to return. Checks the same most-recently-imported Customer row the
+    /// Per Account export prices from (GetByCustKeysAsync), using the same
+    /// folder + cuwhsenos scoping as the branch-scoped customer search.
+    /// </summary>
+    private async Task<IActionResult?> CheckCustomerAccessAsync(IReadOnlyCollection<string> custKeys)
+    {
+        if (!IsBranchLocked()) return null;
+        var own = await ResolveMyBranchAsync();
+        if (own is null) return BranchForbidden();
+
+        var honBranches = await zoneExportService.GetHonBranchesAsync();
+        var pricingFolder = ZonePricelistExportService.ResolvePricingFolder(own, honBranches.Keys);
+        honBranches.TryGetValue(own, out var whseNos);
+
+        var customers = await customerRepo.GetByCustKeysAsync(custKeys);
+        var allInBranch = custKeys.All(k =>
+            customers.TryGetValue(k, out var c) &&
+            string.Equals(c.Branch, pricingFolder, StringComparison.OrdinalIgnoreCase) &&
+            (whseNos is not { Count: > 0 } || whseNos.Contains(c.WhseNo)));
+        return allInBranch ? null : BranchForbidden();
     }
 
     [HttpPost("preview")]
@@ -150,6 +195,8 @@ public class PricelistController(
     {
         if (request.CustKeys.Count == 0)
             return BadRequest(new { success = false, message = "At least one customer must be selected." });
+        if (await CheckCustomerAccessAsync(request.CustKeys) is { } denied)
+            return denied;
 
         var result = await exportService.BuildAsync(request.CustKeys, request.EffectivityDate, request.SrpMarkupPercent);
         return Ok(new { success = true, data = result });
@@ -160,6 +207,8 @@ public class PricelistController(
     {
         if (request.CustKeys.Count == 0)
             return BadRequest(new { success = false, message = "At least one customer must be selected." });
+        if (await CheckCustomerAccessAsync(request.CustKeys) is { } denied)
+            return denied;
 
         var result = await exportService.BuildAsync(request.CustKeys, request.EffectivityDate, request.SrpMarkupPercent);
         result = ApplySkuFilter(result, request.SkuFilter);
@@ -172,6 +221,9 @@ public class PricelistController(
     [HttpGet("zone-branches/{branch}/zones")]
     public async Task<IActionResult> GetZonesForBranch(string branch)
     {
+        if (await CheckBranchAccessAsync(branch) is { } denied)
+            return denied;
+
         var honBranches = await zoneExportService.GetHonBranchesAsync();
         var pricingFolder = ZonePricelistExportService.ResolvePricingFolder(branch, honBranches.Keys);
         var hasWhseNos = honBranches.TryGetValue(branch, out var whseNos) && whseNos.Count > 0;
@@ -202,6 +254,8 @@ public class PricelistController(
             return BadRequest(new { success = false, message = "A branch must be selected." });
         if (request.Zones.Count == 0)
             return BadRequest(new { success = false, message = "At least one zone must be selected." });
+        if (await CheckBranchAccessAsync(request.Branch) is { } denied)
+            return denied;
 
         var result = await zoneExportService.BuildAsync(request.Branch, request.Zones, request.EffectivityDate, request.SrpMarkupPercent);
         return Ok(new { success = true, data = result });
@@ -214,6 +268,8 @@ public class PricelistController(
             return BadRequest(new { success = false, message = "A branch must be selected." });
         if (request.Zones.Count == 0)
             return BadRequest(new { success = false, message = "At least one zone must be selected." });
+        if (await CheckBranchAccessAsync(request.Branch) is { } denied)
+            return denied;
 
         var result = await zoneExportService.BuildAsync(request.Branch, request.Zones, request.EffectivityDate, request.SrpMarkupPercent);
         result = ApplySkuFilter(result, request.SkuFilter);
@@ -228,6 +284,8 @@ public class PricelistController(
     {
         if (string.IsNullOrWhiteSpace(request.Branch))
             return BadRequest(new { success = false, message = "A branch must be selected." });
+        if (await CheckBranchAccessAsync(request.Branch) is { } denied)
+            return denied;
 
         try
         {
@@ -246,6 +304,8 @@ public class PricelistController(
     {
         if (string.IsNullOrWhiteSpace(request.Branch))
             return BadRequest(new { success = false, message = "A branch must be selected." });
+        if (await CheckBranchAccessAsync(request.Branch) is { } denied)
+            return denied;
 
         try
         {
@@ -266,16 +326,21 @@ public class PricelistController(
         }
     }
 
-    // Mirrors the frontend's live-preview SKU/description filter, so the
-    // exported file only contains whatever the user was actually looking at.
+    // Mirrors the frontend's live-preview filter (filteredRows/zoneFilteredRows:
+    // SKU, description, or category header), so the exported file only
+    // contains whatever the user was actually looking at.
+    private static bool MatchesFilter(string term, string? header, string cProdNo, string prodDesc) =>
+        (header?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+        cProdNo.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+        prodDesc.Contains(term, StringComparison.OrdinalIgnoreCase);
+
     private static PricelistExportResult ApplySkuFilter(PricelistExportResult result, string? skuFilter)
     {
         if (string.IsNullOrWhiteSpace(skuFilter)) return result;
         var term = skuFilter.Trim();
         var groups = result.Groups
-            .Select(g => new PricelistCategoryGroup(g.Header, g.Rows.Where(r =>
-                r.CProdNo.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                r.ProdDesc.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList()))
+            .Select(g => new PricelistCategoryGroup(g.Header,
+                g.Rows.Where(r => MatchesFilter(term, g.Header, r.CProdNo, r.ProdDesc)).ToList()))
             .Where(g => g.Rows.Count > 0)
             .ToList();
         return result with { Groups = groups };
@@ -286,9 +351,8 @@ public class PricelistController(
         if (string.IsNullOrWhiteSpace(skuFilter)) return result;
         var term = skuFilter.Trim();
         var groups = result.Groups
-            .Select(g => new ZonePricelistCategoryGroup(g.Header, g.Rows.Where(r =>
-                r.CProdNo.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                r.ProdDesc.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList()))
+            .Select(g => new ZonePricelistCategoryGroup(g.Header,
+                g.Rows.Where(r => MatchesFilter(term, g.Header, r.CProdNo, r.ProdDesc)).ToList()))
             .Where(g => g.Rows.Count > 0)
             .ToList();
         return result with { Groups = groups };

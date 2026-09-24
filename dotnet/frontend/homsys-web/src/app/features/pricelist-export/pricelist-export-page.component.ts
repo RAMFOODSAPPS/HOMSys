@@ -655,15 +655,16 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
     this.pricelistApi.getBranches().subscribe({
       next: res => {
         this.branches.set(res.data ?? []);
-        this.applyBranchLock();
+        this.branchesLoaded = true;
+        this.onBranchLockInputs();
       },
-      error: () => this.branches.set([])
+      error: () => { this.branches.set([]); this.branchesLoaded = true; this.onBranchLockInputs(); }
     });
 
     if (this.branchLocked()) {
       this.pricelistApi.getMyBranch().subscribe({
-        next: res => { this.lockedBranchValue = res.data ?? null; this.applyBranchLock(); },
-        error: () => { this.lockedBranchValue = null; }
+        next: res => { this.lockedBranchValue = res.data ?? null; this.myBranchLoaded = true; this.onBranchLockInputs(); },
+        error: () => { this.lockedBranchValue = null; this.myBranchLoaded = true; this.onBranchLockInputs(); }
       });
     }
   }
@@ -676,15 +677,35 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
   // Cabuyao/"CABUYAO"). Resolving that mapping needs the Sites/ZoneAddOns
   // tables, so it's done once on the server rather than guessed here.
   private lockedBranchValue: string | null = null;
+  private branchesLoaded = false;
+  private myBranchLoaded = false;
+
+  // Runs whenever branches() or lockedBranchValue arrives (either can come
+  // first). If the lock moved selectedBranch, route it through onBranchChange
+  // so its side effects (zone list for Per Zone, cleared customers) still run.
+  // Once both are in and nothing matched, the lock stays closed — Generate
+  // stays disabled (generateDisabled) rather than falling back to "All
+  // branches"; the server rejects other branches anyway.
+  private onBranchLockInputs(): void {
+    if (!this.branchLocked()) return;
+    if (this.applyBranchLock()) {
+      this.onBranchChange();
+    } else if (this.branchesLoaded && this.myBranchLoaded && !this.selectedBranch()) {
+      this.apiError.set('Your account has no branch that matches a pricelist branch. Ask an administrator to check your Branch Code.');
+    }
+  }
 
   // Pins selectedBranch to the resolved value once both branches() and
   // lockedBranchValue are in hand (either can arrive first). Called
   // defensively from onBranchChange/onReportTypeChange too so a locked user
   // can never end up with another branch selected.
-  private applyBranchLock(): void {
-    if (!this.branchLocked() || !this.lockedBranchValue) return;
+  // Returns true when it changed selectedBranch.
+  private applyBranchLock(): boolean {
+    if (!this.branchLocked() || !this.lockedBranchValue) return false;
     const match = this.branches().find(b => b.value.toLowerCase() === this.lockedBranchValue!.toLowerCase());
-    if (match) this.selectedBranch.set(match.value);
+    if (!match || match.value === this.selectedBranch()) return false;
+    this.selectedBranch.set(match.value);
+    return true;
   }
 
   onReportTypeChange(type: ReportType): void {
@@ -764,6 +785,8 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
   ngOnDestroy(): void {
     this.toolbar.clear();
     window.removeEventListener('resize', this.resizeHandler);
+    window.removeEventListener('mousemove', this.onColumnResizeMove);
+    window.removeEventListener('mouseup', this.onColumnResizeEnd);
   }
 
   // Keyed by sorted lowercase keywords so "Puregold Isabela" and "Isabela Puregold"
