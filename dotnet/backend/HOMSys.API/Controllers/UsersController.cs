@@ -30,11 +30,22 @@ public class UsersController(UserService userService) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateUserDto dto)
     {
-        var (user, error) = await userService.CreateAsync(dto);
+        var (user, generatedPassword, error) = await userService.CreateAsync(dto);
         if (error is not null)
             return BadRequest(new { success = false, message = error });
 
-        return CreatedAtAction(nameof(GetById), new { id = user!.Id }, new { success = true, data = user });
+        return CreatedAtAction(nameof(GetById), new { id = user!.Id },
+            new { success = true, data = user, generatedPassword });
+    }
+
+    [HttpPost("{id:int}/reset-password")]
+    public async Task<IActionResult> ResetPassword(int id)
+    {
+        var (generatedPassword, error) = await userService.ResetPasswordAsync(id);
+        if (error is not null)
+            return NotFound(new { success = false, message = error });
+
+        return Ok(new { success = true, generatedPassword });
     }
 
     [HttpPut("{id:int}")]

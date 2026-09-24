@@ -27,7 +27,7 @@ SQL → DBF bridge).
 | `backend\HOMSys.API` | Controllers, JWT auth, `Program.cs` |
 | `frontend\homsys-web` | Angular 19 standalone + PrimeNG — see its own `CLAUDE.md` |
 
-Backend runs on `http://localhost:5200`, frontend on `http://localhost:4400`.
+Backend runs on `http://localhost:5200`, frontend on `http://localhost:4200` (`angular.json`; CORS also allows 4400).
 Migrations auto-apply on API startup (`db.Database.Migrate()` in `Program.cs`).
 
 ### Conventions — follow these exactly
@@ -39,10 +39,11 @@ Migrations auto-apply on API startup (`db.Database.Migrate()` in `Program.cs`).
 - Register repos + services in `Infrastructure\DependencyInjection.cs`
 - The `Site` slice is the cleanest reference implementation
 
-Adding a feature page requires **four** registrations (see the frontend
-`CLAUDE.md`): `ROUTE_META` in `tab-bar.service.ts`, a sidebar entry, a route in
-`app.routes.ts` with `data: { permission: '...' }`, and a seeded `Permission` +
-`RolePermission` in `AppDbContext.OnModelCreating`.
+Adding a feature page requires **seven** registrations (see the frontend
+`CLAUDE.md`): `ROUTE_META` in `tab-bar.service.ts`, sidebar, modulebar, home
+launcher card, a route in `app.routes.ts` with `data: { permission: '...' }`, a
+seeded `Permission` + `RolePermission` in `AppDbContext.OnModelCreating` (+
+migration), and an `AddPolicy` line in `Program.cs`.
 
 ## legacy\
 
@@ -270,3 +271,15 @@ truncate+reload under load.
 Verify a DBF copy structurally, not with `Get-FileHash` (which fails on locked
 production files): byte length, then
 `headerLen + recs*recLen + 1 == fileLength`.
+
+## Data Analytics module
+
+User-customizable reports + dashboards (replaced the fixed Sales Analytics page on 2026-09-24; `/sales-order-analytics` redirects to `/home`, which embeds the seeded **Sales Overview** system dashboard). SQL-only — it analyses whatever HOMSysDb holds.
+
+- **Semantic layer:** `Infrastructure\Analytics\AnalyticsCatalog.cs` — a code-defined dataset registry (`Ds`/`Fld` records). 10 datasets: `sales_orders`, `sales_lines` (pre-aggregated per SoId+CProdNo, OOS/fill rate, est. value at the ORDER-DATE list price), `po_logs`, `customers`, `products`, `price_history`, `zone_addons`, `zone2_addons` (both "in force today"), `users`, `user_sessions`. **Adding a dataset for a new SQL table = one more `Ds` entry**; the UI is driven by `GET /api/analytics/meta`.
+- **Traps neutralised in the catalog:** curated fields only (BMS-owned NULL columns hidden); LEFT JOIN only on unique keys, every soft join is `OUTER APPLY TOP 1` (Customers.CustKey is not unique — a plain join doubles ~36% of orders); conformed field keys (`branch`, `custKey`, `cProdNo`, `orderDate`…) so cross-filtering is key equality; dates before 2000 bucket to "(invalid date)".
+- **Engine:** `AnalyticsSqlBuilder.cs` — whitelist + typed `SqlParameter`s only (no client text in SQL), `GROUP BY GROUPING SETS` for totals/subtotals, Asia/Manila buckets (`DATEADD(hour, 8, …)`; `AnalyticsService.TodayPh()` — never `DateTime.Today`), top-N + exact "(Others)", zero-fill, previous-period KPI compare. Runs on its own `SqlConnection` (`ConnectionStrings:Analytics` if set — recommended read-only login — else `DefaultConnection`), 30 s timeout, caps 5,000 rows UI / 100,000 Excel.
+- **Branch RLS is injected server-side from the JWT `branch` claim on every query/values/export/drill** (sales = encoder's `SalesOrders.Branch`, same as the Sales Orders list; folder datasets = pricing folder + hon `Cuwhsenos`). A dataset must be `National` or declare a `Scope` (startup assert). Shared items always run with the VIEWER's scope.
+- **Persistence:** one table `SavedReports` (Kind report|dashboard, DefinitionJson, OwnerUserId, IsSystem, SharedRoleIds CSV). Dashboards embed copies of widget specs. Specs are validated on save.
+- **Permissions:** `data-analytics` (13; build/view/share own) and `data-analytics-admin` (14; publish system templates, edit any shared item). Migration `AddDataAnalytics` granted 13 to every role holding `sales-orders`; grant COO/ASM on the Authorization page.
+- **Money:** only `SalesOrders.InvAmt` (invoiced), `OosSyncLines.NetAmt` (line, since 2026-09-01; reconciles to InvAmt) and `ReceivedAmt` are real; `estAmt` is an estimate and labelled so.

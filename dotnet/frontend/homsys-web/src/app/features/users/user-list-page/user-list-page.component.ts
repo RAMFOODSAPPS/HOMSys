@@ -11,6 +11,7 @@ import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { DialogModule } from 'primeng/dialog';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { GlobalToolbarService } from '../../../core/services/global-toolbar.service';
 import { ExportService, ExportColumn } from '../../../core/services/export.service';
@@ -39,7 +40,6 @@ const IMPORT_COLS: ImportColumn[] = [
   { header: 'First Name', field: 'firstName',  required: true },
   { header: 'Last Name',  field: 'lastName',   required: true },
   { header: 'Email',      field: 'email',      required: true },
-  { header: 'Password',   field: 'password',   required: true },
   { header: 'Company',    field: 'company' },
   { header: 'Department', field: 'department' },
   { header: 'Site',       field: 'site' },
@@ -50,7 +50,7 @@ const IMPORT_COLS: ImportColumn[] = [
   selector: 'app-user-list-page',
   standalone: true,
   imports: [TableModule, ButtonModule, TagModule, IconFieldModule, InputIconModule,
-    InputTextModule, TooltipModule, ConfirmDialogModule, DatePipe, ImportDialogComponent],
+    InputTextModule, TooltipModule, ConfirmDialogModule, DialogModule, DatePipe, ImportDialogComponent],
   template: `
     <p-confirmDialog />
     <app-import-dialog
@@ -89,6 +89,7 @@ const IMPORT_COLS: ImportColumn[] = [
           <th pSortableColumn="updatedAt">Updated At <p-sortIcon field="updatedAt" /></th>
           <th pSortableColumn="updatedBy">Updated By <p-sortIcon field="updatedBy" /></th>
           <th pSortableColumn="lastLoginAt">Last Login <p-sortIcon field="lastLoginAt" /></th>
+          <th style="width:60px">Actions</th>
         </tr>
       </ng-template>
 
@@ -116,17 +117,40 @@ const IMPORT_COLS: ImportColumn[] = [
           <td>{{ user.updatedAt ? (user.updatedAt | date:'MM/dd/yyyy hh:mm a') : '—' }}</td>
           <td>{{ user.updatedBy || '—' }}</td>
           <td>{{ user.lastLoginAt ? (user.lastLoginAt | date:'MM/dd/yyyy hh:mm a') : 'Never' }}</td>
+          <td>
+            <p-button icon="pi pi-key" [text]="true" severity="warn"
+              (onClick)="confirmResetPassword(user); $event.stopPropagation()" pTooltip="Reset Password" />
+          </td>
         </tr>
       </ng-template>
 
       <ng-template pTemplate="emptymessage">
-        <tr><td colspan="13" class="text-center">No users found.</td></tr>
+        <tr><td colspan="14" class="text-center">No users found.</td></tr>
       </ng-template>
     </p-table>
+
+    <p-dialog
+      [visible]="resetPasswordResult() !== null"
+      (visibleChange)="!$event && resetPasswordResult.set(null)"
+      header="Password Reset"
+      [modal]="true"
+      [style]="{ width: '420px' }"
+      [draggable]="false"
+    >
+      <p>Share this temporary password with the user. It will not be shown again — they must change it on next login.</p>
+      <div class="generated-password">{{ resetPasswordResult() }}</div>
+      <ng-template pTemplate="footer">
+        <p-button label="Copy" icon="pi pi-copy" [text]="true" (onClick)="copyResetPassword()" />
+        <p-button label="Done" (onClick)="resetPasswordResult.set(null)" />
+      </ng-template>
+    </p-dialog>
   `,
   styles: [`
     :host { display: block; }
     ::ng-deep .selected-row { background: rgba(128,0,0,0.06) !important; }
+    .generated-password { font-family: monospace; font-size: 1rem; font-weight: 600;
+      background: var(--p-surface-100); border-radius: 6px; padding: 0.75rem; text-align: center;
+      letter-spacing: 0.05em; margin: 0.75rem 0; white-space: pre-line; }
   `]
 })
 export class UserListPageComponent implements OnInit, OnDestroy {
@@ -146,6 +170,7 @@ export class UserListPageComponent implements OnInit, OnDestroy {
   protected noSelection  = signal(true);
   protected deleting     = signal(false);
   protected importVisible = false;
+  protected resetPasswordResult = signal<string | null>(null);
   protected readonly importCols = IMPORT_COLS;
   private  initialSearch = (history.state as Record<string, unknown>)?.['searchTerm'] as string ?? '';
   protected searchTerm   = signal(this.initialSearch);
@@ -203,9 +228,9 @@ export class UserListPageComponent implements OnInit, OnDestroy {
   private exportCsv()   { this.exportSvc.exportCsv('Users', EXPORT_COLS, this.filteredUsers() as unknown as Record<string, unknown>[]); }
 
   handleImportRows(rows: Record<string, string>[]) {
-    const validRows = rows.filter(r => r['username'] && r['firstName'] && r['lastName'] && r['email'] && r['password']);
+    const validRows = rows.filter(r => r['username'] && r['firstName'] && r['lastName'] && r['email']);
     if (!validRows.length) {
-      this.messageSvc.add({ severity: 'warn', summary: 'Import', detail: 'No valid rows (Username, First Name, Last Name, Email, Password are required).' });
+      this.messageSvc.add({ severity: 'warn', summary: 'Import', detail: 'No valid rows (Username, First Name, Last Name, Email are required).' });
       return;
     }
 
@@ -235,7 +260,6 @@ export class UserListPageComponent implements OnInit, OnDestroy {
             firstName:    r['firstName'],
             lastName:     r['lastName'],
             email:        r['email'],
-            password:     r['password'],
             companyId:    co?.id,
             departmentId: dept?.id,
             siteId:       site?.id,
@@ -244,19 +268,46 @@ export class UserListPageComponent implements OnInit, OnDestroy {
         });
 
         return forkJoin(dtos.map(dto =>
-          this.userService.create(dto).pipe(map(() => true), catchError(() => of(false)))
+          this.userService.create(dto).pipe(
+            map(res => ({ username: dto.username, password: res.generatedPassword as string | undefined, ok: true })),
+            catchError(() => of({ username: dto.username, password: undefined, ok: false }))
+          )
         ));
       })
     ).subscribe(results => {
-      const done   = (results as boolean[]).filter(Boolean).length;
+      const done   = results.filter(r => r.ok).length;
       const failed = results.length - done;
       this.messageSvc.add({
         severity: done > 0 ? 'success' : 'error',
         summary:  'Import Complete',
         detail:   `${done} imported, ${failed} failed.`
       });
+      const passwords = results.filter(r => r.ok && r.password)
+        .map(r => `${r.username}: ${r.password}`).join('\n');
+      if (passwords) {
+        this.resetPasswordResult.set(passwords);
+      }
       if (done > 0) this.loadUsers();
     });
+  }
+
+  confirmResetPassword(user: UserDto) {
+    this.confirmSvc.confirm({
+      message: `Reset password for <strong>${user.username}</strong>? A new temporary password will be generated and they will be required to change it on next login.`,
+      header: 'Confirm Password Reset',
+      icon: 'pi pi-exclamation-triangle',
+      accept: () => {
+        this.userService.resetPassword(user.id).subscribe({
+          next: (res) => this.resetPasswordResult.set(res.generatedPassword),
+          error: () => this.messageSvc.add({ severity: 'error', summary: 'Error', detail: 'Failed to reset password.' })
+        });
+      }
+    });
+  }
+
+  copyResetPassword() {
+    const pwd = this.resetPasswordResult();
+    if (pwd) navigator.clipboard?.writeText(pwd);
   }
 
   editUser(user: UserDto) {

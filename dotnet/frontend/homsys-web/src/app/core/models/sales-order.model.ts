@@ -92,6 +92,13 @@ export interface SalesOrderLineDto {
    *  same snapshot as allocatedQtyCs. Null until the first sync; 0 means
    *  fully out of stock. */
   invNetAmt?: number | null;
+  /** BMS-owned — VSDET.REC_CS/REC_PC/REC_AMT/REC_STAT, pushed by a1146F's
+   *  delivery-status screen alongside the header's Delivered/Status. Can
+   *  differ from qtyCs/qtyPc when this line was partially rejected. */
+  receivedQtyCs?: number | null;
+  receivedQtyPc?: number | null;
+  receivedAmt?: number | null;
+  receivedStatus?: string | null;
 }
 
 export interface SalesOrderDto {
@@ -128,6 +135,21 @@ export interface SalesOrderDto {
   resyncFailed?: boolean;
   /** Entered / Downloaded / Processed / Deallocated / Invoiced. Display-only. */
   workflowStatus?: string;
+  /** BMS-owned — Date Cust. Rec. from VSHDR.DELIVERED, pushed by a1146F's delivery-status screen */
+  delivered?: string | null;
+  /** BMS-owned — VSHDR.STATUS ("1" Delivered / "2" Rejected / "3" Undelivered). Distinct from workflowStatus. */
+  deliveryStatus?: string | null;
+  /** BMS-owned — VSHDR delivery-run fields (Search VS by Invoice# screen), pushed alongside delivered/deliveryStatus. */
+  vsNo?: number | null;
+  vsDate?: string | null;
+  plateNo?: string | null;
+  trucker?: string | null;
+  driver?: string | null;
+  vessel?: string | null;
+  voyage?: string | null;
+  blNo?: string | null;
+  edd?: string | null;
+  eda2?: string | null;
   estAmt: number;
   createdAt: string;
   createdBy: string;
@@ -250,4 +272,8 @@ export interface EncodeLine {
   allocatedQtyCs: number | null;
   /** BMS-owned actual invoiced LP/VAT (oowkdet.NETAMT via the oos-status bridge sync) — display-only, view mode of an invoiced order only. */
   invNetAmt: number | null;
+  /** BMS-owned VSDET.REC_CS, pushed by a1146F's delivery-status screen — display-only. */
+  receivedQtyCs: number | null;
+  /** BMS-owned VSDET.REC_STAT for this line — display-only. */
+  receivedStatus: string | null;
 }

@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import { LoginRequest, AuthResponse, UserInfo, ApiResponse } from '../models/auth.model';
+import { LoginRequest, ChangePasswordRequest, AuthResponse, UserInfo, ApiResponse } from '../models/auth.model';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -59,6 +59,19 @@ export class AuthService {
       .subscribe({ error: () => {} });
     this.clearSession();
     this.router.navigate(['/login']);
+  }
+
+  changePassword(request: ChangePasswordRequest) {
+    return this.http
+      .post<ApiResponse<void>>(`${environment.apiUrl}/auth/change-password`, request)
+      .pipe(tap(() => {
+        const user = this._user();
+        if (user) {
+          const updated = { ...user, mustChangePassword: false };
+          localStorage.setItem('user', JSON.stringify(updated));
+          this._user.set(updated);
+        }
+      }));
   }
 
   getAccessToken(): string { return this.accessToken; }

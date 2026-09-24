@@ -3,6 +3,11 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export interface UserInfo {
   id: number;
   username: string;

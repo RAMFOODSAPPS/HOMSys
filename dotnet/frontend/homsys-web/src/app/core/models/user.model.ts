@@ -25,7 +25,6 @@ export interface UserDto {
 export interface CreateUserDto {
   username: string;
   email: string;
-  password: string;
   firstName: string;
   lastName: string;
   companyId?: number;

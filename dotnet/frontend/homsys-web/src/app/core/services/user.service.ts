@@ -13,8 +13,13 @@ export class UserService {
 
   getAll() { return this.http.get<ApiResponse<UserDto[]>>(this.base); }
   getById(id: number) { return this.http.get<ApiResponse<UserDto>>(`${this.base}/${id}`); }
-  create(dto: CreateUserDto) { return this.http.post<ApiResponse<UserDto>>(this.base, dto); }
+  create(dto: CreateUserDto) {
+    return this.http.post<ApiResponse<UserDto> & { generatedPassword: string }>(this.base, dto);
+  }
   update(id: number, dto: UpdateUserDto) { return this.http.put<ApiResponse<UserDto>>(`${this.base}/${id}`, dto); }
   delete(id: number) { return this.http.delete<ApiResponse<null>>(`${this.base}/${id}`); }
+  resetPassword(id: number) {
+    return this.http.post<{ success: boolean; generatedPassword: string }>(`${this.base}/${id}/reset-password`, {});
+  }
   getRoles() { return this.http.get<ApiResponse<RoleDto[]>>(this.rolesBase); }
 }

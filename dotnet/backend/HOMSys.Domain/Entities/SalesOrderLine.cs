@@ -107,4 +107,13 @@ public class SalesOrderLine
     public int? RrNo { get; set; }
     public DateOnly? RrDate { get; set; }
     public string? DrpCust { get; set; }
+
+    // ── BMS-OWNED — VSDET, pushed alongside the header's Delivered/Status by
+    // a1146F's delivery-status maintenance screen (see SalesOrderBridgeService.
+    // ConfirmDeliveryAsync). Matched to VSDET rows by CProdNo. Can differ from
+    // QtyCs/QtyPc/NetAmt when a line was partially rejected on delivery. ──────
+    public int? ReceivedQtyCs { get; set; }
+    public int? ReceivedQtyPc { get; set; }
+    public decimal? ReceivedAmt { get; set; }
+    public string? ReceivedStatus { get; set; }
 }

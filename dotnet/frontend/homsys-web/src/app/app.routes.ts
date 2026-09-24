@@ -9,6 +9,11 @@ export const routes: Routes = [
       import('./features/auth/login/login.component').then(m => m.LoginComponent)
   },
   {
+    path: 'change-password',
+    loadComponent: () =>
+      import('./features/auth/change-password/change-password.component').then(m => m.ChangePasswordComponent)
+  },
+  {
     path: '',
     canActivate: [authGuard],
     // routeRoleGuard auto-applies to every child route.
@@ -76,6 +81,26 @@ export const routes: Routes = [
         data: { permission: 'sales-orders' },
         loadChildren: () =>
           import('./features/sales-orders/sales-order.routes').then(m => m.salesOrderRoutes)
+      },
+      // Replaced by the Data Analytics module ("Sales Overview" system dashboard on /home).
+      { path: 'sales-order-analytics', redirectTo: 'home', pathMatch: 'full' },
+      {
+        path: 'analytics',
+        data: { permission: 'data-analytics' },
+        loadComponent: () =>
+          import('./features/analytics/analytics-library-page.component').then(m => m.AnalyticsLibraryPageComponent)
+      },
+      {
+        path: 'analytics/report',
+        data: { permission: 'data-analytics' },
+        loadComponent: () =>
+          import('./features/analytics/analytics-report-page.component').then(m => m.AnalyticsReportPageComponent)
+      },
+      {
+        path: 'analytics/dashboard',
+        data: { permission: 'data-analytics' },
+        loadComponent: () =>
+          import('./features/analytics/analytics-dashboard.component').then(m => m.AnalyticsDashboardComponent)
       },
       {
         path: 'oos-report',

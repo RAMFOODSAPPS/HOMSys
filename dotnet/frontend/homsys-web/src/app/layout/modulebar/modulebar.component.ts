@@ -116,6 +116,15 @@ export class ModulebarComponent {
       ]
     },
     {
+      label: 'Analytics',
+      icon: 'pi-chart-bar',
+      items: [
+        { label: 'Data Analytics', icon: 'pi pi-chart-bar', routerLink: '/analytics',           permission: 'data-analytics' },
+        { label: 'New Report',     icon: 'pi pi-plus',      routerLink: '/analytics/report',    permission: 'data-analytics' },
+        { label: 'New Dashboard',  icon: 'pi pi-th-large',  routerLink: '/analytics/dashboard', permission: 'data-analytics' }
+      ]
+    },
+    {
       label: 'User Management',
       icon: 'pi-users',
       items: [

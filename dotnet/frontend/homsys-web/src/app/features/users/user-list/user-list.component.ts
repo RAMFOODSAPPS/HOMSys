@@ -6,6 +6,7 @@ import { TagModule } from 'primeng/tag';
 import { InputTextModule } from 'primeng/inputtext';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
+import { DialogModule } from 'primeng/dialog';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { TooltipModule } from 'primeng/tooltip';
 import { UserService } from '../../../core/services/user.service';
@@ -15,7 +16,7 @@ import { UserFormComponent } from '../user-form/user-form.component';
 @Component({
   selector: 'app-user-list',
   standalone: true,
-  imports: [TableModule, ButtonModule, TagModule, InputTextModule, IconFieldModule, InputIconModule, TooltipModule, UserFormComponent, DatePipe],
+  imports: [TableModule, ButtonModule, TagModule, InputTextModule, IconFieldModule, InputIconModule, DialogModule, TooltipModule, UserFormComponent, DatePipe],
   template: `
     <div class="card">
       <div class="card-header">
@@ -75,6 +76,8 @@ import { UserFormComponent } from '../user-form/user-form.component';
             <td>
               <p-button icon="pi pi-pencil" [text]="true" severity="secondary"
                 (onClick)="openForm(user)" pTooltip="Edit" />
+              <p-button icon="pi pi-key" [text]="true" severity="warn"
+                (onClick)="confirmResetPassword(user)" pTooltip="Reset Password" />
               <p-button icon="pi pi-trash" [text]="true" severity="danger"
                 (onClick)="confirmDelete(user)" pTooltip="Delete" />
             </td>
@@ -92,12 +95,31 @@ import { UserFormComponent } from '../user-form/user-form.component';
       [editUser]="selectedUser()"
       (saved)="onUserSaved()"
     />
+
+    <p-dialog
+      [visible]="resetPasswordResult() !== null"
+      (visibleChange)="!$event && resetPasswordResult.set(null)"
+      header="Password Reset"
+      [modal]="true"
+      [style]="{ width: '420px' }"
+      [draggable]="false"
+    >
+      <p>Share this temporary password with the user. It will not be shown again — they must change it on next login.</p>
+      <div class="generated-password">{{ resetPasswordResult() }}</div>
+      <ng-template pTemplate="footer">
+        <p-button label="Copy" icon="pi pi-copy" [text]="true" (onClick)="copyResetPassword()" />
+        <p-button label="Done" (onClick)="resetPasswordResult.set(null)" />
+      </ng-template>
+    </p-dialog>
   `,
   styles: [`
     .card { background: var(--p-surface-card); border-radius: 8px; padding: 1.25rem; }
     .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
     .card-title { font-size: 1.25rem; font-weight: 600; margin: 0; }
     .table-toolbar { display: flex; justify-content: flex-end; }
+    .generated-password { font-family: monospace; font-size: 1.1rem; font-weight: 600;
+      background: var(--p-surface-100); border-radius: 6px; padding: 0.75rem; text-align: center;
+      letter-spacing: 0.05em; margin: 0.75rem 0; }
   `]
 })
 export class UserListComponent implements OnInit {
@@ -111,6 +133,7 @@ export class UserListComponent implements OnInit {
   protected loading = signal(true);
   protected formVisible = signal(false);
   protected selectedUser = signal<UserDto | undefined>(undefined);
+  protected resetPasswordResult = signal<string | null>(null);
 
   ngOnInit() { this.loadUsers(); }
 
@@ -133,6 +156,25 @@ export class UserListComponent implements OnInit {
       severity: 'success', summary: 'Success',
       detail: this.selectedUser() ? 'User updated.' : 'User created.'
     });
+  }
+
+  confirmResetPassword(user: UserDto) {
+    this.confirmationService.confirm({
+      message: `Reset password for <strong>${user.username}</strong>? A new temporary password will be generated and they will be required to change it on next login.`,
+      header: 'Confirm Password Reset',
+      icon: 'pi pi-exclamation-triangle',
+      accept: () => {
+        this.userService.resetPassword(user.id).subscribe({
+          next: (res) => { this.resetPasswordResult.set(res.generatedPassword); this.loadUsers(); },
+          error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to reset password.' })
+        });
+      }
+    });
+  }
+
+  copyResetPassword() {
+    const pwd = this.resetPasswordResult();
+    if (pwd) navigator.clipboard?.writeText(pwd);
   }
 
   confirmDelete(user: UserDto) {

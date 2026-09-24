@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject, OnDestroy, OnInit, signal } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { DecimalPipe, DatePipe } from '@angular/common';
 import { NavigationEnd, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -14,6 +14,7 @@ import { ToastModule } from 'primeng/toast';
 import { DividerModule } from 'primeng/divider';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { SelectModule } from 'primeng/select';
+import { TagModule } from 'primeng/tag';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { GlobalToolbarService } from '../../../core/services/global-toolbar.service';
 import { TabBarService } from '../../../core/services/tab-bar.service';
@@ -49,7 +50,7 @@ import {
   imports: [
     ReactiveFormsModule, FormsModule, InputTextModule, InputNumberModule, DatePickerModule,
     AutoCompleteModule, ButtonModule, MessageModule, ToastModule, DividerModule, ConfirmDialogModule, SelectModule,
-    DecimalPipe
+    TagModule, DecimalPipe, DatePipe
   ],
   template: `
     <p-toast position="top-right" />
@@ -183,6 +184,73 @@ import {
           </div>
         }
 
+        @if (deliveryStatus(); as ds) {
+          <p-divider />
+          <label class="section-label">Delivery Status</label>
+          <div class="field-row" style="grid-template-columns: 1fr 1fr;">
+            <div class="field">
+              <label>Status</label>
+              <div><p-tag [severity]="deliverySeverity(ds)" [value]="deliveryLabel(ds)" /></div>
+            </div>
+            <div class="field">
+              <label>Date Cust. Rec.</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="delivered() ? (delivered() | date: 'MM/dd/yyyy') : ''" />
+            </div>
+          </div>
+
+          <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr;">
+            <div class="field">
+              <label>VS No.</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="vsNo() ?? ''" />
+            </div>
+            <div class="field">
+              <label>VS Date</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="vsDate() ? (vsDate() | date: 'MM/dd/yyyy') : ''" />
+            </div>
+            <div class="field">
+              <label>Plate No.</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="plateNo() ?? ''" />
+            </div>
+          </div>
+
+          <div class="field-row" style="grid-template-columns: 1fr 1fr;">
+            <div class="field">
+              <label>Trucker</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="trucker() ?? ''" />
+            </div>
+            <div class="field">
+              <label>Driver</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="driver() ?? ''" />
+            </div>
+          </div>
+
+          <div class="field-row" style="grid-template-columns: 1fr 1fr;">
+            <div class="field">
+              <label>Vessel</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="vessel() ?? ''" />
+            </div>
+            <div class="field">
+              <label>Voyage</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="voyage() ?? ''" />
+            </div>
+          </div>
+
+          <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr;">
+            <div class="field">
+              <label>B/Lading</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="blNo() ?? ''" />
+            </div>
+            <div class="field">
+              <label>EDD</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="edd() ? (edd() | date: 'MM/dd/yyyy') : ''" />
+            </div>
+            <div class="field">
+              <label>EDA</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="eda2() ? (eda2() | date: 'MM/dd/yyyy') : ''" />
+            </div>
+          </div>
+        }
+
       </div>
 
       <div class="right-panel">
@@ -200,6 +268,9 @@ import {
               <th style="width: 52px">Qty CS</th>
               @if (invoiced()) {
                 <th style="width: 52px">INV CS</th>
+              }
+              @if (hasDeliveryData()) {
+                <th style="width: 60px">Rec'd CS</th>
               }
               <th style="width: 62px">LP/VAT</th>
               <th style="width: 26px"></th>
@@ -247,6 +318,11 @@ import {
                 </td>
                 @if (invoiced()) {
                   <td class="text-right">{{ line.allocatedQtyCs }}</td>
+                }
+                @if (hasDeliveryData()) {
+                  <td class="text-right">
+                    {{ line.receivedQtyCs ?? '—' }}{{ line.receivedStatus ? ' (' + deliveryLabel(line.receivedStatus) + ')' : '' }}
+                  </td>
                 }
                 <td class="text-right">
                   {{ lpWithVat(line) !== null ? (lpWithVat(line) | number: '1.2-2') : '' }}
@@ -438,6 +514,21 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
   /** True once the order has a BMS INV# — switches Qty CS/LP w/ VAT to the real invoiced values. */
   invoiced = computed(() => this.invNo() !== null);
 
+  /** VSHDR.DELIVERED/STATUS, pushed by a1146F's delivery-status maintenance screen. Null until tagged. */
+  delivered = signal<string | null>(null);
+  deliveryStatus = signal<string | null>(null);
+  /** VSHDR delivery-run fields (Search VS by Invoice# screen), pushed alongside delivered/deliveryStatus. */
+  vsNo = signal<number | null>(null);
+  vsDate = signal<string | null>(null);
+  plateNo = signal<string | null>(null);
+  trucker = signal<string | null>(null);
+  driver = signal<string | null>(null);
+  vessel = signal<string | null>(null);
+  voyage = signal<string | null>(null);
+  blNo = signal<string | null>(null);
+  edd = signal<string | null>(null);
+  eda2 = signal<string | null>(null);
+
   /** set while a staged (not-yet-saved) draft opened from an Excel import is active. */
   draftKey = signal<string | null>(null);
 
@@ -459,6 +550,28 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
   totalCasesEncoded = computed(() => this.lines().reduce((sum, l) => sum + (l.qtyCs || 0), 0));
 
   totalAllocatedQtyCs = computed(() => this.lines().reduce((sum, l) => sum + (l.allocatedQtyCs || 0), 0));
+
+  /** True once a1146F has tagged this invoice's delivery status — shows the Rec'd CS column. */
+  hasDeliveryData = computed(() => this.lines().some(l => l.receivedStatus !== null));
+
+  /** VSHDR/VSDET.STATUS codes from a1146F's Tag Delivered Invoices screen. */
+  deliveryLabel(status?: string | null): string {
+    switch (status) {
+      case '1': return 'Delivered';
+      case '2': return 'Rejected';
+      case '3': return 'Undelivered';
+      default: return status ?? '—';
+    }
+  }
+
+  deliverySeverity(status?: string | null): 'secondary' | 'danger' | 'success' | 'warn' {
+    switch (status) {
+      case '1': return 'success';
+      case '2': return 'danger';
+      case '3': return 'warn';
+      default: return 'secondary';
+    }
+  }
 
   totalAmountLpWithVat = computed(() =>
     this.lines().reduce((sum, l) => sum + (this.lpWithVat(l) ?? 0), 0));
@@ -572,6 +685,18 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
     this.soId.set(order.soId);
     this.viewOnly.set(viewOnly);
     this.invNo.set(order.invNo ?? null);
+    this.delivered.set(order.delivered ?? null);
+    this.deliveryStatus.set(order.deliveryStatus ?? null);
+    this.vsNo.set(order.vsNo ?? null);
+    this.vsDate.set(order.vsDate ?? null);
+    this.plateNo.set(order.plateNo ?? null);
+    this.trucker.set(order.trucker ?? null);
+    this.driver.set(order.driver ?? null);
+    this.vessel.set(order.vessel ?? null);
+    this.voyage.set(order.voyage ?? null);
+    this.blNo.set(order.blNo ?? null);
+    this.edd.set(order.edd ?? null);
+    this.eda2.set(order.eda2 ?? null);
     this.originalPoNum = order.poNum;
 
     this.form.reset({
@@ -594,7 +719,8 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
             cProdNo: l.cProdNo, prodDesc: l.prodDesc, packSize: l.packSize, um: l.um,
             pieces: l.pieces, qtyCs: l.qtyCs, qtyPc: l.qtyPc,
             freeGoods: l.freeGoods, priceList: l.priceList, notFound: false, pricePerCase: null,
-            allocatedQtyCs: l.allocatedQtyCs ?? null, invNetAmt: l.invNetAmt ?? null
+            allocatedQtyCs: l.allocatedQtyCs ?? null, invNetAmt: l.invNetAmt ?? null,
+            receivedQtyCs: l.receivedQtyCs ?? null, receivedStatus: l.receivedStatus ?? null
           }))
         : [this.blankLine()]
     );
@@ -629,6 +755,18 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
   private applyDraft(draftKey: string, draftOrder: ImportedOrderDraft): void {
     this.soId.set(null);
     this.invNo.set(null);
+    this.delivered.set(null);
+    this.deliveryStatus.set(null);
+    this.vsNo.set(null);
+    this.vsDate.set(null);
+    this.plateNo.set(null);
+    this.trucker.set(null);
+    this.driver.set(null);
+    this.vessel.set(null);
+    this.voyage.set(null);
+    this.blNo.set(null);
+    this.edd.set(null);
+    this.eda2.set(null);
     this.draftKey.set(draftKey);
     this.viewOnly.set(false);
     this.originalPoNum = draftOrder.poNum;
@@ -681,7 +819,8 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
       cProdNo: '', prodDesc: '', packSize: '', um: '',
       pieces: 0, qtyCs: 0, qtyPc: 0,
       freeGoods: false, priceList: true, notFound: false, pricePerCase: null,
-      allocatedQtyCs: null, invNetAmt: null
+      allocatedQtyCs: null, invNetAmt: null,
+      receivedQtyCs: null, receivedStatus: null
     };
   }
 
@@ -1002,6 +1141,18 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
     this.startedAt = new Date();
     this.soId.set(null);
     this.invNo.set(null);
+    this.delivered.set(null);
+    this.deliveryStatus.set(null);
+    this.vsNo.set(null);
+    this.vsDate.set(null);
+    this.plateNo.set(null);
+    this.trucker.set(null);
+    this.driver.set(null);
+    this.vessel.set(null);
+    this.voyage.set(null);
+    this.blNo.set(null);
+    this.edd.set(null);
+    this.eda2.set(null);
     this.draftKey.set(null);
     this.sourceFileHash = null;
     this.sourceFileName = null;

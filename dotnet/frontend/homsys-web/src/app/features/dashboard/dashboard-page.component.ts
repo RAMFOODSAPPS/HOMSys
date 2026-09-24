@@ -1,6 +1,7 @@
 import { Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { AnalyticsDashboardComponent } from '../analytics/analytics-dashboard.component';
 
 interface DashboardCard {
   label: string;
@@ -26,6 +27,14 @@ const GROUPS: DashboardGroup[] = [
     ]
   },
   {
+    title: 'Analytics',
+    cards: [
+      { label: 'Data Analytics',    icon: 'pi-chart-bar',              route: '/analytics',           permission: 'data-analytics' },
+      { label: 'New Report',        icon: 'pi-plus',                   route: '/analytics/report',    permission: 'data-analytics' },
+      { label: 'New Dashboard',     icon: 'pi-th-large',               route: '/analytics/dashboard', permission: 'data-analytics' }
+    ]
+  },
+  {
     title: 'Sales',
     cards: [
       { label: 'Sales Orders',      icon: 'pi-file-edit',              route: '/sales-orders/list', permission: 'sales-orders' },
@@ -46,13 +55,17 @@ const GROUPS: DashboardGroup[] = [
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, AnalyticsDashboardComponent],
   template: `
     <div class="dashboard">
       <div class="welcome">
         <h1>Welcome, {{ auth.user()?.firstName }}</h1>
         <p>Pick up where you left off, or jump into a module below.</p>
       </div>
+
+      @if (canAnalytics()) {
+        <app-analytics-dashboard [homeMode]="true" />
+      }
 
       @for (group of visibleGroups(); track group.title) {
         <div class="group">
@@ -136,6 +149,7 @@ const GROUPS: DashboardGroup[] = [
 })
 export class DashboardPageComponent {
   protected auth = inject(AuthService);
+  protected canAnalytics = computed(() => this.auth.isAdmin() || this.auth.hasPermission('data-analytics'));
 
   protected visibleGroups = computed<DashboardGroup[]>(() => {
     const isAdmin = this.auth.isAdmin();

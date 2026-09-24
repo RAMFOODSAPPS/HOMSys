@@ -23,24 +23,26 @@ public class UserService(IUserRepository userRepo, IRoleRepository roleRepo, IHt
         return user is null ? null : MapToDto(user);
     }
 
-    public async Task<(UserDto? user, string? error)> CreateAsync(CreateUserDto dto)
+    public async Task<(UserDto? user, string? generatedPassword, string? error)> CreateAsync(CreateUserDto dto)
     {
         if (await userRepo.ExistsAsync(dto.Username, dto.Email))
-            return (null, "Username or email already exists.");
+            return (null, null, "Username or email already exists.");
 
         var roles = new List<Role>();
         foreach (var rid in dto.RoleIds)
         {
             var role = await roleRepo.GetByIdAsync(rid);
-            if (role is null) return (null, $"Role {rid} not found.");
+            if (role is null) return (null, null, $"Role {rid} not found.");
             roles.Add(role);
         }
+
+        var generatedPassword = PasswordGenerator.Generate();
 
         var user = new User
         {
             Username = dto.Username,
             Email = dto.Email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(generatedPassword),
             FirstName = dto.FirstName,
             LastName = dto.LastName,
             CompanyId = dto.CompanyId,
@@ -54,7 +56,22 @@ public class UserService(IUserRepository userRepo, IRoleRepository roleRepo, IHt
         };
 
         var created = await userRepo.CreateAsync(user);
-        return (MapToDto(created), null);
+        return (MapToDto(created), generatedPassword, null);
+    }
+
+    public async Task<(string? generatedPassword, string? error)> ResetPasswordAsync(int id)
+    {
+        var user = await userRepo.GetByIdAsync(id);
+        if (user is null) return (null, "User not found.");
+
+        var generatedPassword = PasswordGenerator.Generate();
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(generatedPassword);
+        user.MustChangePassword = true;
+        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedBy = CurrentUser;
+
+        await userRepo.UpdateAsync(user);
+        return (generatedPassword, null);
     }
 
     public async Task<(UserDto? user, string? error)> UpdateAsync(int id, UpdateUserDto dto)

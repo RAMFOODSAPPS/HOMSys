@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<IOosSyncRepository, OosSyncRepository>();
         services.AddScoped<IPricingRepository, PricingRepository>();
         services.AddScoped<ICustomerIdentifierMapRepository, CustomerIdentifierMapRepository>();
+        services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
 
         services.AddScoped<AuthService>();
         services.AddScoped<UserService>();
@@ -56,6 +57,8 @@ public static class DependencyInjection
         services.AddScoped<PricingDataImporter>();
         services.AddScoped<PricingDeltaImporter>();
         services.AddScoped<SyncStatusService>();
+        services.AddScoped<AnalyticsService>();
+        services.AddScoped<AnalyticsExcelBuilder>();
 
         return services;
     }

@@ -116,6 +116,26 @@ public class SalesOrderBridgeController(
         return Ok(new { success = true });
     }
 
+    [HttpPost("by-sono/{soNo:int}/delivery")]
+    public async Task<IActionResult> Delivery(
+        int soNo,
+        [FromQuery] string branch,
+        [FromBody] BridgeDeliveryDto dto,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey)
+    {
+        if (!IsAuthorized(apiKey))
+            return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+
+        if (string.IsNullOrWhiteSpace(branch))
+            return BadRequest(new { success = false, message = "branch query parameter is required." });
+
+        var error = await bridgeService.ConfirmDeliveryAsync(soNo, branch, dto);
+        if (error is not null)
+            return BadRequest(new { success = false, message = error });
+
+        return Ok(new { success = true });
+    }
+
     [HttpGet("resync-pending")]
     public async Task<IActionResult> ResyncPending(
         [FromQuery] string branch,

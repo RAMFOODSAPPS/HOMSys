@@ -289,6 +289,136 @@ def read_live_invoice(cfg: Config, so_no: int):
         return inv_no, inv_date, inv_amt
 
 
+def read_live_delivery(cfg: Config, so_no: int):
+    """Reads DELIVERED/STATUS straight off the live VSHDR table for one order
+    -- a1146F's delivery-status maintenance screen edits VSHDR directly and
+    there's no queue/ledger entry for this (recover_one's ledger is only
+    populated at the original SoNo confirm), so this touches the live table
+    directly, same rationale as read_live_invoice. Matched on VSHDR.SONO, not
+    DOCNO -- DOCNO on this table is the invoice number, a separate sequence
+    from the SO number (confirmed against live data: e.g. DOCNO=87182010 /
+    SONO=88219563 on the same row). Linear scan, no (DOCTYPE, SONO) index
+    available here -- fine for a single explicit order on a user save, not
+    the bulk path. Returns None if no matching INVOICE row is found.
+    """
+    def text(row, field):
+        return str(row.get(field, "")).strip() or None
+
+    with DbfTable(cfg.path("vshdr.dbf")) as t:
+        for _, row in t.records():
+            if str(row.get("DOCTYPE", "")).strip().upper() != "INVOICE":
+                continue
+            if str(row.get("SONO", "")).strip() != str(so_no).strip():
+                continue
+            return {
+                "inv_no": str(row.get("DOCNO", "")).strip(),
+                "delivered": get_date(row, "DELIVERED"),
+                "status": text(row, "STATUS"),
+                "vs_no": get_int(row, "VSNO") or None,
+                "vs_date": get_date(row, "VSDATE"),
+                "plate_no": text(row, "PLATE_NO"),
+                "trucker": text(row, "TRUCKER"),
+                "driver": text(row, "DRIVER"),
+                "vessel": text(row, "VESSEL"),
+                "voyage": text(row, "VOYAGE"),
+                "blno": text(row, "BLNO"),
+                "edd": get_date(row, "EDD"),
+                "eda": get_date(row, "EDA"),
+            }
+    return None
+
+
+def read_live_delivery_lines(cfg: Config, inv_no: str) -> list[dict]:
+    """Reads every reconciled VSDET row for this invoice -- REC_CS/REC_PC/
+    REC_AMT can differ from the line's original QTYCS/QTYPC/NETAMT when
+    partially rejected on delivery. VSDET has no SONO column (confirmed
+    against a live sample), only DOCTYPE/DOCNO, so this is matched on the
+    invoice number read off VSHDR, not the SO number. Linear scan, same
+    single-invoice rationale as read_live_delivery.
+
+    A blank REC_STAT is VSDET's default unreconciled state, not "rejected" --
+    confirmed against a live sample: blank-REC_STAT rows are ~96% REC_CS=0
+    with REC_CS != QTYCS (never touched), while REC_STAT="1" rows are ~92%
+    REC_CS == QTYCS (actually confirmed received). Some other BMS process,
+    not a1146F, is what sets REC_STAT/REC_CS/REC_PC/REC_AMT -- a1146F never
+    writes VSDET. Rows still in the default state are skipped entirely rather
+    than forwarded as a real "0 received" -- that would be indistinguishable
+    from a genuine full rejection on the HOMSys side.
+    """
+    lines = []
+    with DbfTable(cfg.path("vsdet.dbf")) as t:
+        for _, row in t.records():
+            if str(row.get("DOCTYPE", "")).strip().upper() != "INVOICE":
+                continue
+            if str(row.get("DOCNO", "")).strip() != inv_no:
+                continue
+            rec_stat = str(row.get("REC_STAT", "")).strip() or None
+            if rec_stat is None:
+                continue
+            lines.append({
+                "cProdNo": str(row.get("CPRODNO", "")).strip(),
+                "receivedQtyCs": get_int(row, "REC_CS"),
+                "receivedQtyPc": get_int(row, "REC_PC"),
+                "receivedAmt": get_decimal(row, "REC_AMT"),
+                "receivedStatus": rec_stat,
+            })
+    return lines
+
+
+def post_delivery_status(cfg: Config, so_no: int, header: dict, lines: list[dict]) -> None:
+    inv_no = header["inv_no"]
+    resp = requests.post(
+        f"{cfg.api_url}/api/salesorders/bridge/by-sono/{so_no}/delivery",
+        headers=_headers(cfg),
+        params={"branch": cfg.branch},
+        json={
+            "delivered": header["delivered"].isoformat() if header["delivered"] else None,
+            "status": header["status"],
+            # Belt-and-suspenders cross-check on the HOMSys side, on top of
+            # the SoNo+branch match -- catches a SONO collision/reuse (see
+            # _find_so_id's own docstring on docnum.dbf's counter not being
+            # guaranteed monotonic) before it overwrites the wrong order.
+            "invNo": int(inv_no) if inv_no.isdigit() else None,
+            "lines": lines,
+            "vsNo": header["vs_no"],
+            "vsDate": header["vs_date"].isoformat() if header["vs_date"] else None,
+            "plateNo": header["plate_no"],
+            "trucker": header["trucker"],
+            "driver": header["driver"],
+            "vessel": header["vessel"],
+            "voyage": header["voyage"],
+            "blNo": header["blno"],
+            "edd": header["edd"].isoformat() if header["edd"] else None,
+            "eda2": header["eda"].isoformat() if header["eda"] else None,
+        },
+        timeout=HTTP_TIMEOUT,
+    )
+    resp.raise_for_status()
+
+
+def sync_delivery_status(cfg: Config, so_no: int) -> None:
+    """Single-order sync, called from a1146F's delivery-status maintenance
+    screen via run_bridge.bat's "DELIVERED" action once VSHDR.DELIVERED/
+    STATUS are saved for that order's invoice. Keyed on SO number just like
+    every other single-order bridge call, but looked up server-side by
+    SoNo+branch rather than through _find_so_id's local ledger -- a1146F can
+    run on this order's original workstation long after that ledger entry
+    (if any survives locally) was written, so a DB-side lookup is the more
+    durable match. Also pushes every VSDET line for the same invoice, for the
+    per-SKU received-vs-shipped view, plus the VS delivery-run details
+    (trucker/driver/plate/vessel/etc.) from the same VSHDR row.
+    """
+    header = read_live_delivery(cfg, so_no)
+    if header is None:
+        log.warning("SO %s: no VSHDR record found for delivery sync", so_no)
+        return
+    inv_no = header["inv_no"]
+    lines = read_live_delivery_lines(cfg, inv_no) if inv_no else []
+    post_delivery_status(cfg, so_no, header, lines)
+    log.info("order %s: synced delivery status (delivered=%s, status=%s, %d line(s))",
+              so_no, header["delivered"], header["status"], len(lines))
+
+
 def post_oos_status(cfg: Config, so_id: int, lines: list[dict]) -> None:
     resp = requests.post(
         f"{cfg.api_url}/api/salesorders/bridge/{so_id}/oos-status",
@@ -756,6 +886,8 @@ def main() -> int:
                 deallocate_order(cfg, int(so_no_arg))
             elif action == "PROCESS":
                 lock_order(cfg, int(so_no_arg))
+            elif action == "DELIVERED":
+                sync_delivery_status(cfg, int(so_no_arg))
             else:
                 recover_one(cfg, int(so_no_arg))
         except Exception:

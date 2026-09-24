@@ -94,20 +94,27 @@ Every feature has a **form page** (`/entity`) and a **list page** (`/entity/list
 
 ### Adding a New Feature Page
 
-When adding a new route/module, wire up all four of:
-1. `ROUTE_META` entry in `tab-bar.service.ts`
-2. Module sidebar entry
-3. Route in `app.routes.ts`
-4. `routeRoleGuard` `data: { permission: '...' }`
+When adding a new route/module, wire up all seven of:
+1. `ROUTE_META` entry in `tab-bar.service.ts` (and, for keyed edit tabs, add the `history.state` key — e.g. `reportId` — to the skip list in its `NavigationEnd` handler)
+2. Sidebar entry (`layout/sidebar/sidebar.component.ts`)
+3. Modulebar entry (`layout/modulebar/modulebar.component.ts`)
+4. Home launcher card (`features/dashboard/dashboard-page.component.ts`)
+5. Route in `app.routes.ts` with `data: { permission: '...' }` (`routeRoleGuard`)
+6. Backend: seeded `Permission` + `RolePermission` in `AppDbContext.OnModelCreating` + a migration
+7. Backend: `AddPolicy` line in `Program.cs`
 
 Follow the form-page and list-page patterns above (signal filtering, `handleNavState`, dirty checker registration, draft preservation).
 
 ### Export & Import
 
-**Export** (`ExportService`): call `exportService.exportToPdf(columns, rows, title)`, `.exportToExcel(columns, rows, filename)`, or `.exportToCsv(columns, rows, filename)`. List pages wire this to the `export` toolbar action.
+**Export** (`ExportService`): `exportPdf(title, columns, rows)`, `exportExcel(filename, columns, rows)`, `exportCsv(filename, columns, rows)` (client-side, every cell becomes text), `saveResponse(httpResponse, fallbackName)` to save a server-built file (typed Excel from the API), and `exportPdfSections(title, subtitle, sections)` for multi-section PDFs with chart images (Data Analytics). List pages wire this to the `export` toolbar action.
 
 **Import** (`ImportDialogComponent`): reusable dialog in `src/app/shared/import-dialog/`. List pages include it with an `#importDialog` template reference and call `importDialog.open()` from the `import` toolbar action. It emits parsed rows on success for the page to process.
 
 ### Theme & Styling
 
 Custom PrimeNG theme in `src/app/core/theme/homsys-theme.ts` with Ram Foods burgundy branding (`#800000`). Component styles use inline SCSS. Global styles are in `src/styles.scss`.
+
+### Data Analytics (`features/analytics/`)
+
+Power-BI-like report builder + dashboards over a server-side dataset catalog (see the HOMSys root CLAUDE.md "Data Analytics" section). Files: `analytics-library-page` (gallery), `analytics-report-page` (builder page), `report-designer` (field wells), `analytics-widget` (KPI/table/matrix/chart renderer, drill + records), `analytics-dashboard` (grid, filter bar, cross-filter; also embedded on `/home`), `filter-editor`, `item-props-dialog`, `analytics-viz.ts` (palette, formatting, chart building). Shared styles are the `.an-*` classes in `src/styles.scss` (kept out of components for the 8 kB style budget). Chart palette is the dataviz reference palette; single series = brand `#800000`.

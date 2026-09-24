@@ -42,7 +42,8 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("site-types",    p => p.RequireClaim("permission", "site-types"))
     .AddPolicy("sales-orders",  p => p.RequireClaim("permission", "sales-orders"))
     .AddPolicy("customer-search", p => p.RequireClaim("permission", "sales-orders", "pricelist-export"))
-    .AddPolicy("legacy-monitoring", p => p.RequireClaim("permission", "legacy-monitoring"));
+    .AddPolicy("legacy-monitoring", p => p.RequireClaim("permission", "legacy-monitoring"))
+    .AddPolicy("data-analytics", p => p.RequireClaim("permission", "data-analytics"));
 
 // CORS — allow specific origins and credentials (required for HttpOnly cookie)
 builder.Services.AddCors(options =>

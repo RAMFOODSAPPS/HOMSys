@@ -699,6 +699,18 @@ public class SalesOrderService(
         NeedsResync = o.NeedsResync,
         ResyncFailed = o.ResyncFailed,
         WorkflowStatus = o.WorkflowStatus,
+        Delivered = o.Delivered,
+        DeliveryStatus = o.Status,
+        VsNo = o.VsNo,
+        VsDate = o.VsDate,
+        PlateNo = o.PlateNo,
+        Trucker = o.Trucker,
+        Driver = o.Driver,
+        Vessel = o.Vessel,
+        Voyage = o.Voyage,
+        BlNo = o.BlNo,
+        Edd = o.Edd,
+        Eda2 = o.Eda2,
         CreatedAt = o.CreatedAt,
         CreatedBy = o.CreatedBy,
         Lines = o.Lines.OrderBy(l => l.LineNo).Select(l => new SalesOrderLineDto
@@ -715,7 +727,11 @@ public class SalesOrderService(
             Um = l.Um,
             PriceList = l.PriceList,
             TaxRate = l.TaxRate,
-            FreeGoods = l.FreeGoods
+            FreeGoods = l.FreeGoods,
+            ReceivedQtyCs = l.ReceivedQtyCs,
+            ReceivedQtyPc = l.ReceivedQtyPc,
+            ReceivedAmt = l.ReceivedAmt,
+            ReceivedStatus = l.ReceivedStatus
         }).ToList()
     };
 }

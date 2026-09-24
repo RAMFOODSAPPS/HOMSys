@@ -44,6 +44,16 @@ import { AuthService } from '../../../core/services/auth.service';
 
           <p-button type="submit" label="Sign In" icon="pi pi-sign-in"
             [loading]="loading()" [disabled]="form.invalid" styleClass="w-full mt-2" />
+
+          <div class="forgot-password">
+            <a href="javascript:void(0)" (click)="showForgotPassword.set(true)">Forgot password?</a>
+          </div>
+
+          @if (showForgotPassword()) {
+            <p-message severity="info" styleClass="w-full mt-2">
+              <span>Please contact your system administrator to have your password reset.</span>
+            </p-message>
+          }
         </form>
       </p-card>
     </div>
@@ -56,6 +66,9 @@ import { AuthService } from '../../../core/services/auth.service';
     .login-header p { color: var(--p-text-muted-color); margin: 0.25rem 0 0; font-size: 0.875rem; }
     .field { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; }
     .field label { font-weight: 500; font-size: 0.875rem; }
+    .forgot-password { text-align: center; margin-top: 0.75rem; font-size: 0.875rem; }
+    .forgot-password a { color: var(--p-primary-color); text-decoration: none; }
+    .forgot-password a:hover { text-decoration: underline; }
   `]
 })
 export class LoginComponent {
@@ -70,6 +83,7 @@ export class LoginComponent {
 
   protected loading = signal(false);
   protected errorMessage = signal<string | null>(null);
+  protected showForgotPassword = signal(false);
 
   onSubmit() {
     if (this.form.invalid) return;
@@ -77,7 +91,11 @@ export class LoginComponent {
     this.errorMessage.set(null);
     const { username, password } = this.form.value;
     this.auth.login({ username: username!, password: password! }).subscribe({
-      next: () => { this.loading.set(false); this.router.navigate(['/']); },
+      next: () => {
+        this.loading.set(false);
+        const target = this.auth.user()?.mustChangePassword ? '/change-password' : '/';
+        this.router.navigate([target]);
+      },
       error: (err) => {
         this.loading.set(false);
         this.errorMessage.set(err?.error?.message ?? 'Login failed. Please check your credentials.');

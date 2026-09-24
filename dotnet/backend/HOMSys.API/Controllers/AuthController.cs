@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using HOMSys.Application.DTOs.Auth;
 using HOMSys.Application.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -49,6 +50,18 @@ public class AuthController(AuthService authService) : ControllerBase
         });
 
         return Ok(new { success = true, data = result });
+    }
+
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var error = await authService.ChangePasswordAsync(userId, request);
+        if (error is not null)
+            return BadRequest(new { success = false, message = error });
+
+        return Ok(new { success = true, message = "Password changed successfully." });
     }
 
     [HttpPost("logout")]

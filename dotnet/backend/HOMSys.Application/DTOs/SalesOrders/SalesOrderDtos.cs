@@ -68,6 +68,15 @@ public class SalesOrderLineDto
     /// sync, same snapshot as AllocatedQtyCs. Null until the first sync; 0
     /// means fully out of stock.</summary>
     public decimal? InvNetAmt { get; set; }
+
+    /// <summary>BMS-owned — VSDET.REC_CS/REC_PC/REC_AMT/REC_STAT, pushed by
+    /// a1146F's delivery-status maintenance screen alongside the header's
+    /// Delivered/Status. Can differ from QtyCs/QtyPc when this line was
+    /// partially rejected on delivery. Null until the invoice is tagged.</summary>
+    public int? ReceivedQtyCs { get; set; }
+    public int? ReceivedQtyPc { get; set; }
+    public decimal? ReceivedAmt { get; set; }
+    public string? ReceivedStatus { get; set; }
 }
 
 public class SalesOrderDto
@@ -120,6 +129,28 @@ public class SalesOrderDto
 
     /// <summary>Entered / Downloaded / Processed / Deallocated / Invoiced. Display-only.</summary>
     public string WorkflowStatus { get; set; } = "Entered";
+
+    /// <summary>BMS-owned — Date Cust. Rec. from VSHDR.DELIVERED, pushed by a1146F's
+    /// delivery-status maintenance screen. Null until the invoice is tagged.</summary>
+    public DateOnly? Delivered { get; set; }
+
+    /// <summary>BMS-owned — VSHDR.STATUS ("1" Delivered / "2" Rejected / "3" Undelivered),
+    /// pushed alongside Delivered. Distinct from WorkflowStatus.</summary>
+    public string? DeliveryStatus { get; set; }
+
+    /// <summary>BMS-owned — VSHDR delivery-run fields (Search VS by Invoice#
+    /// screen), pushed alongside Delivered/DeliveryStatus. See BridgeDeliveryDto
+    /// for the VSHDR.EDA vs. EDA2 mapping note.</summary>
+    public int? VsNo { get; set; }
+    public DateOnly? VsDate { get; set; }
+    public string? PlateNo { get; set; }
+    public string? Trucker { get; set; }
+    public string? Driver { get; set; }
+    public string? Vessel { get; set; }
+    public string? Voyage { get; set; }
+    public string? BlNo { get; set; }
+    public DateOnly? Edd { get; set; }
+    public DateOnly? Eda2 { get; set; }
 
     /// <summary>
     /// Encode-time estimate, computed from current price quotes — NOT the
@@ -288,6 +319,50 @@ public class BridgeInvoiceDto
     public int InvNo { get; set; }
     public DateOnly InvDate { get; set; }
     public decimal InvAmt { get; set; }
+}
+
+/// <summary>Body of POST /api/salesorders/bridge/by-sono/{soNo}/delivery.
+/// Mirrors VSHDR's own DELIVERED/STATUS fields plus every matching VSDET line,
+/// pushed by a1146F's delivery-status maintenance screen.</summary>
+public class BridgeDeliveryDto
+{
+    public DateOnly? Delivered { get; set; }
+    public string? Status { get; set; }
+
+    /// <summary>VSHDR.DOCNO for this row — the invoice number, cross-checked
+    /// against the matched SalesOrder's own InvNo when both are known, as a
+    /// belt-and-suspenders check on top of the SoNo+branch match.</summary>
+    public int? InvNo { get; set; }
+    public List<BridgeDeliveryLineDto> Lines { get; set; } = [];
+
+    // ── VSHDR delivery-run fields (Search VS by Invoice# screen), pushed
+    // alongside Delivered/Status/Lines. Maps onto SalesOrder's existing
+    // oowkhdr-mirrored columns of the same name (Vessel/Voyage/Edd/BlNo are
+    // shared with oowkhdr's own identical field group; Eda2 is VSHDR.EDA --
+    // VSHDR's own EDA is grouped with VESSEL/VOYAGE/BLNO/EDD, same as
+    // oowkhdr's Eda2, not VSHDR's separate top-level EDA/ETA pair). ────────
+    public int? VsNo { get; set; }
+    public DateOnly? VsDate { get; set; }
+    public string? PlateNo { get; set; }
+    public string? Trucker { get; set; }
+    public string? Driver { get; set; }
+    public string? Vessel { get; set; }
+    public string? Voyage { get; set; }
+    public string? BlNo { get; set; }
+    public DateOnly? Edd { get; set; }
+    public DateOnly? Eda2 { get; set; }
+}
+
+/// <summary>One VSDET row for the invoice being tagged — REC_CS/REC_PC/REC_AMT
+/// can differ from the line's original QtyCs/QtyPc/NetAmt when partially
+/// rejected on delivery.</summary>
+public class BridgeDeliveryLineDto
+{
+    public string CProdNo { get; set; } = string.Empty;
+    public int? ReceivedQtyCs { get; set; }
+    public int? ReceivedQtyPc { get; set; }
+    public decimal? ReceivedAmt { get; set; }
+    public string? ReceivedStatus { get; set; }
 }
 
 /// <summary>One SKU line's live oowkdet state, as read by the bridge right after

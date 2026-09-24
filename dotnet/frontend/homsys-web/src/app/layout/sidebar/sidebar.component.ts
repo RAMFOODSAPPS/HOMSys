@@ -104,6 +104,28 @@ import { LayoutService } from '../../core/services/layout.service';
           </li>
         }
 
+        @if (auth.isAdmin() || auth.hasPermission('data-analytics')) {
+          <li class="menu-group">Analytics</li>
+          <li>
+            <a routerLink="/analytics" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" (click)="onNavClick()">
+              <i class="pi pi-chart-bar"></i>
+              <span>Data Analytics</span>
+            </a>
+          </li>
+          <li>
+            <a routerLink="/analytics/report" routerLinkActive="active" (click)="onNavClick()">
+              <i class="pi pi-plus"></i>
+              <span>New Report</span>
+            </a>
+          </li>
+          <li>
+            <a routerLink="/analytics/dashboard" routerLinkActive="active" (click)="onNavClick()">
+              <i class="pi pi-th-large"></i>
+              <span>New Dashboard</span>
+            </a>
+          </li>
+        }
+
         @if (auth.isAdmin() || auth.hasPermission('sales-orders') || auth.hasPermission('oos-report') || auth.hasPermission('pricelist-export')) {
           <li class="menu-group">Sales</li>
         }

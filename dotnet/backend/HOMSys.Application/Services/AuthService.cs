@@ -62,6 +62,24 @@ public class AuthService(IUserRepository userRepo, IRefreshTokenRepository refre
         await refreshRepo.RevokeAsync(refreshToken);
     }
 
+    public async Task<string?> ChangePasswordAsync(int userId, ChangePasswordRequest request)
+    {
+        var user = await userRepo.GetByIdAsync(userId);
+        if (user is null)
+            return "User not found.";
+
+        if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+            return "Current password is incorrect.";
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        user.MustChangePassword = false;
+        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedBy = user.Username;
+
+        await userRepo.UpdateAsync(user);
+        return null;
+    }
+
     private async Task<AuthResponse> GenerateTokensAsync(User user)
     {
         var roles = user.UserRoles.Select(ur => ur.Role.Name).ToList();

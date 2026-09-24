@@ -60,6 +60,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     // updated by every path that actually applies a sync — see SyncLogExtensions.
     public DbSet<SyncLog> SyncLogs => Set<SyncLog>();
 
+    // Data Analytics saved reports + dashboards (dashboards embed widget specs).
+    public DbSet<SavedReport> SavedReports => Set<SavedReport>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<UserRole>()
@@ -183,6 +186,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<SyncLog>()
             .Property(s => s.Section).HasMaxLength(50).IsRequired();
 
+        modelBuilder.Entity<SavedReport>(e =>
+        {
+            e.HasIndex(x => x.OwnerUserId);
+            e.Property(x => x.Kind).HasMaxLength(10).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(500);
+            e.Property(x => x.DatasetKey).HasMaxLength(50);
+            e.Property(x => x.Visual).HasMaxLength(20);
+            e.Property(x => x.DefinitionJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.SharedRoleIds).HasMaxLength(200);
+            e.Property(x => x.CreatedBy).HasMaxLength(100);
+            e.Property(x => x.UpdatedBy).HasMaxLength(100);
+        });
+
         // Seed roles
         modelBuilder.Entity<Role>().HasData(
             new Role { Id = 1, Name = "Admin", Description = "Full system access", CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
@@ -201,7 +218,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new Permission { Id = 9, Key = "oos-report",     Name = "OOS Report",                Description = "View out-of-stock report for sales orders" },
             new Permission { Id = 10, Key = "pricelist-export", Name = "Pricelist Export",       Description = "Generate branch pricelist Excel exports" },
             new Permission { Id = 11, Key = "legacy-monitoring", Name = "Legacy Monitoring",      Description = "View legacy DBF sync status and trigger manual syncs" },
-            new Permission { Id = 12, Key = "pricelist-zone-export", Name = "Pricelist by Zone",  Description = "Generate branch pricelist Excel exports by zone" }
+            new Permission { Id = 12, Key = "pricelist-zone-export", Name = "Pricelist by Zone",  Description = "Generate branch pricelist Excel exports by zone" },
+            new Permission { Id = 13, Key = "data-analytics", Name = "Data Analytics",           Description = "Build, view and share analytics reports and dashboards" },
+            new Permission { Id = 14, Key = "data-analytics-admin", Name = "Data Analytics Admin", Description = "Publish system analytics templates and manage all shared analytics" }
         );
 
         // Admin gets all permissions by default
@@ -217,7 +236,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new RolePermission { RoleId = 1, PermissionId = 9 },
             new RolePermission { RoleId = 1, PermissionId = 10 },
             new RolePermission { RoleId = 1, PermissionId = 11 },
-            new RolePermission { RoleId = 1, PermissionId = 12 }
+            new RolePermission { RoleId = 1, PermissionId = 12 },
+            new RolePermission { RoleId = 1, PermissionId = 13 },
+            new RolePermission { RoleId = 1, PermissionId = 14 }
         );
 
         // Seed default admin user (password: Admin@1234)
@@ -446,7 +467,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                          nameof(SalesOrderLine.Discount3S), nameof(SalesOrderLine.Discount3C),
                          nameof(SalesOrderLine.Cash2S), nameof(SalesOrderLine.Cash2C),
                          nameof(SalesOrderLine.Free1S), nameof(SalesOrderLine.Free1C),
-                         nameof(SalesOrderLine.JobArea)
+                         nameof(SalesOrderLine.JobArea), nameof(SalesOrderLine.ReceivedAmt)
                      })
             {
                 e.Property(money).HasPrecision(12, 2);

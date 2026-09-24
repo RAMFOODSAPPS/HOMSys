@@ -495,6 +495,20 @@ namespace HOMSys.Infrastructure.Migrations
                             Description = "Generate branch pricelist Excel exports by zone",
                             Key = "pricelist-zone-export",
                             Name = "Pricelist by Zone"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Description = "Build, view and share analytics reports and dashboards",
+                            Key = "data-analytics",
+                            Name = "Data Analytics"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Description = "Publish system analytics templates and manage all shared analytics",
+                            Key = "data-analytics-admin",
+                            Name = "Data Analytics Admin"
                         });
                 });
 
@@ -916,6 +930,16 @@ namespace HOMSys.Infrastructure.Migrations
                         {
                             RoleId = 1,
                             PermissionId = 12
+                        },
+                        new
+                        {
+                            RoleId = 1,
+                            PermissionId = 13
+                        },
+                        new
+                        {
+                            RoleId = 1,
+                            PermissionId = 14
                         });
                 });
 
@@ -1669,6 +1693,19 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<int>("QtyPerPc")
                         .HasColumnType("int");
 
+                    b.Property<decimal?>("ReceivedAmt")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int?>("ReceivedQtyCs")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ReceivedQtyPc")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReceivedStatus")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int?>("RefSoReq")
                         .HasColumnType("int");
 
@@ -1720,6 +1757,74 @@ namespace HOMSys.Infrastructure.Migrations
                     b.HasIndex("SoId", "LineNo");
 
                     b.ToTable("SalesOrderLines");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.SavedReport", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("DatasetKey")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("DefinitionJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("OwnerUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SharedRoleIds")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Visual")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId");
+
+                    b.ToTable("SavedReports");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.Site", b =>

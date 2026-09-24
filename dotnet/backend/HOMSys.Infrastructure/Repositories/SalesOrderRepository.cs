@@ -45,6 +45,11 @@ public class SalesOrderRepository(AppDbContext db) : ISalesOrderRepository
             .OrderBy(o => o.SoId)
             .ToListAsync();
 
+    public async Task<SalesOrder?> GetForUpdateBySoNoAsync(int soNo, string branch) =>
+        await db.SalesOrders
+            .Include(o => o.Lines)
+            .FirstOrDefaultAsync(o => o.SoNo == soNo && o.Branch == branch);
+
     public async Task<SalesOrder?> FindByFileHashAsync(string fileHash) =>
         await db.SalesOrders.AsNoTracking()
             .Where(o => o.SourceFileHash == fileHash)

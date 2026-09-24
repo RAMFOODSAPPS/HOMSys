@@ -227,6 +227,60 @@ public class SalesOrderBridgeService(
     /// resync flags so the order becomes editable again. On failure (DOCNO not found), flags
     /// ResyncFailed instead of leaving NeedsResync stuck true with no HOMSys-side indication.
     /// </summary>
+    /// <summary>
+    /// Fired by a1146F's delivery-status maintenance screen via run_bridge.bat's
+    /// "DELIVERED" action once VSHDR.DELIVERED/STATUS are saved for an order's
+    /// invoice. Keyed on SoNo+branch rather than SoId, since the bridge looks
+    /// this up server-side (not through its local ledger) — a1146F can run long
+    /// after the order's original confirm, on any workstation. A missing match
+    /// is reported back as an error rather than silently ignored, since a
+    /// delivery update landing nowhere is a real integration bug worth surfacing.
+    /// </summary>
+    public async Task<string?> ConfirmDeliveryAsync(int soNo, string branch, BridgeDeliveryDto dto)
+    {
+        var order = await orderRepo.GetForUpdateBySoNoAsync(soNo, branch);
+        if (order is null)
+            return $"No sales order found for SO {soNo} in branch {branch}.";
+
+        // Belt-and-suspenders on top of the SoNo+branch match -- only rejects
+        // when both sides actually carry an InvNo and they disagree. HOMSys's
+        // own InvNo can still be null here if the invoice sync bridge call
+        // hasn't landed yet, which is a normal ordering lag, not an error.
+        if (dto.InvNo is not null && order.InvNo is not null && order.InvNo != dto.InvNo)
+            return $"SO {soNo} found, but its InvNo ({order.InvNo}) does not match the invoice being tagged ({dto.InvNo}).";
+
+        order.Delivered = dto.Delivered;
+        order.Status = dto.Status;
+        order.VsNo = dto.VsNo;
+        order.VsDate = dto.VsDate;
+        order.PlateNo = dto.PlateNo;
+        order.Trucker = dto.Trucker;
+        order.Driver = dto.Driver;
+        order.Vessel = dto.Vessel;
+        order.Voyage = dto.Voyage;
+        order.BlNo = dto.BlNo;
+        order.Edd = dto.Edd;
+        order.Eda2 = dto.Eda2;
+
+        var byCProdNo = order.Lines.ToDictionary(l => l.CProdNo);
+        foreach (var vsdetLine in dto.Lines)
+        {
+            // A VSDET row with no matching SalesOrderLine (CProdNo drifted, or
+            // the invoice carries a SKU this order never had) is skipped rather
+            // than failing the whole save -- the header status is what matters.
+            if (byCProdNo.TryGetValue(vsdetLine.CProdNo, out var line))
+            {
+                line.ReceivedQtyCs = vsdetLine.ReceivedQtyCs;
+                line.ReceivedQtyPc = vsdetLine.ReceivedQtyPc;
+                line.ReceivedAmt = vsdetLine.ReceivedAmt;
+                line.ReceivedStatus = vsdetLine.ReceivedStatus;
+            }
+        }
+
+        await orderRepo.SaveChangesAsync();
+        return null;
+    }
+
     public async Task<string?> ConfirmResyncAsync(int soId, bool ok)
     {
         var order = await orderRepo.GetForUpdateAsync(soId);

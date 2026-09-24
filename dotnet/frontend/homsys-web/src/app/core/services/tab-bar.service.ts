@@ -27,6 +27,9 @@ const ROUTE_META: Record<string, { label: string; icon: string }> = {
   '/site-types/list':   { label: 'Site Types List',  icon: 'pi-list'     },
   '/sales-orders':      { label: 'New Sales Order',  icon: 'pi-file-edit' },
   '/sales-orders/list': { label: 'Sales Orders',     icon: 'pi-list'     },
+  '/analytics':           { label: 'Data Analytics',   icon: 'pi-chart-bar' },
+  '/analytics/report':    { label: 'New Report',       icon: 'pi-chart-bar' },
+  '/analytics/dashboard': { label: 'New Dashboard',    icon: 'pi-th-large' },
   '/oos-report':        { label: 'OOS Report',       icon: 'pi-exclamation-triangle' },
   '/pricelist-export':  { label: 'Pricelist Export', icon: 'pi-file-export' },
   '/legacy-monitoring': { label: 'Legacy Monitoring', icon: 'pi-sync' },
@@ -55,7 +58,7 @@ export class TabBarService {
 
       // If navigating with an entity state, the page component will call openTab explicitly
       const navState = history.state as Record<string, unknown>;
-      if (navState?.['userId'] || navState?.['roleId'] || navState?.['companyId'] || navState?.['departmentId'] || navState?.['siteId'] || navState?.['siteTypeId'] || navState?.['soId'] || navState?.['draftKey']) return;
+      if (navState?.['userId'] || navState?.['roleId'] || navState?.['companyId'] || navState?.['departmentId'] || navState?.['siteId'] || navState?.['siteTypeId'] || navState?.['soId'] || navState?.['draftKey'] || navState?.['reportId'] || navState?.['dashboardId'] || navState?.['analyticsSpec']) return;
 
       const key = url;
       this.activeKey.set(key);

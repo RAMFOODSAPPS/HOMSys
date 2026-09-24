@@ -14,6 +14,7 @@ import { ToastModule } from 'primeng/toast';
 import { DrawerModule } from 'primeng/drawer';
 import { TagModule } from 'primeng/tag';
 import { DividerModule } from 'primeng/divider';
+import { DialogModule } from 'primeng/dialog';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { GlobalToolbarService } from '../../../core/services/global-toolbar.service';
@@ -35,7 +36,7 @@ import { SiteDto } from '../../../core/models/site.model';
   imports: [
     ReactiveFormsModule, InputTextModule, PasswordModule, ButtonModule,
     MultiSelectModule, SelectModule, ToggleSwitchModule, MessageModule, ToastModule,
-    DrawerModule, TagModule, DividerModule, ConfirmDialogModule
+    DrawerModule, TagModule, DividerModule, DialogModule, ConfirmDialogModule
   ],
   template: `
     <p-toast position="top-right" />
@@ -117,24 +118,30 @@ import { SiteDto } from '../../../core/models/site.model';
             placeholder="Select roles" styleClass="w-full" />
         </div>
 
-        <div class="field">
-          <label>{{ selectedUser() ? 'New Password (leave blank to keep current)' : 'Password *' }}</label>
-          <p-password formControlName="password" [feedback]="true"
-            [toggleMask]="true" styleClass="w-full" inputStyleClass="w-full"
-            autocomplete="new-password" />
-        </div>
-
         @if (selectedUser()) {
+          <div class="field">
+            <label>New Password (leave blank to keep current)</label>
+            <p-password formControlName="password" [feedback]="true"
+              [toggleMask]="true" styleClass="w-full" inputStyleClass="w-full"
+              autocomplete="new-password" />
+          </div>
+
           <div class="field-inline">
             <label>Active</label>
             <p-toggleswitch formControlName="isActive" />
           </div>
+        } @else {
+          <p-message severity="info" styleClass="w-full mb-3">
+            <span>A password will be generated automatically. The user must change it on first login.</span>
+          </p-message>
         }
 
         <p-divider />
 
         <div class="form-actions">
           @if (selectedUser()) {
+            <p-button label="Reset Password" icon="pi pi-key" [text]="true" severity="warn"
+              (onClick)="confirmResetPassword()" />
             <p-button label="Cancel" [text]="true" severity="secondary" (onClick)="clearSelection()" />
           }
           <p-button type="submit"
@@ -143,6 +150,23 @@ import { SiteDto } from '../../../core/models/site.model';
         </div>
       </form>
     </div>
+
+    <p-dialog
+      [visible]="generatedPassword() !== null"
+      (visibleChange)="!$event && acknowledgeGeneratedPassword()"
+      header="{{ selectedUser() ? 'Password Reset' : 'User Created' }}"
+      [modal]="true"
+      [style]="{ width: '420px' }"
+      [draggable]="false"
+      [closable]="false"
+    >
+      <p>Share this temporary password with the user. It will not be shown again — they must change it on next login.</p>
+      <div class="generated-password">{{ generatedPassword() }}</div>
+      <ng-template pTemplate="footer">
+        <p-button label="Copy" icon="pi pi-copy" [text]="true" (onClick)="copyGeneratedPassword()" />
+        <p-button label="Done" (onClick)="acknowledgeGeneratedPassword()" />
+      </ng-template>
+    </p-dialog>
 
     <!-- Users drawer -->
     <p-drawer [(visible)]="drawerVisible" position="right" header="All Users"
@@ -211,6 +235,10 @@ import { SiteDto } from '../../../core/models/site.model';
     .user-info { flex: 1; display: flex; flex-direction: column; min-width: 0; }
     .user-name { font-size: 0.82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .user-sub  { font-size: 0.72rem; color: var(--p-text-muted-color); }
+
+    .generated-password { font-family: monospace; font-size: 1.1rem; font-weight: 600;
+      background: var(--p-surface-100); border-radius: 6px; padding: 0.75rem; text-align: center;
+      letter-spacing: 0.05em; margin: 0.75rem 0; }
   `]
 })
 export class UserPageComponent implements OnInit, OnDestroy {
@@ -253,6 +281,7 @@ export class UserPageComponent implements OnInit, OnDestroy {
   protected errorMessage  = signal<string | null>(null);
   protected successMessage = signal<string | null>(null);
   protected noSelection   = computed(() => !this.selectedUser());
+  protected generatedPassword = signal<string | null>(null);
 
   protected form = this.fb.group({
     username:     ['', [Validators.required, Validators.minLength(3)]],
@@ -264,7 +293,7 @@ export class UserPageComponent implements OnInit, OnDestroy {
     siteId:       [null as number | null],
     branchCode:   [null as string | null],
     roleIds:      [[] as number[], Validators.required],
-    password:     ['', [Validators.required, Validators.minLength(8)]],
+    password:     [''],
     isActive:     [true]
   });
 
@@ -323,7 +352,7 @@ export class UserPageComponent implements OnInit, OnDestroy {
     this.successMessage.set(null);
     this.form.reset({ isActive: true, roleIds: [], companyId: null, departmentId: null, siteId: null, branchCode: null });
     this.form.get('username')?.setValidators([Validators.required, Validators.minLength(3)]);
-    this.form.get('password')?.setValidators([Validators.required, Validators.minLength(8)]);
+    this.form.get('password')?.clearValidators();
     this.form.get('username')?.updateValueAndValidity();
     this.form.get('password')?.updateValueAndValidity();
     this.currentTabKey = '/users';
@@ -485,31 +514,70 @@ export class UserPageComponent implements OnInit, OnDestroy {
     const v = this.form.value;
     const u = this.selectedUser();
 
-    const req$ = u
-      ? this.userService.update(u.id, {
-          email: v.email!, firstName: v.firstName!, lastName: v.lastName!,
-          companyId: v.companyId ?? undefined, departmentId: v.departmentId ?? undefined,
-          siteId: v.siteId ?? undefined, branchCode: v.branchCode ?? undefined,
-          isActive: v.isActive!, roleIds: v.roleIds ?? [],
-          newPassword: v.password || undefined
-        })
-      : this.userService.create({
-          username: v.username!, email: v.email!,
-          firstName: v.firstName!, lastName: v.lastName!,
-          companyId: v.companyId ?? undefined, departmentId: v.departmentId ?? undefined,
-          siteId: v.siteId ?? undefined, branchCode: v.branchCode ?? undefined,
-          password: v.password!, roleIds: v.roleIds ?? []
-        });
+    if (u) {
+      this.userService.update(u.id, {
+        email: v.email!, firstName: v.firstName!, lastName: v.lastName!,
+        companyId: v.companyId ?? undefined, departmentId: v.departmentId ?? undefined,
+        siteId: v.siteId ?? undefined, branchCode: v.branchCode ?? undefined,
+        isActive: v.isActive!, roleIds: v.roleIds ?? [],
+        newPassword: v.password || undefined
+      }).subscribe({
+        next: () => {
+          this.loading.set(false);
+          this.successMessage.set('User updated successfully.');
+        },
+        error: (err) => {
+          this.loading.set(false);
+          this.errorMessage.set(err?.error?.message ?? 'An error occurred.');
+        }
+      });
+      return;
+    }
 
-    req$.subscribe({
-      next: () => {
+    this.userService.create({
+      username: v.username!, email: v.email!,
+      firstName: v.firstName!, lastName: v.lastName!,
+      companyId: v.companyId ?? undefined, departmentId: v.departmentId ?? undefined,
+      siteId: v.siteId ?? undefined, branchCode: v.branchCode ?? undefined,
+      roleIds: v.roleIds ?? []
+    }).subscribe({
+      next: (res) => {
         this.loading.set(false);
-        this.successMessage.set(u ? 'User updated successfully.' : 'User created successfully.');
-        if (!u) this.clearSelection();
+        this.generatedPassword.set(res.generatedPassword);
       },
       error: (err) => {
         this.loading.set(false);
         this.errorMessage.set(err?.error?.message ?? 'An error occurred.');
+      }
+    });
+  }
+
+  acknowledgeGeneratedPassword() {
+    const wasNew = !this.selectedUser();
+    this.generatedPassword.set(null);
+    if (wasNew) {
+      this.successMessage.set('User created successfully.');
+      this.clearSelection();
+    }
+  }
+
+  copyGeneratedPassword() {
+    const pwd = this.generatedPassword();
+    if (pwd) navigator.clipboard?.writeText(pwd);
+  }
+
+  confirmResetPassword() {
+    const u = this.selectedUser();
+    if (!u) return;
+    this.confirmSvc.confirm({
+      message: `Reset password for <strong>${u.username}</strong>? A new temporary password will be generated and they will be required to change it on next login.`,
+      header: 'Confirm Password Reset',
+      icon: 'pi pi-exclamation-triangle',
+      accept: () => {
+        this.userService.resetPassword(u.id).subscribe({
+          next: (res) => this.generatedPassword.set(res.generatedPassword),
+          error: () => this.messageSvc.add({ severity: 'error', summary: 'Error', detail: 'Failed to reset password.' })
+        });
       }
     });
   }

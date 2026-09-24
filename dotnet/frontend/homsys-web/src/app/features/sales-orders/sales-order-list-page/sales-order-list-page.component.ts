@@ -124,6 +124,7 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
             <th pSortableColumn="cusName">Customer <p-sortIcon field="cusName" /></th>
             <th pSortableColumn="poNum">PO No. <p-sortIcon field="poNum" /></th>
             <th pSortableColumn="workflowStatus">Status <p-sortIcon field="workflowStatus" /></th>
+            <th pSortableColumn="deliveryStatus">Delivery <p-sortIcon field="deliveryStatus" /></th>
             <th style="text-align: center">OOS</th>
             <th pSortableColumn="invNo">Invoice <p-sortIcon field="invNo" /></th>
             <th pSortableColumn="invDate">Invoice Date <p-sortIcon field="invDate" /></th>
@@ -154,6 +155,14 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
             <td>{{ o.cusName }}</td>
             <td>{{ o.poNum }}</td>
             <td><p-tag [severity]="statusSeverity(o.workflowStatus)" [value]="o.workflowStatus || 'Entered'" /></td>
+            <td>
+              @if (o.deliveryStatus) {
+                <p-tag [severity]="deliverySeverity(o.deliveryStatus)" [value]="deliveryLabel(o.deliveryStatus)"
+                       [pTooltip]="o.delivered ? ('Date Cust. Rec.: ' + (o.delivered | date: 'MM/dd/yyyy')) : undefined" />
+              } @else {
+                <span class="text-muted">—</span>
+              }
+            </td>
             <td style="text-align: center">
               @if (oosCasesTotal(o) > 0) {
                 <a href="javascript:void(0)" class="so-link" (click)="viewOosDetails(o)" pTooltip="View OOS details">{{ oosCasesTotal(o) }}</a>
@@ -176,7 +185,7 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
           </tr>
         </ng-template>
         <ng-template pTemplate="emptymessage">
-          <tr><td colspan="13">No sales orders encoded yet.</td></tr>
+          <tr><td colspan="14">No sales orders encoded yet.</td></tr>
         </ng-template>
       </p-table>
 
@@ -647,6 +656,25 @@ export class SalesOrderListPageComponent implements OnInit, OnDestroy {
       case 'Processed': return 'success';
       case 'Deallocated': return 'warn';
       case 'Invoiced': return 'success';
+      default: return 'secondary';
+    }
+  }
+
+  /** VSHDR.STATUS codes from a1146F's Tag Delivered Invoices screen. */
+  deliveryLabel(status?: string | null): string {
+    switch (status) {
+      case '1': return 'Delivered';
+      case '2': return 'Rejected';
+      case '3': return 'Undelivered';
+      default: return status ?? '—';
+    }
+  }
+
+  deliverySeverity(status?: string | null): 'secondary' | 'danger' | 'success' | 'warn' {
+    switch (status) {
+      case '1': return 'success';
+      case '2': return 'danger';
+      case '3': return 'warn';
       default: return 'secondary';
     }
   }
