@@ -27,7 +27,9 @@ import {
   CreateSalesOrderDto,
   SalesOrderDto,
   DocClassDto,
-  ImportedOrderDraft
+  ImportedOrderDraft,
+  SalesOrderRfcDto,
+  SalesOrderRfcLineDto
 } from '../../../core/models/sales-order.model';
 
 /**
@@ -64,7 +66,7 @@ import {
       }
 
       <form [formGroup]="form" autocomplete="off">
-      <div class="two-col">
+      <div class="two-col" [class.has-rfc]="rfcs().length > 0">
       <div class="left-panel">
 
         <!-- ── encode customer ─────────────────────────────────────────── -->
@@ -251,6 +253,32 @@ import {
           </div>
         }
 
+        @if (cancellation(); as cx) {
+          <p-divider />
+          <label class="section-label">Invoice Cancellation</label>
+          <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr;">
+            <div class="field">
+              <label>Cancelled INV#</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="cx.invNo" />
+            </div>
+            <div class="field">
+              <label>Cancel Date</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="cx.date ? (cx.date | date: 'MM/dd/yyyy') : ''" />
+            </div>
+            <div class="field">
+              <label>Cancelled By</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="cx.by ?? ''" />
+            </div>
+          </div>
+          <div class="field-row" style="grid-template-columns: 1fr;">
+            <div class="field">
+              <label>Remarks</label>
+              <input pInputText class="w-full" [disabled]="true" [value]="cx.remarks ?? ''" />
+            </div>
+          </div>
+        }
+
+
       </div>
 
       <div class="right-panel">
@@ -268,6 +296,9 @@ import {
               <th style="width: 52px">Qty CS</th>
               @if (invoiced()) {
                 <th style="width: 52px">INV CS</th>
+              }
+              @if (rfcs().length) {
+                <th style="width: 62px" title="Returned via posted RFCs (cases + loose pieces)">RFC Qty</th>
               }
               @if (hasDeliveryData()) {
                 <th style="width: 60px">Rec'd CS</th>
@@ -319,6 +350,9 @@ import {
                 @if (invoiced()) {
                   <td class="text-right">{{ line.allocatedQtyCs }}</td>
                 }
+                @if (rfcs().length) {
+                  <td class="text-right">{{ rfcQtyLabel(line) }}</td>
+                }
                 @if (hasDeliveryData()) {
                   <td class="text-right">
                     {{ line.receivedQtyCs ?? '—' }}{{ line.receivedStatus ? ' (' + deliveryLabel(line.receivedStatus) + ')' : '' }}
@@ -360,6 +394,11 @@ import {
                 <small class="summary-note summary-note-invoiced">** Actual price in invoice **</small>
               </span>
             }
+            @if (rfcs().length) {
+              <span class="summary-cell summary-col-left" style="width: 62px">
+                <span class="summary-value">{{ totalRfcQtyCs() }}{{ totalRfcQtyPc() ? ' + ' + totalRfcQtyPc() + ' pc' : '' }}</span>
+              </span>
+            }
             <span class="summary-cell summary-col-left" style="width: 62px">
               <span class="summary-value">{{ totalAmountLpWithVat() | number: '1.2-2' }}</span>
             </span>
@@ -368,6 +407,61 @@ import {
         </div>
         </div>
       </div>
+
+        @if (rfcs().length) {
+      <div class="rfc-panel">
+          <label class="section-label">RFC Returns</label>
+          @for (r of rfcs(); track r.rfcNo; let first = $first) {
+            @if (!first) { <p-divider /> }
+            <div class="field-row" style="grid-template-columns: 1fr 1fr;">
+              <div class="field">
+                <label>RFC #</label>
+                <input pInputText class="w-full" [disabled]="true" [value]="r.rfcNo" />
+              </div>
+              <div class="field">
+                <label>RSR #</label>
+                <input pInputText class="w-full" [disabled]="true" [value]="r.rsrNo ?? ''" />
+              </div>
+              <div class="field">
+                <label>RFC Date</label>
+                <input pInputText class="w-full" [disabled]="true" [value]="r.rfcDate ? (r.rfcDate | date: 'MM/dd/yyyy') : ''" />
+              </div>
+              <div class="field">
+                <label>Posted</label>
+                <input pInputText class="w-full" [disabled]="true" [value]="r.postedDate ? (r.postedDate | date: 'MM/dd/yyyy') : ''" />
+              </div>
+              <div class="field">
+                <label>User</label>
+                <input pInputText class="w-full" [disabled]="true" [value]="r.userName ?? ''" />
+              </div>
+            </div>
+            @if (r.remarks || r.remarks2) {
+              <div class="field-row" style="grid-template-columns: 1fr;">
+                <div class="field">
+                  <label>Remarks</label>
+                  <input pInputText class="w-full" [disabled]="true" [value]="rfcRemarks(r)" />
+                </div>
+              </div>
+            }
+            <table class="rfc-lines">
+              <thead>
+                <tr><th>Prodno</th><th class="text-right">CS</th><th class="text-right">PC</th><th class="text-right">Amount</th><th>Reason</th></tr>
+              </thead>
+              <tbody>
+                @for (l of r.lines; track $index) {
+                  <tr>
+                    <td>{{ l.cProdNo }}</td>
+                    <td class="text-right">{{ l.qtyCs }}</td>
+                    <td class="text-right">{{ l.qtyPc }}</td>
+                    <td class="text-right">{{ (l.spAmt + l.tax) | number: '1.2-2' }}</td>
+                    <td>{{ rfcLineReason(l) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+      </div>
+        }
       </div>
       </form>
     </div>
@@ -379,13 +473,17 @@ import {
     .two-col { display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 0.75rem; align-items: stretch; flex: 1 1 auto; min-height: 0; margin-bottom: 0.4rem; }
     .left-panel { min-width: 0; min-height: 0; max-width: 640px; overflow-y: auto; border: 1px solid var(--p-content-border-color); border-radius: 6px; padding: 0.5rem; }
     .right-panel { min-width: 0; min-height: 0; max-width: 100%; height: 100%; display: flex; flex-direction: column; border: 1px solid var(--p-content-border-color); border-radius: 6px; padding: 0.5rem; }
+    /* RFC Returns: a third column right of Products, only when the order has RFCs */
+    .two-col.has-rfc { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr) minmax(280px, 360px); }
+    .rfc-panel { min-width: 0; min-height: 0; overflow-y: auto; border: 1px solid var(--p-content-border-color); border-radius: 6px; padding: 0.5rem; }
     .products-h-scroll { min-width: 0; }
 
     /* ── Mobile — stack the two-column layout, scroll the products table sideways ── */
     @media (max-width: 840px) {
       .form-card { overflow-y: auto; }
       .two-col { grid-template-columns: 1fr; grid-template-rows: auto; }
-      .left-panel, .right-panel { max-width: 100%; height: auto; overflow-y: visible; }
+      .two-col.has-rfc { grid-template-columns: 1fr; }
+      .left-panel, .right-panel, .rfc-panel { max-width: 100%; height: auto; overflow-y: visible; }
       .products-scroll { max-height: 45vh; overflow-x: hidden; }
       .products-h-scroll { overflow-x: auto; }
       .products-h-scroll .so-grid,
@@ -431,6 +529,10 @@ import {
     .line-missing { background: #fff4f4; }
     .field-warning { color: #b26a00; font-size: .65rem; }
     .section-label { font-weight: 600; font-size: .76rem; display: block; margin-bottom: .2rem; }
+    .rfc-lines { width: 100%; border-collapse: collapse; font-size: .72rem; margin: .1rem 0 .6rem; }
+    .rfc-lines th { text-align: left; font-weight: 600; border-bottom: 1px solid #ddd; padding: .15rem .3rem; }
+    .rfc-lines td { padding: .15rem .3rem; border-bottom: 1px solid #f0f0f0; }
+    .rfc-lines .text-right { text-align: right; }
     .order-summary {
       flex: 0 0 auto;
       margin-top: .3rem;
@@ -554,12 +656,37 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
   /** True once a1146F has tagged this invoice's delivery status — shows the Rec'd CS column. */
   hasDeliveryData = computed(() => this.lines().some(l => l.receivedStatus !== null));
 
+  /** Posted BMS RFCs (c1110bb) against this order's invoice. */
+  rfcs = signal<SalesOrderRfcDto[]>([]);
+  totalRfcQtyCs = computed(() => this.lines().reduce((sum, l) => sum + (l.rfcQtyCs || 0), 0));
+  totalRfcQtyPc = computed(() => this.lines().reduce((sum, l) => sum + (l.rfcQtyPc || 0), 0));
+
+  /** "2", "2 + 48 pc", "48 pc", or "—" when nothing of this SKU was returned. */
+  rfcQtyLabel(l: EncodeLine): string {
+    if (l.rfcQtyCs == null && l.rfcQtyPc == null) return '—';
+    const cs = l.rfcQtyCs ?? 0, pc = l.rfcQtyPc ?? 0;
+    return pc ? (cs ? `${cs} + ${pc} pc` : `${pc} pc`) : `${cs}`;
+  }
+
+  rfcRemarks(r: SalesOrderRfcDto): string {
+    return [r.remarks, r.remarks2].filter(x => !!x).join(' — ');
+  }
+
+  rfcLineReason(l: SalesOrderRfcLineDto): string {
+    return [l.retCode, l.rsNo, l.remarks].filter(x => !!x).join(' · ');
+  }
+
+  /** Set when BMS cancelled the invoice (a1174 Invoice Cancellation). */
+  cancellation = signal<{ invNo: number; date: string | null; by: string | null; remarks: string | null } | null>(null);
+
   /** VSHDR/VSDET.STATUS codes from a1146F's Tag Delivered Invoices screen. */
   deliveryLabel(status?: string | null): string {
     switch (status) {
       case '1': return 'Delivered';
       case '2': return 'Rejected';
       case '3': return 'Undelivered';
+      case 'C': return 'Cancelled';
+      case 'R': return 'Returned';
       default: return status ?? '—';
     }
   }
@@ -569,6 +696,8 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
       case '1': return 'success';
       case '2': return 'danger';
       case '3': return 'warn';
+      case 'C': return 'danger';
+      case 'R': return 'danger';
       default: return 'secondary';
     }
   }
@@ -697,6 +826,10 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
     this.blNo.set(order.blNo ?? null);
     this.edd.set(order.edd ?? null);
     this.eda2.set(order.eda2 ?? null);
+    this.rfcs.set(order.rfcs ?? []);
+    this.cancellation.set(order.cancelledInvNo
+      ? { invNo: order.cancelledInvNo, date: order.invCancelDate ?? null, by: order.invCancelledBy ?? null, remarks: order.invCancelRemarks ?? null }
+      : null);
     this.originalPoNum = order.poNum;
 
     this.form.reset({
@@ -720,7 +853,8 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
             pieces: l.pieces, qtyCs: l.qtyCs, qtyPc: l.qtyPc,
             freeGoods: l.freeGoods, priceList: l.priceList, notFound: false, pricePerCase: null,
             allocatedQtyCs: l.allocatedQtyCs ?? null, invNetAmt: l.invNetAmt ?? null,
-            receivedQtyCs: l.receivedQtyCs ?? null, receivedStatus: l.receivedStatus ?? null
+            receivedQtyCs: l.receivedQtyCs ?? null, receivedStatus: l.receivedStatus ?? null,
+            rfcQtyCs: l.rfcQtyCs ?? null, rfcQtyPc: l.rfcQtyPc ?? null
           }))
         : [this.blankLine()]
     );
@@ -737,7 +871,10 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
     });
 
     const soLabel = `SO# ${order.soNo ?? order.soId}`;
-    const invLabel = order.invNo ? ` | INV# ${order.invNo}` : '';
+    const invLabel = order.cancelledInvNo ? ` | INV# ${order.cancelledInvNo} CANCELLED`
+      : order.workflowStatus === 'Full RFC' ? ` | INV# ${order.invNo} FULL RFC`
+      : order.workflowStatus === 'Invoiced with RFC' ? ` | INV# ${order.invNo} w/ RFC`
+      : order.invNo ? ` | INV# ${order.invNo}` : '';
     this.tabBar.openTab({
       key: `/sales-orders#${order.soId}`,
       label: `${viewOnly ? 'View' : 'Edit'} — ${soLabel}${invLabel}`,
@@ -755,6 +892,8 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
   private applyDraft(draftKey: string, draftOrder: ImportedOrderDraft): void {
     this.soId.set(null);
     this.invNo.set(null);
+    this.cancellation.set(null);
+    this.rfcs.set([]);
     this.delivered.set(null);
     this.deliveryStatus.set(null);
     this.vsNo.set(null);
@@ -820,7 +959,7 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
       pieces: 0, qtyCs: 0, qtyPc: 0,
       freeGoods: false, priceList: true, notFound: false, pricePerCase: null,
       allocatedQtyCs: null, invNetAmt: null,
-      receivedQtyCs: null, receivedStatus: null
+      receivedQtyCs: null, receivedStatus: null, rfcQtyCs: null, rfcQtyPc: null
     };
   }
 
@@ -1141,6 +1280,8 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
     this.startedAt = new Date();
     this.soId.set(null);
     this.invNo.set(null);
+    this.cancellation.set(null);
+    this.rfcs.set([]);
     this.delivered.set(null);
     this.deliveryStatus.set(null);
     this.vsNo.set(null);

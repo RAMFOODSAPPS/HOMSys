@@ -15,8 +15,7 @@ import {
   ImportCheckRowDto,
   FileImportCheckResultDto,
   RowDuplicateCheckResultDto,
-  PoImportCheckResultDto
-} from '../models/sales-order.model';
+  PoImportCheckResultDto, BridgeStatusDto } from '../models/sales-order.model';
 import { ApiResponse } from '../models/auth.model';
 
 @Injectable({ providedIn: 'root' })
@@ -27,6 +26,7 @@ export class SalesOrderService {
 
   getAll()            { return this.http.get<ApiResponse<SalesOrderDto[]>>(this.base); }
   getById(id: number) { return this.http.get<ApiResponse<SalesOrderDto>>(`${this.base}/${id}`); }
+  getBridgeStatus()   { return this.http.get<ApiResponse<BridgeStatusDto[]>>(`${this.base}/bridge-status`); }
 
   create(dto: CreateSalesOrderDto) {
     return this.http.post<ApiResponse<SalesOrderDto>>(this.base, dto);

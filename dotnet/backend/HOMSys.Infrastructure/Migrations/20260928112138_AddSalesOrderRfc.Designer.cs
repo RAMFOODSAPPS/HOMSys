@@ -4,6 +4,7 @@ using HOMSys.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HOMSys.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260928112138_AddSalesOrderRfc")]
+    partial class AddSalesOrderRfc
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1799,9 +1802,6 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasColumnType("date");
 
                     b.Property<int>("RfcNo")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("RsrNo")
                         .HasColumnType("int");
 
                     b.Property<int>("SoId")

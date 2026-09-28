@@ -16,4 +16,9 @@ public class SyncLog
 public static class SyncLogSections
 {
     public const string PricingMasters = "PricingMasters";
+
+    /// <summary>Per-branch SalesOrderBridge heartbeat — written on every bridge
+    /// run that reaches HOMSys, so HO can tell "branch offline" from "no activity".</summary>
+    public const string SoBridgePrefix = "SoBridge:";
+    public static string SoBridge(string branch) => SoBridgePrefix + branch;
 }

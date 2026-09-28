@@ -99,6 +99,42 @@ export interface SalesOrderLineDto {
   receivedQtyPc?: number | null;
   receivedAmt?: number | null;
   receivedStatus?: string | null;
+  /** BMS-owned — total returned via posted RFCs for this SKU (raw CS/PC sums). Null when none. */
+  rfcQtyCs?: number | null;
+  rfcQtyPc?: number | null;
+}
+
+/** Per-branch BMS bridge heartbeat (GET /salesorders/bridge-status). */
+export interface BridgeStatusDto {
+  branch: string;
+  lastSyncedUtc: string;
+  /** No bridge run has reached HOMSys for 15+ min: BMS-side changes may be pending in the branch outbox. */
+  stale: boolean;
+}
+
+/** A posted BMS RFC (Return From Customer) against the order's invoice — read-only. */
+export interface SalesOrderRfcDto {
+  rfcNo: number;
+  invNo: number;
+  /** The approved RSR (c1110k2) this RFC was moved from. */
+  rsrNo?: number | null;
+  rfcDate?: string | null;
+  postedDate?: string | null;
+  userName?: string | null;
+  remarks?: string | null;
+  remarks2?: string | null;
+  lines: SalesOrderRfcLineDto[];
+}
+
+export interface SalesOrderRfcLineDto {
+  cProdNo: string;
+  qtyCs: number;
+  qtyPc: number;
+  spAmt: number;
+  tax: number;
+  retCode?: string | null;
+  rsNo?: string | null;
+  remarks?: string | null;
 }
 
 export interface SalesOrderDto {
@@ -127,13 +163,18 @@ export interface SalesOrderDto {
   invNo?: number | null;
   invDate?: string | null;
   invAmt?: number | null;
+  /** BMS-owned — set when BMS cancels the invoice (a1174.scx only — an RFC is a return, see rfcs); invNo/invDate/invAmt are kept */
+  cancelledInvNo?: number | null;
+  invCancelDate?: string | null;
+  invCancelRemarks?: string | null;
+  invCancelledBy?: string | null;
   /** True once pushed to BMS (SoNo assigned); cleared once BMS deallocates it */
   isLocked?: boolean;
   /** True while a post-deallocation edit is waiting to be pushed back into BMS */
   needsResync?: boolean;
   /** True if BMS could not find the live record to apply the last resync onto */
   resyncFailed?: boolean;
-  /** Entered / Downloaded / Processed / Deallocated / Invoiced. Display-only. */
+  /** Entered / Downloaded / Processed / Deallocated / Invoiced / Invoiced with RFC / Full RFC / Cancelled. Display-only. */
   workflowStatus?: string;
   /** BMS-owned — Date Cust. Rec. from VSHDR.DELIVERED, pushed by a1146F's delivery-status screen */
   delivered?: string | null;
@@ -154,6 +195,11 @@ export interface SalesOrderDto {
   createdAt: string;
   createdBy: string;
   lines: SalesOrderLineDto[];
+  /** Posted BMS RFCs against the invoice. */
+  rfcs?: SalesOrderRfcDto[];
+  /** Number of posted RFCs, and their total returned value (null when none). */
+  rfcCount?: number;
+  rfcAmt?: number | null;
 }
 
 export interface CreateSalesOrderLineDto {
@@ -276,4 +322,7 @@ export interface EncodeLine {
   receivedQtyCs: number | null;
   /** BMS-owned VSDET.REC_STAT for this line — display-only. */
   receivedStatus: string | null;
+  /** BMS-owned — cases / loose pieces returned via posted RFCs (c1110bb) — display-only. */
+  rfcQtyCs: number | null;
+  rfcQtyPc: number | null;
 }

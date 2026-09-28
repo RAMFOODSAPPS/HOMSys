@@ -4,6 +4,7 @@ using HOMSys.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HOMSys.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260928072742_AddSalesOrderInvoiceCancel")]
+    partial class AddSalesOrderInvoiceCancel
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1773,121 +1776,6 @@ namespace HOMSys.Infrastructure.Migrations
                     b.ToTable("SalesOrderLines");
                 });
 
-            modelBuilder.Entity("HOMSys.Domain.Entities.SalesOrderRfc", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("InvNo")
-                        .HasColumnType("int");
-
-                    b.Property<DateOnly?>("PostedDate")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Remarks")
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<string>("Remarks2")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateOnly?>("RfcDate")
-                        .HasColumnType("date");
-
-                    b.Property<int>("RfcNo")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("RsrNo")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SoId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("SyncedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UserName")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InvNo");
-
-                    b.HasIndex("SoId", "RfcNo")
-                        .IsUnique();
-
-                    b.ToTable("SalesOrderRfcs");
-                });
-
-            modelBuilder.Entity("HOMSys.Domain.Entities.SalesOrderRfcLine", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Amt")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<string>("CProdNo")
-                        .IsRequired()
-                        .HasMaxLength(4)
-                        .HasColumnType("nvarchar(4)");
-
-                    b.Property<decimal>("DiscAmt1")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("DiscAmt2")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<int>("Pieces")
-                        .HasColumnType("int");
-
-                    b.Property<int>("QtyCs")
-                        .HasColumnType("int");
-
-                    b.Property<int>("QtyPc")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Remarks")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("RetCode")
-                        .HasMaxLength(2)
-                        .HasColumnType("nvarchar(2)");
-
-                    b.Property<int>("RfcId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("RsNo")
-                        .HasMaxLength(8)
-                        .HasColumnType("nvarchar(8)");
-
-                    b.Property<decimal>("SpAmt")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("Tax")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("decimal(12,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RfcId");
-
-                    b.ToTable("SalesOrderRfcLines");
-                });
-
             modelBuilder.Entity("HOMSys.Domain.Entities.SavedReport", b =>
                 {
                     b.Property<int>("Id")
@@ -2431,28 +2319,6 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("SalesOrder");
                 });
 
-            modelBuilder.Entity("HOMSys.Domain.Entities.SalesOrderRfc", b =>
-                {
-                    b.HasOne("HOMSys.Domain.Entities.SalesOrder", "SalesOrder")
-                        .WithMany("Rfcs")
-                        .HasForeignKey("SoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("SalesOrder");
-                });
-
-            modelBuilder.Entity("HOMSys.Domain.Entities.SalesOrderRfcLine", b =>
-                {
-                    b.HasOne("HOMSys.Domain.Entities.SalesOrderRfc", "Rfc")
-                        .WithMany("Lines")
-                        .HasForeignKey("RfcId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Rfc");
-                });
-
             modelBuilder.Entity("HOMSys.Domain.Entities.Site", b =>
                 {
                     b.HasOne("HOMSys.Domain.Entities.Company", "Company")
@@ -2528,13 +2394,6 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("Lines");
 
                     b.Navigation("OosSyncLines");
-
-                    b.Navigation("Rfcs");
-                });
-
-            modelBuilder.Entity("HOMSys.Domain.Entities.SalesOrderRfc", b =>
-                {
-                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.User", b =>

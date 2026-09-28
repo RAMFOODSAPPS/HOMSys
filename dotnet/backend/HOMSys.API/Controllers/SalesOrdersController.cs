@@ -13,6 +13,11 @@ public class SalesOrdersController(SalesOrderService salesOrderService, ZonePric
     public async Task<IActionResult> GetAll() =>
         Ok(new { success = true, data = await salesOrderService.GetAllAsync() });
 
+    /// <summary>Per-branch BMS bridge heartbeat ("last synced N min ago").</summary>
+    [HttpGet("bridge-status"), Authorize(Policy = "sales-orders")]
+    public async Task<IActionResult> BridgeStatus() =>
+        Ok(new { success = true, data = await salesOrderService.GetBridgeStatusAsync() });
+
     [HttpGet("{id:int}"), Authorize(Policy = "sales-orders")]
     public async Task<IActionResult> GetById(int id)
     {

@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<IDocClassRepository, DocClassRepository>();
         services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
         services.AddScoped<IOosSyncRepository, OosSyncRepository>();
+        services.AddScoped<ISyncLogRepository, SyncLogRepository>();
         services.AddScoped<IPricingRepository, PricingRepository>();
         services.AddScoped<ICustomerIdentifierMapRepository, CustomerIdentifierMapRepository>();
         services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();

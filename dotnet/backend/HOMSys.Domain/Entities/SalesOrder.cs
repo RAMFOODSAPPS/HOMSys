@@ -129,11 +129,14 @@ public class SalesOrder
     public bool ResyncFailed { get; set; }
 
     /// <summary>
-    /// One of Entered / Downloaded / Processed / Deallocated / Invoiced. Set at
-    /// each corresponding transition: default on create, ConfirmAsync (SoNo
-    /// assigned), LockAsync (cmdproc.Click processed it), DeallocateAsync
-    /// (a1112.scx reset it), ConfirmInvoiceAsync (INVNO recorded). Display-only
-    /// — IsLocked/InvNo remain the source of truth for edit-blocking behavior.
+    /// One of Entered / Downloaded / Processed / Deallocated / Invoiced /
+    /// Invoiced with RFC / Full RFC / Cancelled. Set at each corresponding transition: default on create,
+    /// ConfirmAsync (SoNo assigned), LockAsync (cmdproc.Click processed it),
+    /// DeallocateAsync (a1112.scx reset it), ConfirmInvoiceAsync (INVNO
+    /// recorded), CancelInvoiceAsync (a1174.scx / c1110bb.scx RFC cancelled
+    /// the invoice).
+    /// Display-only — IsLocked/InvNo remain the source of truth for
+    /// edit-blocking behavior, except Cancelled, which is terminal.
     /// </summary>
     public string WorkflowStatus { get; set; } = "Entered";
 
@@ -142,11 +145,27 @@ public class SalesOrder
     /// <summary>Latest bridge-synced oowkdet snapshot, per CProdNo. See OosSyncLine.</summary>
     public ICollection<OosSyncLine> OosSyncLines { get; set; } = new List<OosSyncLine>();
 
+    /// <summary>Posted BMS RFCs against this order's invoice. See SalesOrderRfc.</summary>
+    public ICollection<SalesOrderRfc> Rfcs { get; set; } = new List<SalesOrderRfc>();
+
     // ── BMS-OWNED — downstream workflow state. Never written by HOMSys. ───────
 
     public int? InvNo { get; set; }
     public DateOnly? InvDate { get; set; }
     public decimal? InvAmt { get; set; }
+
+    /// <summary>
+    /// Set when BMS cancels this order's invoice — a1174.scx Invoice
+    /// Cancellation (DOCCANCEL.DBF) or c1110bb.scx RFC from invoice (full
+    /// return, IMTR_HDR). InvNo/InvDate/InvAmt, OOS lines and delivery fields
+    /// are kept for the record; analytics filters WorkflowStatus = "Cancelled"
+    /// out of invoiced/delivered measures. See SalesOrderBridgeService.CancelInvoiceAsync.
+    /// </summary>
+    public int? CancelledInvNo { get; set; }
+    public DateOnly? InvCancelDate { get; set; }
+    public string? InvCancelRemarks { get; set; }
+    public string? InvCancelledBy { get; set; }
+
     public decimal? InvTax { get; set; }
     public int? TransInv { get; set; }
 

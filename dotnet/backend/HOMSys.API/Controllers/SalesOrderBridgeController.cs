@@ -129,7 +129,123 @@ public class SalesOrderBridgeController(
         if (string.IsNullOrWhiteSpace(branch))
             return BadRequest(new { success = false, message = "branch query parameter is required." });
 
-        var error = await bridgeService.ConfirmDeliveryAsync(soNo, branch, dto);
+        var (found, error) = await bridgeService.ConfirmDeliveryAsync(soNo, branch, dto);
+        if (!found)
+            return NotFound(new { success = false, message = error });
+        if (error is not null)
+            return BadRequest(new { success = false, message = error });
+
+        return Ok(new { success = true });
+    }
+
+    // ── by-sono variants of the soId endpoints above ────────────────────────
+    // Used by the bridge's outbox (salesorder_bridge.py) instead of its old
+    // per-workstation ledger lookup. 404 = not a HOMSys order (BMS fires these
+    // for every order it processes/deallocates/invoices, most aren't ours), which
+    // the outbox drops quietly. The soId routes stay for bridges not yet upgraded.
+
+    [HttpPost("by-sono/{soNo:int}/lock")]
+    public Task<IActionResult> LockBySoNo(int soNo, [FromQuery] string branch,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey) =>
+        BySoNo(soNo, branch, apiKey, bridgeService.LockAsync);
+
+    [HttpPost("by-sono/{soNo:int}/deallocate")]
+    public Task<IActionResult> DeallocateBySoNo(int soNo, [FromQuery] string branch,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey) =>
+        BySoNo(soNo, branch, apiKey, bridgeService.DeallocateAsync);
+
+    [HttpPost("by-sono/{soNo:int}/invoice")]
+    public Task<IActionResult> InvoiceBySoNo(int soNo, [FromQuery] string branch, [FromBody] BridgeInvoiceDto dto,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey) =>
+        BySoNo(soNo, branch, apiKey, soId => bridgeService.ConfirmInvoiceAsync(soId, dto.InvNo, dto.InvDate, dto.InvAmt));
+
+    [HttpPost("by-sono/{soNo:int}/oos-status")]
+    public Task<IActionResult> OosStatusBySoNo(int soNo, [FromQuery] string branch, [FromBody] BridgeOosStatusDto dto,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey) =>
+        BySoNo(soNo, branch, apiKey, soId => bridgeService.SyncOosStatusAsync(soId, dto));
+
+    private async Task<IActionResult> BySoNo(int soNo, string branch, string? apiKey, Func<int, Task<string?>> action)
+    {
+        if (!IsAuthorized(apiKey))
+            return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+
+        if (string.IsNullOrWhiteSpace(branch))
+            return BadRequest(new { success = false, message = "branch query parameter is required." });
+
+        var soId = await bridgeService.FindSoIdBySoNoAsync(soNo, branch);
+        if (soId is null)
+            return NotFound(new { success = false, message = $"No sales order found for SO {soNo} in branch {branch}." });
+
+        var error = await action(soId.Value);
+        if (error is not null)
+            return BadRequest(new { success = false, message = error });
+
+        return Ok(new { success = true });
+    }
+
+    /// <summary>Posted BMS RFCs per invoice (merged) — see SalesOrderBridgeService.SyncRfcsAsync.
+    /// Always 200 with the invoices that matched a HOMSys order.</summary>
+    [HttpPost("invoice-rfcs")]
+    public async Task<IActionResult> InvoiceRfcs(
+        [FromQuery] string branch,
+        [FromBody] BridgeRfcSyncDto dto,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey)
+    {
+        if (!IsAuthorized(apiKey))
+            return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+
+        if (string.IsNullOrWhiteSpace(branch))
+            return BadRequest(new { success = false, message = "branch query parameter is required." });
+
+        var matchedInvNos = await bridgeService.SyncRfcsAsync(branch, dto);
+        return Ok(new { success = true, matched = matchedInvNos.Count, matchedInvNos });
+    }
+
+    /// <summary>Bridge heartbeat — see SalesOrderBridgeService.HeartbeatAsync.</summary>
+    [HttpPost("heartbeat")]
+    public async Task<IActionResult> Heartbeat(
+        [FromQuery] string branch,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey)
+    {
+        if (!IsAuthorized(apiKey))
+            return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+
+        if (string.IsNullOrWhiteSpace(branch))
+            return BadRequest(new { success = false, message = "branch query parameter is required." });
+
+        await bridgeService.HeartbeatAsync(branch);
+        return Ok(new { success = true });
+    }
+
+    [HttpGet("reconcile-candidates")]
+    public async Task<IActionResult> ReconcileCandidates(
+        [FromQuery] string branch,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey)
+    {
+        if (!IsAuthorized(apiKey))
+            return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+
+        if (string.IsNullOrWhiteSpace(branch))
+            return BadRequest(new { success = false, message = "branch query parameter is required." });
+
+        return Ok(new { success = true, data = await bridgeService.GetReconcileCandidatesAsync(branch) });
+    }
+
+    [HttpPost("invoice-cancel")]
+    public async Task<IActionResult> InvoiceCancel(
+        [FromQuery] string branch,
+        [FromBody] BridgeInvoiceCancelDto dto,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey)
+    {
+        if (!IsAuthorized(apiKey))
+            return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+
+        if (string.IsNullOrWhiteSpace(branch))
+            return BadRequest(new { success = false, message = "branch query parameter is required." });
+
+        var (found, error) = await bridgeService.CancelInvoiceAsync(branch, dto);
+        if (!found)
+            return NotFound(new { success = false, message = error });
         if (error is not null)
             return BadRequest(new { success = false, message = error });
 

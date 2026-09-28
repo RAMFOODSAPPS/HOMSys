@@ -55,6 +55,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     // Bridge-synced oowkdet snapshot for the OOS report — see OosSyncLine.
     public DbSet<OosSyncLine> OosSyncLines => Set<OosSyncLine>();
+    public DbSet<SalesOrderRfc> SalesOrderRfcs => Set<SalesOrderRfc>();
+    public DbSet<SalesOrderRfcLine> SalesOrderRfcLines => Set<SalesOrderRfcLine>();
 
     // Per-section "last synced" timestamp for the Legacy Monitoring page,
     // updated by every path that actually applies a sync — see SyncLogExtensions.
@@ -431,6 +433,30 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         });
 
         // ── OosSyncLine (bridge-synced oowkdet snapshot) ─────────────────────
+        // ── SalesOrderRfc / SalesOrderRfcLine (posted BMS RFCs, bridge-synced) ──
+        b.Entity<SalesOrderRfc>(e =>
+        {
+            e.HasOne(x => x.SalesOrder).WithMany(o => o.Rfcs).HasForeignKey(x => x.SoId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.SoId, x.RfcNo }).IsUnique();
+            e.HasIndex(x => x.InvNo);
+            e.Property(x => x.UserName).HasMaxLength(20);
+            e.Property(x => x.Remarks).HasMaxLength(30);
+            e.Property(x => x.Remarks2).HasMaxLength(200);
+            e.HasMany(x => x.Lines).WithOne(l => l.Rfc).HasForeignKey(l => l.RfcId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<SalesOrderRfcLine>(e =>
+        {
+            e.Property(x => x.CProdNo).HasMaxLength(4).IsRequired();
+            e.Property(x => x.RetCode).HasMaxLength(2);
+            e.Property(x => x.RsNo).HasMaxLength(8);
+            e.Property(x => x.Remarks).HasMaxLength(50);
+            e.Property(x => x.SpAmt).HasPrecision(12, 2);
+            e.Property(x => x.Amt).HasPrecision(12, 2);
+            e.Property(x => x.Tax).HasPrecision(12, 2);
+            e.Property(x => x.DiscAmt1).HasPrecision(12, 2);
+            e.Property(x => x.DiscAmt2).HasPrecision(12, 2);
+        });
+
         b.Entity<OosSyncLine>(e =>
         {
             e.HasIndex(x => new { x.SoId, x.CProdNo }).IsUnique();
@@ -509,6 +535,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         e.Property(x => x.BlNo).HasMaxLength(15);
         e.Property(x => x.Elapsed).HasMaxLength(75);
         e.Property(x => x.DrpCust).HasMaxLength(7);
+        e.Property(x => x.InvCancelRemarks).HasMaxLength(50);
+        e.Property(x => x.InvCancelledBy).HasMaxLength(20);
 
         foreach (var money in new[]
                  {

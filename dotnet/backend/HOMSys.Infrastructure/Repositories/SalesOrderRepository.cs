@@ -1,4 +1,5 @@
 using HOMSys.Application.Interfaces;
+using HOMSys.Application.Services;
 using HOMSys.Domain.Entities;
 using HOMSys.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ public class SalesOrderRepository(AppDbContext db) : ISalesOrderRepository
         await db.SalesOrders
             .Include(o => o.Lines.OrderBy(l => l.LineNo))
             .Include(o => o.OosSyncLines)
+            .Include(o => o.Rfcs.OrderBy(r => r.RfcNo)).ThenInclude(r => r.Lines)
             .AsSplitQuery()
             .AsNoTracking()
             .OrderByDescending(o => o.SoId)
@@ -20,6 +22,7 @@ public class SalesOrderRepository(AppDbContext db) : ISalesOrderRepository
         await db.SalesOrders
             .Include(o => o.Lines.OrderBy(l => l.LineNo))
             .Include(o => o.OosSyncLines)
+            .Include(o => o.Rfcs.OrderBy(r => r.RfcNo)).ThenInclude(r => r.Lines)
             .AsSplitQuery()
             .AsNoTracking()
             .FirstOrDefaultAsync(o => o.SoId == soId);
@@ -49,6 +52,39 @@ public class SalesOrderRepository(AppDbContext db) : ISalesOrderRepository
         await db.SalesOrders
             .Include(o => o.Lines)
             .FirstOrDefaultAsync(o => o.SoNo == soNo && o.Branch == branch);
+
+    public async Task<SalesOrder?> GetForUpdateByInvNoAsync(int invNo, string branch) =>
+        await db.SalesOrders
+            .Include(o => o.Lines)
+            .FirstOrDefaultAsync(o => (o.InvNo == invNo || o.CancelledInvNo == invNo) && o.Branch == branch);
+
+    public async Task<IEnumerable<SalesOrder>> GetReconcileCandidatesAsync(string branch, DateOnly since) =>
+        await db.SalesOrders.AsNoTracking()
+            .Include(o => o.Rfcs)
+            .Where(o => o.Branch == branch && o.SoNo != null && o.OrderDate >= since
+                        && o.WorkflowStatus != "Cancelled" && o.WorkflowStatus != SalesOrderBridgeService.FullRfc)
+            .OrderBy(o => o.SoNo)
+            .ToListAsync();
+
+    public async Task<SalesOrder?> GetForRfcSyncAsync(int? soNo, int invNo, string branch)
+    {
+        IQueryable<SalesOrder> q = db.SalesOrders
+            .Include(o => o.Lines)
+            .Include(o => o.OosSyncLines)
+            .Include(o => o.Rfcs).ThenInclude(r => r.Lines)
+            .AsSplitQuery()
+            .Where(o => o.Branch == branch);
+        // An SO# match only counts if it agrees with the RFC's invoice (or HOMSys
+        // hasn't got the invoice yet) — guards against a reused/stale SO#.
+        if (soNo is > 0)
+        {
+            var bySoNo = await q.FirstOrDefaultAsync(o => o.SoNo == soNo
+                && (o.InvNo == null || o.InvNo == invNo || o.CancelledInvNo == invNo));
+            if (bySoNo is not null)
+                return bySoNo;
+        }
+        return await q.FirstOrDefaultAsync(o => o.InvNo == invNo || o.CancelledInvNo == invNo);
+    }
 
     public async Task<SalesOrder?> FindByFileHashAsync(string fileHash) =>
         await db.SalesOrders.AsNoTracking()

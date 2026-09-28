@@ -95,6 +95,8 @@ public static class AnalyticsCatalog
     private static readonly Join[] SalesJoins =
     [
         new("st", "OUTER APPLY (SELECT TOP 1 s.Name FROM Sites s WHERE s.Code = so.Branch ORDER BY s.Id) st"),
+        // Posted BMS RFCs against the order's invoice, pre-aggregated to one row per order.
+        new("rf", "OUTER APPLY (SELECT SUM(rl.SpAmt + rl.Tax) AS Amt FROM SalesOrderRfcs r JOIN SalesOrderRfcLines rl ON rl.RfcId = r.Id WHERE r.SoId = so.SoId) rf"),
         new("cu", CustomerApply),
         new("zm", "OUTER APPLY (SELECT TOP 1 z.CDesc FROM ZoneMasts z WHERE z.Branch = cu.PFolder AND z.CZone = cu.CZone ORDER BY z.Id) zm", "cu"),
     ];
@@ -106,9 +108,9 @@ public static class AnalyticsCatalog
 
     private const string MastersAsOf = "SELECT MAX(LastSyncedUtc) FROM SyncLogs WHERE Section = 'PricingMasters'";
 
-    /// <summary>Lifecycle order Entered -> Downloaded -> Processed -> Deallocated -> Invoiced.</summary>
+    /// <summary>Lifecycle order Entered -> Downloaded -> Processed -> Deallocated -> Invoiced -> Invoiced with RFC -> Full RFC; Cancelled last.</summary>
     private const string StatusSort =
-        "CASE so.WorkflowStatus WHEN 'Entered' THEN 1 WHEN 'Downloaded' THEN 2 WHEN 'Processed' THEN 3 WHEN 'Deallocated' THEN 4 WHEN 'Invoiced' THEN 5 ELSE 9 END";
+        "CASE so.WorkflowStatus WHEN 'Entered' THEN 1 WHEN 'Downloaded' THEN 2 WHEN 'Processed' THEN 3 WHEN 'Deallocated' THEN 4 WHEN 'Invoiced' THEN 5 WHEN 'Invoiced with RFC' THEN 6 WHEN 'Full RFC' THEN 7 WHEN 'Cancelled' THEN 8 ELSE 9 END";
 
     /// <summary>Header dimensions/dates, shared by sales_orders and sales_lines (both alias SalesOrders as so).</summary>
     private static readonly Fld[] SalesHeaderFields =
@@ -122,9 +124,11 @@ public static class AnalyticsCatalog
         Dim("csMan", "Salesman", "so.CsMan"),
         Dim("termDays", "Term (days)", "so.TermDays", "int"),
         Dim("workflowStatus", "Workflow Status", "so.WorkflowStatus", sort: StatusSort, drill: "branch",
-            desc: "Entered -> Downloaded -> Processed -> Deallocated -> Invoiced."),
-        Flag("invoiced", "Invoiced?", "so.InvNo IS NOT NULL"),
-        Flag("delivered", "Delivered?", "so.Delivered IS NOT NULL"),
+            desc: "Entered -> Downloaded -> Processed -> Deallocated -> Invoiced -> Invoiced with RFC / Full RFC; Cancelled = invoice voided in BMS (a1174)."),
+        Flag("invoiced", "Invoiced?", $"so.InvNo IS NOT NULL AND {Live}"),
+        Flag("delivered", "Delivered?", $"so.Delivered IS NOT NULL AND {Live}"),
+        Flag("invCancelled", "Invoice Cancelled?", "so.WorkflowStatus = 'Cancelled'"),
+        Flag("hasRfc", "Has RFC (Return)?", "EXISTS (SELECT 1 FROM SalesOrderRfcs r WHERE r.SoId = so.SoId)"),
         Flag("pendingSync", "Pending Bridge Sync?", "so.NeedsResync = 1 OR so.SoNo IS NULL"),
         Flag("resyncFailed", "Resync Failed?", "so.ResyncFailed = 1"),
         Flag("cancelled", "Has Cancel Date?", "so.CancelDate IS NOT NULL"),
@@ -165,11 +169,17 @@ public static class AnalyticsCatalog
         $"CASE WHEN sy.Synced = 1 THEN CASE WHEN l.OrderedPcs > {AllocPcs} THEN l.OrderedPcs - {AllocPcs} ELSE 0 END END";
     private const string ListPriceVat = "(px.Base + px.Z1 + px.Z2) * (1 + COALESCE(NULLIF(l.TaxRate,0), 0.12))";
 
+    /// <summary>Invoice cancelled in BMS (a1174 Invoice Cancellation — void). Its invoice details
+    /// are kept on the order for the record, so every invoiced/delivered measure must exclude it
+    /// explicitly. RFC'd invoices ("Invoiced with RFC" / "Full RFC") stay Live: they're real
+    /// invoices with returns — see rfcAmt / netInvAmt.</summary>
+    private const string Live = "so.WorkflowStatus <> 'Cancelled'";
+
     /// <summary>INV CS in pieces — the invoice-time BMS allocation snapshot (same source as the SO screen's INV CS column). A line missing from the snapshot = 0 invoiced.</summary>
-    private const string InvPcs = $"CASE WHEN so.InvNo IS NOT NULL AND sy.Synced = 1 THEN {AllocPcs} END";
+    private const string InvPcs = $"CASE WHEN so.InvNo IS NOT NULL AND {Live} AND sy.Synced = 1 THEN {AllocPcs} END";
 
     /// <summary>Delivered pieces: BMS-reconciled received qty; until BMS reconciles, a Delivered order is assumed to have received its INV CS.</summary>
-    private const string DelivPcs = $"COALESCE(l.ReceivedPcs, CASE WHEN so.Delivered IS NOT NULL THEN {InvPcs} END)";
+    private const string DelivPcs = $"CASE WHEN {Live} THEN COALESCE(l.ReceivedPcs, CASE WHEN so.Delivered IS NOT NULL THEN {InvPcs} END) END";
     private static readonly string[] Inv = ["o", "sy"];
 
     /// <summary>
@@ -246,11 +256,15 @@ public static class AnalyticsCatalog
             [
                 .. SalesHeaderFields,
                 Calc("orders", "Orders", "COUNT(*)", "int", "int"),
-                Msr("invAmt", "Invoiced Amount", "so.InvAmt", format: "php", desc: "Real BMS invoice amount (only on invoiced orders)."),
-                Calc("invoicedOrders", "Invoiced Orders", "SUM(CASE WHEN so.InvNo IS NOT NULL THEN 1 ELSE 0 END)", "int", "int"),
-                Calc("deliveredOrders", "Delivered Orders", "SUM(CASE WHEN so.Delivered IS NOT NULL THEN 1 ELSE 0 END)", "int", "int"),
+                Msr("invAmt", "Invoiced Amount", $"CASE WHEN {Live} THEN so.InvAmt END", format: "php", desc: "Real BMS invoice amount, gross of returns (invoiced orders; cancelled invoices excluded)."),
+                Msr("rfcAmt", "RFC Amount", $"CASE WHEN {Live} THEN rf.Amt END", format: "php", joins: ["rf"],
+                    desc: "Returned value from posted BMS RFCs against the invoice, VAT-inclusive (imtr_det SPAMT + TAX) — comparable with Invoiced Amount."),
+                Msr("netInvAmt", "Net Invoiced", $"CASE WHEN {Live} THEN so.InvAmt - ISNULL(rf.Amt, 0) END", format: "php", joins: ["rf"],
+                    desc: "Invoiced Amount less RFC Amount."),
+                Calc("invoicedOrders", "Invoiced Orders", $"SUM(CASE WHEN so.InvNo IS NOT NULL AND {Live} THEN 1 ELSE 0 END)", "int", "int"),
+                Calc("deliveredOrders", "Delivered Orders", $"SUM(CASE WHEN so.Delivered IS NOT NULL AND {Live} THEN 1 ELSE 0 END)", "int", "int"),
                 Msr("daysOutstanding", "Days Since Invoice (undelivered)",
-                    "CASE WHEN so.InvNo IS NOT NULL AND so.Delivered IS NULL THEN DATEDIFF(day, so.InvDate, @today) END",
+                    $"CASE WHEN so.InvNo IS NOT NULL AND so.Delivered IS NULL AND {Live} THEN DATEDIFF(day, so.InvDate, @today) END",
                     "max", "daysSev", "int", additive: false, desc: "Days an invoiced order has waited for delivery (Manila today). 4+ days = serious, 8+ = critical."),
                 Msr("orderToInvoiceDays", "Order to Invoice Days",
                     "CASE WHEN so.InvDate >= so.OrderDate THEN DATEDIFF(day, so.OrderDate, so.InvDate) END",
@@ -319,7 +333,7 @@ public static class AnalyticsCatalog
                     desc: "INV CS — the invoice-time BMS allocation, same as the Sales Order screen. Invoiced orders only; a line cut from the invoice = 0."),
                 Msr("receivedCases", "Delivered Cases", $"{DelivPcs} * 1.0 / NULLIF(l.Pieces, 0)", format: "dec", joins: Inv,
                     desc: "Delivered orders only: BMS-reconciled received cases (VSDET), else INV CS (assumed fully received until BMS reconciles)."),
-                Msr("receivedAmt", "Delivered Amount", "COALESCE(l.ReceivedAmt, CASE WHEN so.Delivered IS NOT NULL THEN o.NetAmt END)", format: "php", joins: ["o"],
+                Msr("receivedAmt", "Delivered Amount", $"CASE WHEN {Live} THEN COALESCE(l.ReceivedAmt, CASE WHEN so.Delivered IS NOT NULL THEN o.NetAmt END) END", format: "php", joins: ["o"],
                     desc: "BMS-reconciled received amount, else the invoiced line amount (NETAMT) for delivered orders."),
                 Msr("undeliveredCases", "Undelivered CS",
                     $"CASE WHEN {DelivPcs} IS NOT NULL THEN CASE WHEN l.OrderedPcs > {DelivPcs} THEN l.OrderedPcs - {DelivPcs} ELSE 0 END * 1.0 / NULLIF(l.Pieces, 0) END",

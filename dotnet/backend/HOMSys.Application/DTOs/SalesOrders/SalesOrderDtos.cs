@@ -77,6 +77,38 @@ public class SalesOrderLineDto
     public int? ReceivedQtyPc { get; set; }
     public decimal? ReceivedAmt { get; set; }
     public string? ReceivedStatus { get; set; }
+
+    /// <summary>BMS-owned — total returned via posted RFCs for this SKU (raw CS/PC sums
+    /// across RFC lines). Null when the order has no RFC for it.</summary>
+    public int? RfcQtyCs { get; set; }
+    public int? RfcQtyPc { get; set; }
+}
+
+/// <summary>A posted BMS RFC against the order's invoice (read-only).</summary>
+public class SalesOrderRfcDto
+{
+    public int RfcNo { get; set; }
+    public int InvNo { get; set; }
+    /// <summary>The approved RSR (c1110k2) this RFC was moved from.</summary>
+    public int? RsrNo { get; set; }
+    public DateOnly? RfcDate { get; set; }
+    public DateOnly? PostedDate { get; set; }
+    public string? UserName { get; set; }
+    public string? Remarks { get; set; }
+    public string? Remarks2 { get; set; }
+    public List<SalesOrderRfcLineDto> Lines { get; set; } = [];
+}
+
+public class SalesOrderRfcLineDto
+{
+    public string CProdNo { get; set; } = string.Empty;
+    public int QtyCs { get; set; }
+    public int QtyPc { get; set; }
+    public decimal SpAmt { get; set; }
+    public decimal Tax { get; set; }
+    public string? RetCode { get; set; }
+    public string? RsNo { get; set; }
+    public string? Remarks { get; set; }
 }
 
 public class SalesOrderDto
@@ -115,6 +147,12 @@ public class SalesOrderDto
     public DateOnly? InvDate { get; set; }
     public decimal? InvAmt { get; set; }
 
+    /// <summary>BMS-owned — set when BMS cancels the invoice (a1174.scx only — an RFC is a return, see Rfcs). InvNo/InvDate/InvAmt are kept.</summary>
+    public int? CancelledInvNo { get; set; }
+    public DateOnly? InvCancelDate { get; set; }
+    public string? InvCancelRemarks { get; set; }
+    public string? InvCancelledBy { get; set; }
+
     /// <summary>True once pushed to BMS (SoNo assigned) — cleared again once BMS
     /// deallocates the order. Edits are refused while true.</summary>
     public bool IsLocked { get; set; }
@@ -127,7 +165,7 @@ public class SalesOrderDto
     /// resync onto — surfaced instead of leaving NeedsResync stuck true.</summary>
     public bool ResyncFailed { get; set; }
 
-    /// <summary>Entered / Downloaded / Processed / Deallocated / Invoiced. Display-only.</summary>
+    /// <summary>Entered / Downloaded / Processed / Deallocated / Invoiced / Invoiced with RFC / Full RFC / Cancelled. Display-only.</summary>
     public string WorkflowStatus { get; set; } = "Entered";
 
     /// <summary>BMS-owned — Date Cust. Rec. from VSHDR.DELIVERED, pushed by a1146F's
@@ -135,7 +173,8 @@ public class SalesOrderDto
     public DateOnly? Delivered { get; set; }
 
     /// <summary>BMS-owned — VSHDR.STATUS ("1" Delivered / "2" Rejected / "3" Undelivered),
-    /// pushed alongside Delivered. Distinct from WorkflowStatus.</summary>
+    /// pushed alongside Delivered. Distinct from WorkflowStatus. HOMSys-derived, never
+    /// stored: "C" = invoice cancelled in BMS, "R" = Returned (Full RFC).</summary>
     public string? DeliveryStatus { get; set; }
 
     /// <summary>BMS-owned — VSHDR delivery-run fields (Search VS by Invoice#
@@ -163,6 +202,13 @@ public class SalesOrderDto
     public string CreatedBy { get; set; } = string.Empty;
 
     public List<SalesOrderLineDto> Lines { get; set; } = [];
+
+    /// <summary>Posted BMS RFCs against this order's invoice.</summary>
+    public List<SalesOrderRfcDto> Rfcs { get; set; } = [];
+
+    /// <summary>Number of posted RFCs, and their total returned value, VAT-inclusive (Σ imtr_det SPAMT + TAX; null when none).</summary>
+    public int RfcCount { get; set; }
+    public decimal? RfcAmt { get; set; }
 }
 
 /// <summary>Customer context returned when the operator keys a customer key.</summary>
@@ -319,6 +365,96 @@ public class BridgeInvoiceDto
     public int InvNo { get; set; }
     public DateOnly InvDate { get; set; }
     public decimal InvAmt { get; set; }
+}
+
+/// <summary>One row of GET /api/salesorders/bridge/reconcile-candidates — HOMSys's
+/// current view of an order the bridge's reconciliation sweep compares against
+/// BMS (oowkhdr/oocuhdr, VSHDR, DOCCANCEL, IMTR_HDR RFCs).</summary>
+public class BridgeReconcileCandidateDto
+{
+    public int SoNo { get; set; }
+    public int? InvNo { get; set; }
+    public int? CancelledInvNo { get; set; }
+    public string WorkflowStatus { get; set; } = string.Empty;
+    public bool IsLocked { get; set; }
+    public bool NeedsResync { get; set; }
+    public DateOnly? Delivered { get; set; }
+    public string? DeliveryStatus { get; set; }
+
+    /// <summary>RFC numbers HOMSys already holds for this order — the sweep re-posts
+    /// the invoice's RFC snapshot when BMS's posted set differs.</summary>
+    public List<int> RfcNos { get; set; } = [];
+}
+
+/// <summary>Body of POST /api/salesorders/bridge/invoice-rfcs — posted BMS RFCs
+/// grouped per invoice (a batch, so one scan = one request).</summary>
+public class BridgeRfcSyncDto
+{
+    public List<BridgeRfcInvoiceDto> Invoices { get; set; } = [];
+}
+
+/// <summary>Posted RFCs for one invoice that the bridge hasn't uploaded before — merged
+/// into the order's RFCs, never replacing them. SoNo is 0/null when unresolved.</summary>
+public class BridgeRfcInvoiceDto
+{
+    public int? SoNo { get; set; }
+    public int InvNo { get; set; }
+    public List<BridgeRfcDto> Rfcs { get; set; } = [];
+}
+
+public class BridgeRfcDto
+{
+    public int RfcNo { get; set; }
+    public int? RsrNo { get; set; }
+    public DateOnly? RfcDate { get; set; }
+    public DateOnly? PostedDate { get; set; }
+    public string? UserName { get; set; }
+    public string? Remarks { get; set; }
+    public string? Remarks2 { get; set; }
+    public List<BridgeRfcLineDto> Lines { get; set; } = [];
+}
+
+public class BridgeRfcLineDto
+{
+    public string CProdNo { get; set; } = string.Empty;
+    public int QtyCs { get; set; }
+    public int QtyPc { get; set; }
+    public int Pieces { get; set; }
+    public decimal SpAmt { get; set; }
+    public decimal Amt { get; set; }
+    public decimal Tax { get; set; }
+    public decimal DiscAmt1 { get; set; }
+    public decimal DiscAmt2 { get; set; }
+    public string? RetCode { get; set; }
+    public string? RsNo { get; set; }
+    public string? Remarks { get; set; }
+}
+
+/// <summary>GET /api/salesorders/bridge-status — per-branch bridge heartbeat for the UI.</summary>
+public class BridgeStatusDto
+{
+    public string Branch { get; set; } = string.Empty;
+    public DateTime LastSyncedUtc { get; set; }
+    public bool Stale { get; set; }
+}
+
+/// <summary>Body of POST /api/salesorders/bridge/invoice-cancel. Read by the
+/// bridge off DOCCANCEL.DBF (a1174.scx cancellation) or IMTR_HDR (c1110bb.scx
+/// RFC-from-invoice). SoNo is 0/null when the form couldn't resolve it — the
+/// order is then matched on InvNo instead.</summary>
+public class BridgeInvoiceCancelDto
+{
+    public int? SoNo { get; set; }
+    public int InvNo { get; set; }
+    public DateOnly? CancelDate { get; set; }
+    public string? Remarks { get; set; }
+    public string? CancelledBy { get; set; }
+
+    /// <summary>Invoice date/amount as BMS recorded them at cancel time (DOCCANCEL
+    /// DOCDATE/AMOUNT, or the RFC's REFDATE1) — only used to fill details HOMSys
+    /// never received via the invoice sync; existing values are never overwritten.</summary>
+    public DateOnly? InvDate { get; set; }
+    public decimal? InvAmt { get; set; }
 }
 
 /// <summary>Body of POST /api/salesorders/bridge/by-sono/{soNo}/delivery.

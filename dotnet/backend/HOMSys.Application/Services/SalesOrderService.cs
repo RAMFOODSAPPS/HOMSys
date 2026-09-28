@@ -23,7 +23,8 @@ public class SalesOrderService(
     ICustomerIdentifierMapRepository identifierMapRepo,
     IUnitOfWork uow,
     IHttpContextAccessor http,
-    PriceCalculationService priceCalc)
+    PriceCalculationService priceCalc,
+    ISyncLogRepository syncLogRepo)
 {
     private string CurrentUser =>
         http.HttpContext?.User?.FindFirstValue(ClaimTypes.Name) ?? "system";
@@ -475,11 +476,30 @@ public class SalesOrderService(
         }
     }
 
+    /// <summary>Per-branch SalesOrderBridge heartbeat for the Sales Orders page —
+    /// just the caller's own branch when branch-locked, else every branch.</summary>
+    public async Task<IEnumerable<BridgeStatusDto>> GetBridgeStatusAsync()
+    {
+        var rows = await syncLogRepo.GetByPrefixAsync(SyncLogSections.SoBridgePrefix);
+        return rows
+            .Select(r => new BridgeStatusDto
+            {
+                Branch = r.Section[SyncLogSections.SoBridgePrefix.Length..],
+                LastSyncedUtc = r.LastSyncedUtc,
+                Stale = DateTime.UtcNow - r.LastSyncedUtc > SalesOrderBridgeService.StaleAfter
+            })
+            .Where(s => string.IsNullOrEmpty(CurrentBranch) || s.Branch == CurrentBranch)
+            .ToList();
+    }
+
     public async Task<(SalesOrderDto? order, string? error)> UpdateAsync(int soId, CreateSalesOrderDto dto)
     {
         var order = await orderRepo.GetForUpdateAsync(soId);
         if (order is null || (!string.IsNullOrEmpty(CurrentBranch) && order.Branch != CurrentBranch))
             return (null, $"Sales order {soId} not found.");
+
+        if (order.WorkflowStatus == "Cancelled")
+            return (null, $"Sales order {soId}'s invoice (INV# {order.CancelledInvNo}) was cancelled in BMS. It cannot be edited — encode a new order instead.");
 
         if (order.InvNo is not null)
             return (null, $"Sales order {soId} has already been invoiced (INV# {order.InvNo}) and cannot be edited.");
@@ -489,6 +509,19 @@ public class SalesOrderService(
 
         if (order.IsLocked)
             return (null, $"Sales order {soId} is locked — it was pushed to BMS as SO# {order.SoNo}. Deallocate it in BMS first.");
+
+        // Offline guard: once an order is in BMS, a "Processed" lock from the
+        // branch may be sitting undelivered in its bridge outbox. If the branch
+        // hasn't reached HOMSys recently, don't let an edit (which would be
+        // resynced into BMS) race it. No heartbeat row at all = branch not on the
+        // outbox-capable bridge yet, so nothing to go on — allowed, as before.
+        if (order.SoNo is not null && !string.IsNullOrEmpty(order.Branch))
+        {
+            var lastSeen = await syncLogRepo.GetLastSyncedAsync(SyncLogSections.SoBridge(order.Branch));
+            if (lastSeen is not null && DateTime.UtcNow - lastSeen.Value > SalesOrderBridgeService.StaleAfter)
+                return (null, $"Branch {order.Branch}'s BMS hasn't synced with HOMSys since {lastSeen.Value.AddHours(8):MM/dd/yyyy h:mm tt} (PH time). " +
+                              $"BMS may already have processed SO# {order.SoNo}, so editing is blocked until the branch reconnects.");
+        }
 
         var custKey = (dto.CustKey ?? string.Empty).Trim();
         if (string.IsNullOrEmpty(custKey))
@@ -668,6 +701,7 @@ public class SalesOrderService(
     {
         var dto = BuildDto(o);
         ApplyOosStatus(o, dto.Lines);
+        ApplyRfcQty(o, dto.Lines);
         return dto;
     }
 
@@ -695,12 +729,23 @@ public class SalesOrderService(
         InvNo = o.InvNo,
         InvDate = o.InvDate,
         InvAmt = o.InvAmt,
+        CancelledInvNo = o.CancelledInvNo,
+        InvCancelDate = o.InvCancelDate,
+        InvCancelRemarks = o.InvCancelRemarks,
+        InvCancelledBy = o.InvCancelledBy,
         IsLocked = o.IsLocked,
         NeedsResync = o.NeedsResync,
         ResyncFailed = o.ResyncFailed,
         WorkflowStatus = o.WorkflowStatus,
         Delivered = o.Delivered,
-        DeliveryStatus = o.Status,
+        // A cancelled invoice reads as "C" (Cancelled), a Full RFC as "R" (Returned),
+        // whatever VSHDR last said; the BMS-owned Status column itself is untouched.
+        DeliveryStatus = o.WorkflowStatus switch
+        {
+            "Cancelled" => "C",
+            SalesOrderBridgeService.FullRfc => "R",
+            _ => o.Status
+        },
         VsNo = o.VsNo,
         VsDate = o.VsDate,
         PlateNo = o.PlateNo,
@@ -731,7 +776,47 @@ public class SalesOrderService(
             ReceivedQtyCs = l.ReceivedQtyCs,
             ReceivedQtyPc = l.ReceivedQtyPc,
             ReceivedAmt = l.ReceivedAmt,
-            ReceivedStatus = l.ReceivedStatus
+            ReceivedStatus = l.ReceivedStatus,
+        }).ToList(),
+        RfcCount = o.Rfcs.Count,
+        RfcAmt = o.Rfcs.Count > 0 ? o.Rfcs.SelectMany(r => r.Lines).Sum(l => l.SpAmt + l.Tax) : null,  // VAT-inclusive, like InvAmt
+        Rfcs = o.Rfcs.OrderBy(r => r.RfcNo).Select(r => new SalesOrderRfcDto
+        {
+            RfcNo = r.RfcNo,
+            InvNo = r.InvNo,
+            RsrNo = r.RsrNo,
+            RfcDate = r.RfcDate,
+            PostedDate = r.PostedDate,
+            UserName = r.UserName,
+            Remarks = r.Remarks,
+            Remarks2 = r.Remarks2,
+            Lines = r.Lines.OrderBy(l => l.CProdNo).Select(l => new SalesOrderRfcLineDto
+            {
+                CProdNo = l.CProdNo,
+                QtyCs = l.QtyCs,
+                QtyPc = l.QtyPc,
+                SpAmt = l.SpAmt,
+                Tax = l.Tax,
+                RetCode = l.RetCode,
+                RsNo = l.RsNo,
+                Remarks = l.Remarks
+            }).ToList()
         }).ToList()
     };
+
+    /// <summary>Per-SKU returned CS/PC across all posted RFCs, put on the FIRST line
+    /// of each SKU only — an order with the same SKU on two lines must not show
+    /// (and total) the return twice.</summary>
+    private static void ApplyRfcQty(SalesOrder o, IReadOnlyList<SalesOrderLineDto> lineDtos)
+    {
+        if (o.Rfcs.Count == 0) return;
+        var bySku = o.Rfcs.SelectMany(r => r.Lines).GroupBy(l => l.CProdNo)
+            .ToDictionary(g => g.Key, g => (Cs: g.Sum(l => l.QtyCs), Pc: g.Sum(l => l.QtyPc)));
+        foreach (var dto in lineDtos)
+        {
+            if (!bySku.Remove(dto.CProdNo, out var q)) continue;
+            dto.RfcQtyCs = q.Cs;
+            dto.RfcQtyPc = q.Pc;
+        }
+    }
 }

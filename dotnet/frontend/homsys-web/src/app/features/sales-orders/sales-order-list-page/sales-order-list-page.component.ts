@@ -14,7 +14,7 @@ import { MessageService, ConfirmationService } from 'primeng/api';
 import { GlobalToolbarService } from '../../../core/services/global-toolbar.service';
 import { SalesOrderService } from '../../../core/services/sales-order.service';
 import { TabBarService } from '../../../core/services/tab-bar.service';
-import { SalesOrderDto, SalesOrderLineDto, ImportedOrderDraft } from '../../../core/models/sales-order.model';
+import { SalesOrderDto, SalesOrderLineDto, ImportedOrderDraft, BridgeStatusDto, SalesOrderRfcDto } from '../../../core/models/sales-order.model';
 import { ImportDialogComponent, ImportColumn, ImportEnrichColumn } from '../../../shared/import-dialog/import-dialog.component';
 import { CustomerMappingDialogComponent } from '../customer-mapping-dialog/customer-mapping-dialog.component';
 
@@ -105,6 +105,19 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
         [identifiers]="pendingIdentifiers"
         (mapped)="onIdentifiersMapped($event)" />
 
+      @if (staleBridges().length) {
+        <p-message severity="warn" styleClass="w-full mb-3">
+          <span>
+            BMS sync delayed —
+            @for (b of staleBridges(); track b.branch) {
+              <b>{{ b.branch }}</b> last synced {{ ago(b.lastSyncedUtc) }}{{ $last ? '.' : ', ' }}
+            }
+            BMS status shown here may be behind (the branch is likely offline; nothing is lost, it catches up when it reconnects).
+            Editing orders already in BMS is blocked until then.
+          </span>
+        </p-message>
+      }
+
       @if (apiError()) {
         <p-message severity="error" styleClass="w-full mb-3">
           <span>{{ apiError() }}</span>
@@ -129,6 +142,8 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
             <th pSortableColumn="invNo">Invoice <p-sortIcon field="invNo" /></th>
             <th pSortableColumn="invDate">Invoice Date <p-sortIcon field="invDate" /></th>
             <th pSortableColumn="estAmt">Total Amt <p-sortIcon field="estAmt" /></th>
+            <th pSortableColumn="rfcCount" style="text-align: center">RFC <p-sortIcon field="rfcCount" /></th>
+            <th pSortableColumn="rfcAmt">RFC Amt <p-sortIcon field="rfcAmt" /></th>
             <th pSortableColumn="createdBy">Encoded By <p-sortIcon field="createdBy" /></th>
             <th style="width: 90px"></th>
           </tr>
@@ -154,7 +169,8 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
             <td>{{ o.custKey }}</td>
             <td>{{ o.cusName }}</td>
             <td>{{ o.poNum }}</td>
-            <td><p-tag [severity]="statusSeverity(o.workflowStatus)" [value]="o.workflowStatus || 'Entered'" /></td>
+            <td><p-tag [severity]="statusSeverity(o.workflowStatus)" [value]="o.workflowStatus || 'Entered'"
+                       [pTooltip]="o.cancelledInvNo ? cancelTooltip(o) : undefined" /></td>
             <td>
               @if (o.deliveryStatus) {
                 <p-tag [severity]="deliverySeverity(o.deliveryStatus)" [value]="deliveryLabel(o.deliveryStatus)"
@@ -170,22 +186,37 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
                 0
               }
             </td>
-            <td>{{ o.invNo ?? '—' }}</td>
-            <td>{{ o.invDate ? (o.invDate | date: 'MM/dd/yyyy') : '—' }}</td>
-            <td [pTooltip]="o.invAmt == null ? 'Estimate from current price quotes — not yet invoiced' : undefined">
-              {{ (o.invAmt ?? o.estAmt) | currency: 'PHP' }}{{ o.invAmt == null ? ' *' : '' }}
+            <td>
+              @if (o.cancelledInvNo) { <s class="text-muted" [pTooltip]="cancelTooltip(o)">{{ o.invNo ?? o.cancelledInvNo }}</s> }
+              @else if (o.invNo) { {{ o.invNo }} }
+              @else { — }
             </td>
+            <td>{{ o.invDate ? (o.invDate | date: 'MM/dd/yyyy') : '—' }}</td>
+            <td [pTooltip]="o.cancelledInvNo ? cancelTooltip(o) : (o.invAmt == null ? 'Estimate from current price quotes — not yet invoiced' : undefined)">
+              @if (o.cancelledInvNo) {
+                @if (o.invAmt != null) { <s class="text-muted">{{ o.invAmt | currency: 'PHP' }}</s> } @else { — }
+              }
+              @else { {{ (o.invAmt ?? o.estAmt) | currency: 'PHP' }}{{ o.invAmt == null ? ' *' : '' }} }
+            </td>
+            <td style="text-align: center">
+              @if (o.rfcCount) {
+                <a href="javascript:void(0)" class="so-link" (click)="viewRfcs(o)" pTooltip="View RFCs for this invoice">{{ o.rfcCount }}</a>
+              } @else {
+                0
+              }
+            </td>
+            <td>{{ o.rfcAmt != null ? (o.rfcAmt | currency: 'PHP') : '—' }}</td>
             <td>{{ o.createdBy }}</td>
             <td>
               <p-button icon="pi pi-eye" [text]="true" (onClick)="view(o)" pTooltip="View" tooltipPosition="left" />
               <p-button icon="pi pi-pencil" [text]="true" [disabled]="!!o.invNo || !!o.isLocked" (onClick)="edit(o)"
                         [class.edit-disabled]="!!o.invNo || !!o.isLocked" tooltipPosition="left"
-                        [pTooltip]="o.invNo ? 'Already invoiced — cannot edit' : (o.isLocked ? (o.needsResync ? 'Locked — syncing edit to BMS' : 'Locked — pushed to BMS') : 'Edit')" />
+                        [pTooltip]="o.cancelledInvNo ? 'Invoice cancelled in BMS — cannot edit' : o.invNo ? 'Already invoiced — cannot edit' : (o.isLocked ? (o.needsResync ? 'Locked — syncing edit to BMS' : 'Locked — pushed to BMS') : 'Edit')" />
             </td>
           </tr>
         </ng-template>
         <ng-template pTemplate="emptymessage">
-          <tr><td colspan="14">No sales orders encoded yet.</td></tr>
+          <tr><td colspan="16">No sales orders encoded yet.</td></tr>
         </ng-template>
       </p-table>
 
@@ -212,6 +243,40 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
                   <td>{{ l.allocCs }} / {{ l.allocPc }}</td>
                   <td>{{ l.oosCs }} / {{ l.oosPc }}</td>
                   <td>{{ l.amt == null ? '—' : (l.amt | currency: 'PHP') }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </p-dialog>
+
+      <p-dialog [(visible)]="rfcDetailsVisible" [modal]="true" [style]="{ width: '46rem' }"
+                [header]="'RFCs — INV# ' + (selectedRfcOrder()?.invNo ?? '') + ' | SO# ' + (selectedRfcOrder()?.soNo ?? selectedRfcOrder()?.soId)">
+        @if (selectedRfcOrder(); as o) {
+          <table class="detail-table">
+            <thead>
+              <tr>
+                <th>RFC #</th>
+                <th>RSR #</th>
+                <th>RFC Date</th>
+                <th>Posted</th>
+                <th>User</th>
+                <th>Lines</th>
+                <th>Amount</th>
+                <th>Remarks</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of o.rfcs ?? []; track r.rfcNo) {
+                <tr>
+                  <td><a href="javascript:void(0)" class="so-link" (click)="openRfc(o)" pTooltip="Open View — SO# {{ o.soNo ?? o.soId }}">{{ r.rfcNo }}</a></td>
+                  <td>{{ r.rsrNo ?? '—' }}</td>
+                  <td>{{ r.rfcDate ? (r.rfcDate | date: 'MM/dd/yyyy') : '—' }}</td>
+                  <td>{{ r.postedDate ? (r.postedDate | date: 'MM/dd/yyyy') : '—' }}</td>
+                  <td>{{ r.userName ?? '—' }}</td>
+                  <td>{{ r.lines.length }}</td>
+                  <td>{{ rfcTotal(r) | currency: 'PHP' }}</td>
+                  <td>{{ [r.remarks, r.remarks2].join(' ').trim() || '—' }}</td>
                 </tr>
               }
             </tbody>
@@ -270,6 +335,7 @@ export class SalesOrderListPageComponent implements OnInit, OnDestroy {
   private confirmSvc = inject(ConfirmationService);
 
   orders = signal<SalesOrderDto[]>([]);
+  staleBridges = signal<BridgeStatusDto[]>([]);
   loading = signal(false);
   apiError = signal<string | null>(null);
   searchTerm = signal('');
@@ -278,6 +344,8 @@ export class SalesOrderListPageComponent implements OnInit, OnDestroy {
   mappingVisible = false;
   oosDetailsVisible = false;
   selectedOosOrder = signal<SalesOrderDto | null>(null);
+  rfcDetailsVisible = false;
+  selectedRfcOrder = signal<SalesOrderDto | null>(null);
 
   /** cProdNo|custKey -> price per case, ex-VAT. Fetched lazily when OOS details are opened. */
   private priceCache = new Map<string, number | null>();
@@ -580,6 +648,22 @@ export class SalesOrderListPageComponent implements OnInit, OnDestroy {
     this.router.navigate(['/sales-orders'], { state: { soId: o.soId, mode: 'view' } });
   }
 
+  /** RFC count click: list this invoice's posted RFCs. */
+  viewRfcs(o: SalesOrderDto): void {
+    this.selectedRfcOrder.set(o);
+    this.rfcDetailsVisible = true;
+  }
+
+  /** RFC # click: close the list and open View — SO# for the order it belongs to. */
+  openRfc(o: SalesOrderDto): void {
+    this.rfcDetailsVisible = false;
+    this.view(o);
+  }
+
+  rfcTotal(r: SalesOrderRfcDto): number {
+    return r.lines.reduce((sum, l) => sum + (l.spAmt || 0) + (l.tax || 0), 0);  // VAT-inclusive
+  }
+
   edit(o: SalesOrderDto): void {
     this.router.navigate(['/sales-orders'], { state: { soId: o.soId, mode: 'edit' } });
   }
@@ -650,14 +734,24 @@ export class SalesOrderListPageComponent implements OnInit, OnDestroy {
     };
   }
 
-  statusSeverity(status?: string): 'secondary' | 'info' | 'success' | 'warn' {
+  statusSeverity(status?: string): 'secondary' | 'info' | 'success' | 'warn' | 'danger' {
     switch (status) {
       case 'Downloaded': return 'info';
       case 'Processed': return 'success';
       case 'Deallocated': return 'warn';
       case 'Invoiced': return 'success';
+      case 'Invoiced with RFC': return 'warn';
+      case 'Full RFC': return 'danger';
+      case 'Cancelled': return 'danger';
       default: return 'secondary';
     }
+  }
+
+  cancelTooltip(o: SalesOrderDto): string {
+    const on = o.invCancelDate ? ` on ${new Date(o.invCancelDate).toLocaleDateString('en-US')}` : '';
+    const by = o.invCancelledBy ? ` by ${o.invCancelledBy}` : '';
+    const rem = o.invCancelRemarks ? ` — ${o.invCancelRemarks}` : '';
+    return `INV# ${o.cancelledInvNo} cancelled in BMS${on}${by}${rem}`;
   }
 
   /** VSHDR.STATUS codes from a1146F's Tag Delivered Invoices screen. */
@@ -666,6 +760,8 @@ export class SalesOrderListPageComponent implements OnInit, OnDestroy {
       case '1': return 'Delivered';
       case '2': return 'Rejected';
       case '3': return 'Undelivered';
+      case 'C': return 'Cancelled';
+      case 'R': return 'Returned';
       default: return status ?? '—';
     }
   }
@@ -675,11 +771,25 @@ export class SalesOrderListPageComponent implements OnInit, OnDestroy {
       case '1': return 'success';
       case '2': return 'danger';
       case '3': return 'warn';
+      case 'C': return 'danger';
+      case 'R': return 'danger';
       default: return 'secondary';
     }
   }
 
+  /** "12 min ago" / "3 h ago" / "2 d ago" for a UTC timestamp. */
+  ago(utc: string): string {
+    const mins = Math.max(0, Math.round((Date.now() - new Date(utc.endsWith('Z') ? utc : utc + 'Z').getTime()) / 60000));
+    if (mins < 60) return `${mins} min ago`;
+    if (mins < 48 * 60) return `${Math.round(mins / 60)} h ago`;
+    return `${Math.round(mins / 1440)} d ago`;
+  }
+
   private load(): void {
+    this.api.getBridgeStatus().subscribe({
+      next: res => this.staleBridges.set((res.data ?? []).filter(b => b.stale)),
+      error: () => this.staleBridges.set([])
+    });
     this.loading.set(true);
     this.api.getAll().subscribe({
       next: res => {
