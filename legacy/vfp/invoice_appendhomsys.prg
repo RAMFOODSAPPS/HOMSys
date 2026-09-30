@@ -75,21 +75,26 @@ ENDIF
 lcRoot = ADDBS(JUSTPATH(DBF("oowkhdr")))
 lcQueueRoot = lcRoot + "homsys_queue"
 
-IF NOT DIRECTORY(lcQueueRoot)
+* Nothing staged at all -- the usual case. (A target branch of offshore
+* orders may never have had a homsys_queue, so each root is checked on its own.)
+IF NOT DIRECTORY(lcQueueRoot) AND NOT DIRECTORY(lcRoot + "homsys_resync") ;
+        AND NOT DIRECTORY(lcRoot + "homsys_offshore_sent") AND NOT DIRECTORY(lcRoot + "homsys_offshore_in")
     RETURN
 ENDIF
 
 lcPriorErr = ON("ERROR")
 ON ERROR DO pAppendErr WITH lcPriorErr
 wait wind "HOMSYS-BMS - SYNC(0)..." NOWAIT
-lnDirs = ADIR(laDirs, ADDBS(lcQueueRoot) + "*.*", "D")
-FOR lnI = 1 TO lnDirs
-    wait wind "HOMSYS-BMS - SYNC(1)..." NOWAIT
-    IF INLIST(laDirs[lnI, 1], ".", "..") OR NOT "D" $ laDirs[lnI, 5]
-        LOOP
-    ENDIF
-    DO pAppendOrder WITH ADDBS(lcQueueRoot) + laDirs[lnI, 1], lcRoot
-ENDFOR
+IF DIRECTORY(lcQueueRoot)
+    lnDirs = ADIR(laDirs, ADDBS(lcQueueRoot) + "*.*", "D")
+    FOR lnI = 1 TO lnDirs
+        wait wind "HOMSYS-BMS - SYNC(1)..." NOWAIT
+        IF INLIST(laDirs[lnI, 1], ".", "..") OR NOT "D" $ laDirs[lnI, 5]
+            LOOP
+        ENDIF
+        DO pAppendOrder WITH ADDBS(lcQueueRoot) + laDirs[lnI, 1], lcRoot
+    ENDFOR
+ENDIF
 
 * Post-deallocation HOMSys edits, staged by SalesOrderBridge.exe's own
 * recover_resync() under a sibling folder (never homsys_queue -- these
@@ -105,6 +110,36 @@ IF DIRECTORY(lcResyncRoot)
             LOOP
         ENDIF
         DO pResyncOrder WITH ADDBS(lcResyncRoot) + laResyncDirs[lnJ, 1], lcRoot
+    ENDFOR
+ENDIF
+
+* Offshore hand-off (HON / LKA-HO -> For Branch), staged by
+* SalesOrderBridge.exe's offshore_sync(). Both folders are named by SO#.
+*   homsys_offshore_sent\<so#>\ -- origin: this order was uploaded to HOMSys
+*       for its For Branch; mark it "E" like UTIL18 download7 did.
+*   homsys_offshore_in\<so#>\   -- target: an offshore order handed to this
+*       branch; append it like UTIL19 uploadoowk did.
+LOCAL lcOffRoot, laOffDirs[1], lnOffDirs, lnK
+lcOffRoot = lcRoot + "homsys_offshore_sent"
+IF DIRECTORY(lcOffRoot)
+    lnOffDirs = ADIR(laOffDirs, ADDBS(lcOffRoot) + "*.*", "D")
+    FOR lnK = 1 TO lnOffDirs
+        IF INLIST(laOffDirs[lnK, 1], ".", "..") OR NOT "D" $ laOffDirs[lnK, 5] OR VAL(laOffDirs[lnK, 1]) = 0
+            LOOP
+        ENDIF
+        wait wind "HOMSYS-BMS - OFFSHORE(1)..." NOWAIT
+        DO pMarkOffshoreSent WITH ADDBS(lcOffRoot) + laOffDirs[lnK, 1], lcRoot, VAL(laOffDirs[lnK, 1])
+    ENDFOR
+ENDIF
+lcOffRoot = lcRoot + "homsys_offshore_in"
+IF DIRECTORY(lcOffRoot)
+    lnOffDirs = ADIR(laOffDirs, ADDBS(lcOffRoot) + "*.*", "D")
+    FOR lnK = 1 TO lnOffDirs
+        IF INLIST(laOffDirs[lnK, 1], ".", "..") OR NOT "D" $ laOffDirs[lnK, 5] OR VAL(laOffDirs[lnK, 1]) = 0
+            LOOP
+        ENDIF
+        wait wind "HOMSYS-BMS - OFFSHORE(2)..." NOWAIT
+        DO pAppendOffshore WITH ADDBS(lcOffRoot) + laOffDirs[lnK, 1], lcRoot
     ENDFOR
 ENDIF
 
@@ -378,6 +413,149 @@ USE IN _rshdr
 ENDPROC
 
 *======================================================================
+* --- local: pMarkOffshoreSent(lcDir, lcRoot, lnDocNo) ---
+* Origin side of the offshore hand-off. The (OFFSHORE) order is clean here --
+* Process/FCCOS/verify done, the Confirm Clean Orders condition -- and its
+* rows are on their way to HOMSys and its For Branch: the same "E" / "To
+* ADC-Picklist" UTIL18 download7 set on the orders it zipped, which also
+* drops it from Confirm Clean Orders. Only from 4/5/E/F -- any other status
+* means BMS has moved the order on, and it is left alone. The (empty) folder is removed once the mark is in; if
+* the REPLACE failed (row locked), it stays and the next pass retries.
+*======================================================================
+PROCEDURE pMarkOffshoreSent
+PARAMETERS lcDir, lcRoot, lnDocNo
+
+LOCAL llDone
+IF USED("_osreal")
+    USE IN _osreal
+ENDIF
+SELECT 0
+USE (lcRoot + "oowkhdr.dbf") SHARED AGAIN ALIAS _osreal
+SET ORDER TO docno
+SEEK lnDocNo
+llDone = .T.
+IF FOUND() AND INLIST(STATUS, "4", "5", "E", "F")
+    REPLACE STATUS WITH "E", STATDESC WITH "To ADC-Picklist"
+    FLUSH
+    llDone = .F.
+    IF USED("_osreal")
+        llDone = (_osreal.STATUS == "E")
+    ENDIF
+ENDIF
+IF USED("_osreal")
+    USE IN _osreal
+ENDIF
+IF llDone
+    RD (lcDir)
+ENDIF
+ENDPROC
+
+*======================================================================
+* --- local: pAppendOffshore(lcDir, lcRoot) ---
+* Target side of the offshore hand-off -- UTIL19 uploadoowk's job, fed by
+* HOMSys instead of an emailed B-file. The staged rows are the origin
+* branch's own oowkhdr/oowkdet/oowkdis, already set by SalesOrderBridge.exe
+* to status "5" "PickListed", PICKNO 0, keeping the origin's SO#. As in
+* UTIL19: an SO# already in oowkhdr, or already received once (appfccos), is
+* never appended again (DUP is flagged instead); the offwk* mirrors get the
+* same rows; appfccos records the receipt.
+*======================================================================
+PROCEDURE pAppendOffshore
+PARAMETERS lcDir, lcRoot
+
+LOCAL lcStageHdr, lnDocNo, lnWhseNo, lcCKey, lcCusName, lnFccosNo, llDup
+lcStageHdr = ADDBS(lcDir) + "stg_oowkhdr.dbf"
+IF NOT FILE(lcStageHdr)
+    RETURN
+ENDIF
+
+IF USED("_ofhdr")
+    USE IN _ofhdr
+ENDIF
+USE (lcStageHdr) SHARED ALIAS _ofhdr IN 0
+IF _ofhdr.APPENDED OR _ofhdr.DUP
+    * Handled on a prior pass -- SalesOrderBridge.exe reports it and removes the folder.
+    USE IN _ofhdr
+    RETURN
+ENDIF
+lnDocNo = _ofhdr.DOCNO
+lnWhseNo = _ofhdr.WHSENO
+lcCKey = _ofhdr.CKEY
+lcCusName = _ofhdr.CUSNAME
+lnFccosNo = _ofhdr.FCCOSNO
+USE IN _ofhdr
+
+llDup = .F.
+IF USED("_ofchk")
+    USE IN _ofchk
+ENDIF
+SELECT 0
+USE (lcRoot + "oowkhdr.dbf") SHARED AGAIN ALIAS _ofchk
+SET ORDER TO docno
+llDup = SEEK(lnDocNo)
+USE IN _ofchk
+IF NOT llDup AND FILE(lcRoot + "appfccos.dbf")
+    SELECT 0
+    USE (lcRoot + "appfccos.dbf") SHARED AGAIN ALIAS _ofchk
+    LOCATE FOR DOCNO = lnDocNo
+    llDup = FOUND()
+    USE IN _ofchk
+ENDIF
+
+IF NOT llDup
+    DO pAppendTable WITH lcStageHdr, lcRoot + "oowkhdr.dbf", ""
+    DO pAppendTable WITH ADDBS(lcDir) + "stg_oowkdet.dbf", lcRoot + "oowkdet.dbf", ""
+    IF FILE(lcRoot + "oowkdis.dbf")
+        DO pAppendTable WITH ADDBS(lcDir) + "stg_oowkdis.dbf", lcRoot + "oowkdis.dbf", ""
+    ENDIF
+
+    DO pOffshoreMirror WITH lcStageHdr, lcRoot + "offwkhdr.dbf", lnDocNo
+    DO pOffshoreMirror WITH ADDBS(lcDir) + "stg_oowkdet.dbf", lcRoot + "offwkdet.dbf", lnDocNo
+    DO pOffshoreMirror WITH ADDBS(lcDir) + "stg_oowkdis.dbf", lcRoot + "offwkdis.dbf", lnDocNo
+
+    IF FILE(lcRoot + "appfccos.dbf")
+        SELECT 0
+        USE (lcRoot + "appfccos.dbf") SHARED AGAIN ALIAS _ofchk
+        APPEND BLANK
+        REPLACE DOCNO WITH lnDocNo, WHSENO WITH lnWhseNo, CKEY WITH lcCKey, ;
+            CUSNAME WITH lcCusName, FCCOSNO WITH lnFccosNo
+        FLUSH
+        USE IN _ofchk
+    ENDIF
+ENDIF
+
+USE (lcStageHdr) SHARED ALIAS _ofhdr IN 0
+IF llDup
+    REPLACE DUP WITH .T. IN _ofhdr
+ELSE
+    REPLACE APPENDED WITH .T. IN _ofhdr
+ENDIF
+USE IN _ofhdr
+ENDPROC
+
+*======================================================================
+* --- local: pOffshoreMirror(lcStageTable, lcMirrorTable, lnDocNo) ---
+* UTIL19: "dele for docno = mdocno" then append the same rows into the
+* offwkhdr/offwkdet/offwkdis mirror. Skipped if either table is missing.
+*======================================================================
+PROCEDURE pOffshoreMirror
+PARAMETERS lcStageTable, lcMirrorTable, lnDocNo
+
+IF NOT FILE(lcStageTable) OR NOT FILE(lcMirrorTable)
+    RETURN
+ENDIF
+IF USED("_hsreal")
+    USE IN _hsreal
+ENDIF
+SELECT 0
+USE (lcMirrorTable) SHARED AGAIN ALIAS _hsreal
+DELETE FOR DOCNO = lnDocNo
+APPEND FROM (lcStageTable)
+FLUSH
+USE IN _hsreal
+ENDPROC
+
+*======================================================================
 * --- local: pAppendErr(lcPriorErr) ---
 *======================================================================
 * Runs synchronously inside the live BMS session -- never QUIT here.
@@ -390,6 +568,9 @@ IF USED("oowkhdr")
     lcLogRoot = ADDBS(JUSTPATH(DBF("oowkhdr")))
 ELSE
     lcLogRoot = ADDBS(SYS(5) + SYS(2003))
+ENDIF
+IF NOT DIRECTORY(lcLogRoot + "homsys_queue")
+    MD (lcLogRoot + "homsys_queue")
 ENDIF
 lcLog = lcLogRoot + "homsys_queue\append_errors.txt"
 STRTOFILE(TTOC(DATETIME()) + " ERR " + ALLTRIM(STR(LINENO())) + ": " + MESSAGE() + CHR(13) + CHR(10), ;
@@ -418,6 +599,15 @@ IF USED("_rsdet")
 ENDIF
 IF USED("_rsstgdet")
     USE IN _rsstgdet
+ENDIF
+IF USED("_osreal")
+    USE IN _osreal
+ENDIF
+IF USED("_ofhdr")
+    USE IN _ofhdr
+ENDIF
+IF USED("_ofchk")
+    USE IN _ofchk
 ENDIF
 
 ON ERROR &lcPriorErr

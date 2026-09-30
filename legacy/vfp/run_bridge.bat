@@ -25,4 +25,6 @@ REM directory, not a SYS(16)-derived full path. Same reasoning as the
 REM hardcoded vars above: this file has to ship into the live BMS program
 REM folder via BMS_auto_Distribution for that bare-name lookup to work,
 REM with no per-machine edit either way.
-"%~dp0SalesOrderBridge.exe" %1 %2 %3 %4
+REM %5 is optional -- the invoice number, passed only with the "CANCELINV"/"RFCINV"
+REM actions from a1174.scx (Invoice Cancellation) / c1110bb.scx (RFC from invoice).
+"%~dp0SalesOrderBridge.exe" %1 %2 %3 %4 %5

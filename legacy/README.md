@@ -20,6 +20,28 @@ Source: `\\itworks-pc\source\bms`
 | `a11102a.SCT` | 25,640 | 2025-11-24 17:34 |
 | `invoice.SCX` | 16,075 | 2026-08-05 11:53 |
 | `invoice.SCT` | 951,809 | 2026-08-05 11:53 |
+| `a1174.SCX` | 3,104 | 2023-07-18 |
+| `a1174.SCT` | 28,259 | 2023-07-18 |
+| `c1110bb.SCX` | 12,696 | 2025-04-28 |
+| `c1110bb.SCT` | 151,063 | 2025-04-28 |
+| `c1110k2.SCX` | 14,876 | 2026-07-28 |
+| `c1110k2.SCT` | 925,828 | 2026-07-28 |
+
+`a1174.SCX` is BMS Invoice Cancellation. Copied 2026-09-28 and **modified in
+place** (`CmdCancel.Click`: captures the SO# before the delete, then calls
+`run_bridge.bat ... "CANCELINV" <invno>`) — the copy here is no longer
+byte-identical to the source.
+
+`c1110bb.SCX` is Returns From Customer (RFC). Copied 2026-09-28; briefly patched,
+then **restored byte-identical to the source** (the HOMSys RFC trigger belongs in
+`c1110k2`, not here).
+
+`c1110k2.SCX` is RSR (Request for Stock Returns). Its **toRFC** button moves approved
+RSRs into auto-posted RFCs (`updaterfc`). The HOMSys hook goes in `CmdToRfc.Click`
+(`run_bridge.bat ... "0" "RFCPOST" "D"+DTOS(sysparam.transdate)`). **Modified**: the
+user's 19:59 edit (the `syncer.exe` call commented out) plus the HOMSys hook, inserted
+2026-09-28 20:46 and recompiled clean. `EXCEL9.H` was copied from the source share
+so `dexcel2html`'s `#INCLUDE` resolves when compiling here.
 
 `invoice.SCX` is the BMS Invoicing screen — the module immediately downstream
 of SO encoding. Staged 2026-08-19 to plan a manual/`Init`-time refresh of
