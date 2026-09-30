@@ -130,8 +130,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Username).IsUnique();
 
+        // Not unique: several logins may share one email. Username stays unique (the login).
         modelBuilder.Entity<User>()
-            .HasIndex(u => u.Email).IsUnique();
+            .HasIndex(u => u.Email);
 
         modelBuilder.Entity<Role>()
             .HasIndex(r => r.Name).IsUnique();

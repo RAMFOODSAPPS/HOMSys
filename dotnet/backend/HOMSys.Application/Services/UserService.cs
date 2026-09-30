@@ -25,8 +25,10 @@ public class UserService(IUserRepository userRepo, IRoleRepository roleRepo, IHt
 
     public async Task<(UserDto? user, string? generatedPassword, string? error)> CreateAsync(CreateUserDto dto)
     {
-        if (await userRepo.ExistsAsync(dto.Username, dto.Email))
-            return (null, null, "Username or email already exists.");
+        // Username is the login and must be unique; several accounts may share
+        // one email (e.g. a branch mailbox used by more than one encoder login).
+        if (await userRepo.ExistsAsync(dto.Username, string.Empty))
+            return (null, null, "Username already exists.");
 
         var roles = new List<Role>();
         foreach (var rid in dto.RoleIds)
@@ -78,9 +80,6 @@ public class UserService(IUserRepository userRepo, IRoleRepository roleRepo, IHt
     {
         var user = await userRepo.GetByIdAsync(id);
         if (user is null) return (null, "User not found.");
-
-        if (await userRepo.ExistsAsync(string.Empty, dto.Email, id))
-            return (null, "Email already in use by another user.");
 
         user.Email = dto.Email;
         user.FirstName = dto.FirstName;
