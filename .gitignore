@@ -45,3 +45,9 @@ appsettings.*.local.json
 .vs/
 .DS_Store
 Thumbs.db
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# Per-user Claude Code overrides.
+.claude/settings.local.json
