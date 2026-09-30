@@ -1,3 +1,4 @@
+using System.Text.Json;
 using HOMSys.Application.DTOs.SalesOrders;
 using HOMSys.Application.Interfaces;
 using HOMSys.Domain.Entities;
@@ -61,6 +62,98 @@ public class SalesOrderBridgeService(
             DeliveryStatus = o.Status,
             RfcNos = o.Rfcs.Select(r => r.RfcNo).OrderBy(n => n).ToList()
         }).ToList();
+    }
+
+    public const string Transferring = "Transferring";
+    public const string Transferred = "Transferred";
+
+    /// <summary>Origin side: SO#s of offshore orders in this branch's BMS still
+    /// waiting to be handed off. The bridge checks each against the live oowkhdr
+    /// (clean at the origin: Confirm Clean Orders condition) and uploads the ones that qualify.</summary>
+    public async Task<List<int>> GetOffshoreAwaitingAsync(string branch) =>
+        (await orderRepo.GetOffshoreAwaitingAsync(branch)).Select(o => o.SoNo!.Value).ToList();
+
+    /// <summary>
+    /// Origin side: stores the order's origin BMS rows and hands the order to
+    /// ForBranch — Branch flips, so every by-sono/reconcile path now belongs to
+    /// the target's bridge. Idempotent: a retried upload is a no-op. Conflict
+    /// when the target already has a HOMSys order with this SO# (the SO# is kept
+    /// across the hand-off, as UTIL18/UTIL19 always did) — recorded on the order.
+    /// </summary>
+    public async Task<(bool Found, bool Conflict, string? Error)> UploadOffshoreAsync(int soNo, string branch, BridgeOffshoreUploadDto dto)
+    {
+        var order = await orderRepo.GetOffshoreForUpdateAsync(soNo, branch);
+        if (order is null)
+            return (false, false, $"No offshore sales order found for SO {soNo} from branch {branch}.");
+        if (order.OffshoreUploadedAt is not null)
+            return (true, false, null);
+        if (order.WorkflowStatus == "Cancelled")
+            return (true, true, $"SO {soNo} is Cancelled; not handed off.");
+
+        if (await orderRepo.SoNoTakenAsync(soNo, order.ForBranch!, order.SoId))
+        {
+            order.OffshoreError = $"SO# {soNo} already exists in {order.ForBranch} — not handed off.";
+            await orderRepo.SaveChangesAsync();
+            return (true, true, order.OffshoreError);
+        }
+
+        order.OffshoreTransfer = new OffshoreTransfer
+        {
+            SoId = order.SoId,
+            HeaderJson = JsonSerializer.Serialize(dto.Header),
+            LinesJson = JsonSerializer.Serialize(dto.Lines),
+            DiscountsJson = JsonSerializer.Serialize(dto.Discounts),
+            UploadedAt = DateTime.UtcNow
+        };
+        order.Branch = order.ForBranch;
+        order.OffshoreUploadedAt = DateTime.UtcNow;
+        order.OffshoreError = null;
+        order.IsLocked = true;
+        order.WorkflowStatus = Transferring;
+        await orderRepo.SaveChangesAsync();
+        return (true, false, null);
+    }
+
+    /// <summary>Target side: offshore orders handed to this branch, with their
+    /// origin rows, not yet appended into its BMS (and not failed).</summary>
+    public async Task<IEnumerable<BridgeOffshoreInboundDto>> GetOffshoreInboundAsync(string branch) =>
+        (await orderRepo.GetOffshoreInboundAsync(branch))
+            .Where(o => o.OffshoreTransfer is not null && o.OffshoreError is null)
+            .Select(o => new BridgeOffshoreInboundDto
+            {
+                SoId = o.SoId,
+                SoNo = o.SoNo!.Value,
+                OriginBranch = o.OriginBranch,
+                Header = JsonSerializer.Deserialize<Dictionary<string, string>>(o.OffshoreTransfer!.HeaderJson) ?? [],
+                Lines = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(o.OffshoreTransfer.LinesJson) ?? [],
+                Discounts = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(o.OffshoreTransfer.DiscountsJson) ?? []
+            })
+            .ToList();
+
+    /// <summary>Target side: invoice_appendhomsys.prg's pAppendOffshore appended the
+    /// order (status 5 PickListed) — or found its DOCNO already in the target BMS.</summary>
+    public async Task<string?> ConfirmOffshoreReceivedAsync(int soId, BridgeOffshoreReceivedDto dto)
+    {
+        var order = await orderRepo.GetForUpdateAsync(soId);
+        if (order is null)
+            return $"Sales order {soId} not found.";
+
+        if (dto.Result == "appended")
+        {
+            order.OffshoreReceivedAt ??= DateTime.UtcNow;
+            order.OffshoreError = null;
+            if (order.WorkflowStatus == Transferring)
+                order.WorkflowStatus = Transferred;
+        }
+        else
+        {
+            var message = (dto.Message ?? string.Empty).Trim();
+            order.OffshoreError = message.Length == 0
+                ? $"SO# {order.SoNo} already exists in {order.Branch}'s BMS — not appended."
+                : message[..Math.Min(message.Length, 500)];
+        }
+        await orderRepo.SaveChangesAsync();
+        return null;
     }
 
     public const string FullRfc = "Full RFC";
@@ -226,6 +319,7 @@ public class SalesOrderBridgeService(
             CreatedBy = o.CreatedBy,
             ServeWh = serveWh,
             DelWhse = customer?.DelWhse ?? 0,
+            ForBranch = o.ForBranch,
             Lines = o.Lines.OrderBy(l => l.LineNo).Select(l => new BridgePendingLineDto
             {
                 CProdNo = l.CProdNo,

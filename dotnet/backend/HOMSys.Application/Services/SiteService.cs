@@ -40,6 +40,7 @@ public class SiteService(ISiteRepository siteRepo, IHttpContextAccessor http)
             Description   = dto.Description,
             Cuwhsenos     = dto.Cuwhsenos,
             PricesOffHon  = dto.PricesOffHon,
+            AcceptsOffshoreOrders = dto.AcceptsOffshoreOrders,
             IsActive      = true,
             CreatedBy     = CurrentUser
         };
@@ -66,6 +67,7 @@ public class SiteService(ISiteRepository siteRepo, IHttpContextAccessor http)
         site.Description   = dto.Description;
         site.Cuwhsenos     = dto.Cuwhsenos;
         site.PricesOffHon  = dto.PricesOffHon;
+        site.AcceptsOffshoreOrders = dto.AcceptsOffshoreOrders;
         site.IsActive      = dto.IsActive;
         site.UpdatedAt     = DateTime.UtcNow;
         site.UpdatedBy     = CurrentUser;
@@ -97,6 +99,7 @@ public class SiteService(ISiteRepository siteRepo, IHttpContextAccessor http)
         Description   = s.Description,
         Cuwhsenos     = s.Cuwhsenos,
         PricesOffHon  = s.PricesOffHon,
+        AcceptsOffshoreOrders = s.AcceptsOffshoreOrders,
         IsActive      = s.IsActive,
         CreatedAt     = s.CreatedAt,
         CreatedBy     = s.CreatedBy,

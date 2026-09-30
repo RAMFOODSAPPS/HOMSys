@@ -183,6 +183,64 @@ public class SalesOrderBridgeController(
         return Ok(new { success = true });
     }
 
+    // ── Offshore hand-off (origin BMS -> HOMSys -> ForBranch BMS) ───────────
+
+    [HttpGet("offshore-awaiting")]
+    public async Task<IActionResult> OffshoreAwaiting(
+        [FromQuery] string branch,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey)
+    {
+        if (!IsAuthorized(apiKey))
+            return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+
+        if (string.IsNullOrWhiteSpace(branch))
+            return BadRequest(new { success = false, message = "branch query parameter is required." });
+
+        return Ok(new { success = true, data = await bridgeService.GetOffshoreAwaitingAsync(branch) });
+    }
+
+    /// <summary>409 = the target already has this SO#; the outbox parks it in failed\.</summary>
+    [HttpPost("by-sono/{soNo:int}/offshore-upload")]
+    public async Task<IActionResult> OffshoreUpload(
+        int soNo,
+        [FromQuery] string branch,
+        [FromBody] BridgeOffshoreUploadDto dto,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey)
+    {
+        if (!IsAuthorized(apiKey))
+            return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+
+        if (string.IsNullOrWhiteSpace(branch))
+            return BadRequest(new { success = false, message = "branch query parameter is required." });
+
+        var (found, conflict, error) = await bridgeService.UploadOffshoreAsync(soNo, branch, dto);
+        if (!found)
+            return NotFound(new { success = false, message = error });
+        if (conflict)
+            return Conflict(new { success = false, message = error });
+
+        return Ok(new { success = true });
+    }
+
+    [HttpGet("offshore-inbound")]
+    public async Task<IActionResult> OffshoreInbound(
+        [FromQuery] string branch,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey)
+    {
+        if (!IsAuthorized(apiKey))
+            return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+
+        if (string.IsNullOrWhiteSpace(branch))
+            return BadRequest(new { success = false, message = "branch query parameter is required." });
+
+        return Ok(new { success = true, data = await bridgeService.GetOffshoreInboundAsync(branch) });
+    }
+
+    [HttpPost("by-sono/{soNo:int}/offshore-received")]
+    public Task<IActionResult> OffshoreReceived(int soNo, [FromQuery] string branch, [FromBody] BridgeOffshoreReceivedDto dto,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey) =>
+        BySoNo(soNo, branch, apiKey, soId => bridgeService.ConfirmOffshoreReceivedAsync(soId, dto));
+
     /// <summary>Posted BMS RFCs per invoice (merged) — see SalesOrderBridgeService.SyncRfcsAsync.
     /// Always 200 with the invoices that matched a HOMSys order.</summary>
     [HttpPost("invoice-rfcs")]

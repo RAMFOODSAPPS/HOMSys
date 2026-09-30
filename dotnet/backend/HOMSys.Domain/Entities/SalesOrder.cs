@@ -36,8 +36,19 @@ public class SalesOrder
 
     /// <summary>Branch this order belongs to — stamped from the encoding user's
     /// own BranchCode at creation, not derived from the customer. Determines
-    /// which branch's bridge instance is allowed to pull/push this order.</summary>
+    /// which branch's bridge instance is allowed to pull/push this order.
+    /// For an offshore order (ForBranch set) this flips from the origin to
+    /// ForBranch once the origin BMS uploads it back — see OffshoreUploadedAt.</summary>
     public string? Branch { get; set; }
+
+    /// <summary>The encoding user's own BranchCode. Never changes, unlike Branch.</summary>
+    public string? OriginBranch { get; set; }
+
+    /// <summary>Offshore Encoder only: target Site.Code whose BMS will serve this
+    /// order. Null for a normal order. The origin BMS processes it first
+    /// (Process/FCCOS/verify), then the bridge hands it to this branch — the
+    /// automated replacement of UTIL18 TCODE 31 / UTIL19 uploadoowk.</summary>
+    public string? ForBranch { get; set; }
 
     public string CustKey { get; set; } = string.Empty;
     public string CusName { get; set; } = string.Empty;
@@ -139,6 +150,16 @@ public class SalesOrder
     /// edit-blocking behavior, except Cancelled, which is terminal.
     /// </summary>
     public string WorkflowStatus { get; set; } = "Entered";
+
+    /// <summary>Offshore hand-off: when the origin bridge uploaded the order's
+    /// BMS rows (clean at the origin: invoice.optn_init4 Confirm Clean Orders), when
+    /// the ForBranch BMS appended them, and why a hand-off step failed.</summary>
+    public DateTime? OffshoreUploadedAt { get; set; }
+    public DateTime? OffshoreReceivedAt { get; set; }
+    public string? OffshoreError { get; set; }
+
+    /// <summary>The origin BMS rows carried to ForBranch. Null until uploaded.</summary>
+    public OffshoreTransfer? OffshoreTransfer { get; set; }
 
     public ICollection<SalesOrderLine> Lines { get; set; } = new List<SalesOrderLine>();
 

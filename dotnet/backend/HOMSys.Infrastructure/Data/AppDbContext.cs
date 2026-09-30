@@ -58,6 +58,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SalesOrderRfc> SalesOrderRfcs => Set<SalesOrderRfc>();
     public DbSet<SalesOrderRfcLine> SalesOrderRfcLines => Set<SalesOrderRfcLine>();
 
+    // Offshore hand-off payload (origin BMS rows replayed into ForBranch's BMS).
+    public DbSet<OffshoreTransfer> OffshoreTransfers => Set<OffshoreTransfer>();
+
     // Per-section "last synced" timestamp for the Legacy Monitoring page,
     // updated by every path that actually applies a sync — see SyncLogExtensions.
     public DbSet<SyncLog> SyncLogs => Set<SyncLog>();
@@ -222,7 +225,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new Permission { Id = 11, Key = "legacy-monitoring", Name = "Legacy Monitoring",      Description = "View legacy DBF sync status and trigger manual syncs" },
             new Permission { Id = 12, Key = "pricelist-zone-export", Name = "Pricelist by Zone",  Description = "Generate branch pricelist Excel exports by zone" },
             new Permission { Id = 13, Key = "data-analytics", Name = "Data Analytics",           Description = "Build, view and share analytics reports and dashboards" },
-            new Permission { Id = 14, Key = "data-analytics-admin", Name = "Data Analytics Admin", Description = "Publish system analytics templates and manage all shared analytics" }
+            new Permission { Id = 14, Key = "data-analytics-admin", Name = "Data Analytics Admin", Description = "Publish system analytics templates and manage all shared analytics" },
+            new Permission { Id = 15, Key = "offshore-encode", Name = "Offshore Encoding", Description = "Encode sales orders For Branch — processed at this branch's BMS, then handed off to the selected branch" }
         );
 
         // Admin gets all permissions by default
@@ -240,7 +244,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new RolePermission { RoleId = 1, PermissionId = 11 },
             new RolePermission { RoleId = 1, PermissionId = 12 },
             new RolePermission { RoleId = 1, PermissionId = 13 },
-            new RolePermission { RoleId = 1, PermissionId = 14 }
+            new RolePermission { RoleId = 1, PermissionId = 14 },
+            new RolePermission { RoleId = 1, PermissionId = 15 }
         );
 
         // Seed default admin user (password: Admin@1234)
@@ -429,7 +434,23 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .HasForeignKey(l => l.SoId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            e.Property(x => x.OriginBranch).HasMaxLength(20);
+            e.Property(x => x.ForBranch).HasMaxLength(20);
+            e.Property(x => x.OffshoreError).HasMaxLength(500);
+            e.HasOne(x => x.OffshoreTransfer)
+                .WithOne(t => t.SalesOrder)
+                .HasForeignKey<OffshoreTransfer>(t => t.SoId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             ConfigureBmsOwnedHeader(e);
+        });
+
+        b.Entity<OffshoreTransfer>(e =>
+        {
+            e.HasKey(x => x.SoId);
+            e.Property(x => x.HeaderJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.LinesJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.DiscountsJson).HasColumnType("nvarchar(max)").IsRequired();
         });
 
         // ── OosSyncLine (bridge-synced oowkdet snapshot) ─────────────────────

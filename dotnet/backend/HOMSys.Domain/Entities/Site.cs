@@ -16,6 +16,10 @@ public class Site
     /// <summary>True if this branch has no F:\AUTOPROG\ADDON folder of its own and prices off the shared "hon" ZONE/ZONE2 tables (optionally narrowed by Cuwhsenos). False for independent branches that price off their own ADDON folder.</summary>
     public bool PricesOffHon { get; set; }
 
+    /// <summary>Listed in the Offshore Encoder's "For Branch" picker — this branch's
+    /// BMS receives offshore orders handed off by HON / LKA-HO.</summary>
+    public bool AcceptsOffshoreOrders { get; set; }
+
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string CreatedBy { get; set; } = string.Empty;

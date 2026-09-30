@@ -29,6 +29,7 @@ public class CreateSiteDto
     public string Cuwhsenos { get; set; } = string.Empty;
 
     public bool PricesOffHon { get; set; }
+    public bool AcceptsOffshoreOrders { get; set; }
 
     public int? SiteTypeId { get; set; }
 }

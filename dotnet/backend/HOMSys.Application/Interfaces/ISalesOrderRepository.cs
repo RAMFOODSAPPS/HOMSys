@@ -29,6 +29,22 @@ public interface ISalesOrderRepository
     /// matched on SO# + branch when given, else on InvNo/CancelledInvNo + branch.</summary>
     Task<SalesOrder?> GetForRfcSyncAsync(int? soNo, int invNo, string branch);
 
+    /// <summary>Offshore orders this (origin) branch's BMS holds that haven't been
+    /// handed off yet — SoNo set, ForBranch set, not uploaded, not Cancelled.</summary>
+    Task<IEnumerable<SalesOrder>> GetOffshoreAwaitingAsync(string branch);
+
+    /// <summary>Offshore orders already uploaded to this (ForBranch) branch but not
+    /// yet appended into its BMS, with their OffshoreTransfer payload.</summary>
+    Task<IEnumerable<SalesOrder>> GetOffshoreInboundAsync(string branch);
+
+    /// <summary>True if another order already owns this SO# in this branch — the
+    /// (SoNo, Branch) key every by-sono bridge lookup relies on.</summary>
+    Task<bool> SoNoTakenAsync(int soNo, string branch, int excludeSoId);
+
+    /// <summary>Tracked offshore order by its origin SO# — found both before the
+    /// hand-off (Branch = origin) and after it, so a retried upload is idempotent.</summary>
+    Task<SalesOrder?> GetOffshoreForUpdateAsync(int soNo, string originBranch);
+
     /// <summary>Earliest order carrying this import file hash, or null if none.</summary>
     Task<SalesOrder?> FindByFileHashAsync(string fileHash);
 

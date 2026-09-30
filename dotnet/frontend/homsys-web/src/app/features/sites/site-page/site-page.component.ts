@@ -132,6 +132,11 @@ import { SiteTypeDto } from '../../../core/models/site-type.model';
           <input pInputText formControlName="cuwhsenos" class="w-full" placeholder="e.g. 21,26,45,86" />
         </div>
 
+        <div class="field-inline">
+          <label>Accepts offshore orders</label>
+          <p-toggleswitch formControlName="acceptsOffshoreOrders" />
+        </div>
+
         @if (selectedSite()) {
           <div class="field-inline">
             <label>Active</label>
@@ -284,6 +289,7 @@ export class SitePageComponent implements OnInit, OnDestroy {
     address:       [''],
     description:   [''],
     cuwhsenos:     [''],
+    acceptsOffshoreOrders: [false],
     isActive:      [true]
   });
 
@@ -346,7 +352,7 @@ export class SitePageComponent implements OnInit, OnDestroy {
     this.tabBar.unregisterDirtyChecker(this.currentTabKey);
     this.selectedSite.set(undefined);
     this.apiError.set(null);
-    this.form.reset({ isActive: true });
+    this.form.reset({ isActive: true, acceptsOffshoreOrders: false });
     this.form.markAsUntouched();
     this.currentTabKey = '/sites';
     this.tabBar.updateTabState('/sites', undefined);
@@ -449,6 +455,7 @@ export class SitePageComponent implements OnInit, OnDestroy {
       address:       site.address,
       description:   site.description,
       cuwhsenos:     site.cuwhsenos,
+      acceptsOffshoreOrders: site.acceptsOffshoreOrders ?? false,
       isActive:      site.isActive
     });
     this.form.markAsUntouched();
@@ -524,6 +531,8 @@ export class SitePageComponent implements OnInit, OnDestroy {
           address:       v.address ?? '',
           description:   v.description ?? '',
           cuwhsenos:     v.cuwhsenos ?? '',
+          pricesOffHon:  s.pricesOffHon ?? false,
+          acceptsOffshoreOrders: v.acceptsOffshoreOrders ?? false,
           isActive:      v.isActive!
         })
       : this.siteService.create({
@@ -535,7 +544,8 @@ export class SitePageComponent implements OnInit, OnDestroy {
           phone:         v.phone ?? '',
           address:       v.address ?? '',
           description:   v.description ?? '',
-          cuwhsenos:     v.cuwhsenos ?? ''
+          cuwhsenos:     v.cuwhsenos ?? '',
+          acceptsOffshoreOrders: v.acceptsOffshoreOrders ?? false
         });
 
     req$.subscribe({

@@ -101,7 +101,9 @@ public static class AnalyticsCatalog
         new("zm", "OUTER APPLY (SELECT TOP 1 z.CDesc FROM ZoneMasts z WHERE z.Branch = cu.PFolder AND z.CZone = cu.CZone ORDER BY z.Id) zm", "cu"),
     ];
 
-    private const string SalesScope = "so.Branch = @scSite";
+    // OriginBranch too: an offshore order moves to its ForBranch on hand-off but
+    // stays visible to the branch that encoded it.
+    private const string SalesScope = "(so.Branch = @scSite OR so.OriginBranch = @scSite)";
 
     private const string SalesAsOf =
         "SELECT MAX(v) FROM (VALUES ((SELECT MAX(CreatedAt) FROM SalesOrders)), ((SELECT MAX(UpdatedAt) FROM SalesOrders)), ((SELECT MAX(SyncedAt) FROM OosSyncLines))) t(v)";
@@ -110,7 +112,7 @@ public static class AnalyticsCatalog
 
     /// <summary>Lifecycle order Entered -> Downloaded -> Processed -> Deallocated -> Invoiced -> Invoiced with RFC -> Full RFC; Cancelled last.</summary>
     private const string StatusSort =
-        "CASE so.WorkflowStatus WHEN 'Entered' THEN 1 WHEN 'Downloaded' THEN 2 WHEN 'Processed' THEN 3 WHEN 'Deallocated' THEN 4 WHEN 'Invoiced' THEN 5 WHEN 'Invoiced with RFC' THEN 6 WHEN 'Full RFC' THEN 7 WHEN 'Cancelled' THEN 8 ELSE 9 END";
+        "CASE so.WorkflowStatus WHEN 'Entered' THEN 1 WHEN 'Downloaded' THEN 2 WHEN 'Processed' THEN 3 WHEN 'Deallocated' THEN 4 WHEN 'Transferring' THEN 5 WHEN 'Transferred' THEN 6 WHEN 'Invoiced' THEN 7 WHEN 'Invoiced with RFC' THEN 8 WHEN 'Full RFC' THEN 9 WHEN 'Cancelled' THEN 10 ELSE 11 END";
 
     /// <summary>Header dimensions/dates, shared by sales_orders and sales_lines (both alias SalesOrders as so).</summary>
     private static readonly Fld[] SalesHeaderFields =
@@ -118,13 +120,17 @@ public static class AnalyticsCatalog
         Dim("soId", "SO ID", "so.SoId", "int"),
         Dim("soNo", "SO #", "so.SoNo", "int", desc: "BMS sales order number, assigned by the bridge. NULL = not yet pushed to BMS."),
         Dim("invNo", "Invoice #", "so.InvNo", "int"),
-        Dim("branch", "Encoding Branch", "so.Branch", caption: "st.Name", joins: ["st"], drill: "custKey",
-            desc: "The encoding user's branch (Sites.Code), not the customer's branch. Blank = encoded by an HO/admin user."),
+        Dim("branch", "Branch", "so.Branch", caption: "st.Name", joins: ["st"], drill: "custKey",
+            desc: "The branch whose BMS serves the order (Sites.Code): the encoding user's branch, or the For Branch once an offshore order is handed off. Blank = encoded by an HO/admin user."),
+        Dim("originBranch", "Encoding Branch", "so.OriginBranch",
+            desc: "The encoding user's branch (Sites.Code). Never changes on an offshore hand-off."),
+        Dim("forBranch", "For Branch", "so.ForBranch",
+            desc: "Offshore orders only: the branch the order was encoded for. Blank = normal order."),
         Dim("custKey", "Customer", "so.CustKey", caption: "so.CusName", desc: "Customer as of encode time."),
         Dim("csMan", "Salesman", "so.CsMan"),
         Dim("termDays", "Term (days)", "so.TermDays", "int"),
         Dim("workflowStatus", "Workflow Status", "so.WorkflowStatus", sort: StatusSort, drill: "branch",
-            desc: "Entered -> Downloaded -> Processed -> Deallocated -> Invoiced -> Invoiced with RFC / Full RFC; Cancelled = invoice voided in BMS (a1174)."),
+            desc: "Entered -> Downloaded -> Processed -> Deallocated -> (offshore: Transferring -> Transferred) -> Invoiced -> Invoiced with RFC / Full RFC; Cancelled = invoice voided in BMS (a1174)."),
         Flag("invoiced", "Invoiced?", $"so.InvNo IS NOT NULL AND {Live}"),
         Flag("delivered", "Delivered?", $"so.Delivered IS NOT NULL AND {Live}"),
         Flag("invCancelled", "Invoice Cancelled?", "so.WorkflowStatus = 'Cancelled'"),

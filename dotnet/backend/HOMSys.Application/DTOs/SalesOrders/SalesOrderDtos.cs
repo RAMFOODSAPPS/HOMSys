@@ -38,6 +38,10 @@ public class CreateSalesOrderDto
     /// <summary>Original filename of the import source. Null for manually encoded orders.</summary>
     public string? SourceFileName { get; set; }
 
+    /// <summary>Offshore Encoder only — target Site.Code (see SalesOrder.ForBranch).
+    /// Null/empty for a normal order.</summary>
+    public string? ForBranch { get; set; }
+
     public List<CreateSalesOrderLineDto> Lines { get; set; } = [];
 }
 
@@ -201,6 +205,15 @@ public class SalesOrderDto
     public DateTime CreatedAt { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
 
+    /// <summary>Owning branch now (flips to ForBranch on an offshore hand-off),
+    /// the encoder's branch, and the offshore target (null for a normal order).</summary>
+    public string? Branch { get; set; }
+    public string? OriginBranch { get; set; }
+    public string? ForBranch { get; set; }
+    public DateTime? OffshoreUploadedAt { get; set; }
+    public DateTime? OffshoreReceivedAt { get; set; }
+    public string? OffshoreError { get; set; }
+
     public List<SalesOrderLineDto> Lines { get; set; } = [];
 
     /// <summary>Posted BMS RFCs against this order's invoice.</summary>
@@ -327,6 +340,11 @@ public class BridgePendingOrderDto
     /// <summary>cust4win.DELWHSE, looked up by CustKey.</summary>
     public int DelWhse { get; set; }
 
+    /// <summary>Offshore order target (null = normal order). The bridge writes
+    /// oowkhdr.OFFSHORE = .T. for these, as a11102 does for every order encoded
+    /// at HON/LKA-HO — keeps it out of the origin's Print Picklist.</summary>
+    public string? ForBranch { get; set; }
+
     public List<BridgePendingLineDto> Lines { get; set; } = [];
 }
 
@@ -351,6 +369,45 @@ public class BridgeConfirmDto
 {
     public int SoNo { get; set; }
     public int DocNo { get; set; }
+}
+
+/// <summary>"For Branch" picker option — a Site that accepts offshore orders.</summary>
+public class OffshoreBranchOptionDto
+{
+    public string Value { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Body of POST bridge/by-sono/{soNo}/offshore-upload — the origin BMS rows of
+/// an offshore order that met the invoice.optn_init5 (Print Picklist)
+/// condition. Raw DBF field -> text values, replayed as-is at ForBranch.
+/// </summary>
+public class BridgeOffshoreUploadDto
+{
+    public Dictionary<string, string> Header { get; set; } = [];
+    public List<Dictionary<string, string>> Lines { get; set; } = [];
+    public List<Dictionary<string, string>> Discounts { get; set; } = [];
+}
+
+/// <summary>One order of GET bridge/offshore-inbound — uploaded by its origin,
+/// not yet appended into this (ForBranch) BMS.</summary>
+public class BridgeOffshoreInboundDto
+{
+    public int SoId { get; set; }
+    public int SoNo { get; set; }
+    public string? OriginBranch { get; set; }
+    public Dictionary<string, string> Header { get; set; } = [];
+    public List<Dictionary<string, string>> Lines { get; set; } = [];
+    public List<Dictionary<string, string>> Discounts { get; set; } = [];
+}
+
+/// <summary>Body of POST bridge/by-sono/{soNo}/offshore-received.</summary>
+public class BridgeOffshoreReceivedDto
+{
+    /// <summary>"appended", or "duplicate" when the DOCNO already exists in the target BMS.</summary>
+    public string Result { get; set; } = string.Empty;
+    public string? Message { get; set; }
 }
 
 /// <summary>Body of POST /api/salesorders/bridge/{soId}/resync-confirm.</summary>

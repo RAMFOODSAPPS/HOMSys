@@ -24,7 +24,8 @@ public class SalesOrderService(
     IUnitOfWork uow,
     IHttpContextAccessor http,
     PriceCalculationService priceCalc,
-    ISyncLogRepository syncLogRepo)
+    ISyncLogRepository syncLogRepo,
+    ISiteRepository siteRepo)
 {
     private string CurrentUser =>
         http.HttpContext?.User?.FindFirstValue(ClaimTypes.Name) ?? "system";
@@ -32,11 +33,41 @@ public class SalesOrderService(
     private string? CurrentBranch =>
         http.HttpContext?.User?.FindFirstValue("branch");
 
+    private bool CanEncodeOffshore =>
+        http.HttpContext?.User?.HasClaim("permission", "offshore-encode") ?? false;
+
+    /// <summary>Branch-locked users see their own branch's orders plus the ones they
+    /// encoded For another branch (Branch flips to ForBranch on the hand-off).</summary>
+    private bool IsVisible(SalesOrder o) =>
+        string.IsNullOrEmpty(CurrentBranch) || o.Branch == CurrentBranch || o.OriginBranch == CurrentBranch;
+
+    /// <summary>"For Branch" picker: active Sites flagged AcceptsOffshoreOrders, except the caller's own.</summary>
+    public async Task<IEnumerable<OffshoreBranchOptionDto>> GetOffshoreBranchesAsync() =>
+        (await siteRepo.GetAllAsync())
+            .Where(s => s.IsActive && s.AcceptsOffshoreOrders && !string.IsNullOrWhiteSpace(s.Code) && s.Code != CurrentBranch)
+            .OrderBy(s => s.Name)
+            .Select(s => new OffshoreBranchOptionDto { Value = s.Code, Label = s.Name })
+            .ToList();
+
+    /// <summary>Normalises and validates a requested ForBranch. Null = normal order.</summary>
+    private async Task<(string? forBranch, string? error)> ResolveForBranchAsync(string? requested)
+    {
+        var code = (requested ?? string.Empty).Trim();
+        if (code.Length == 0)
+            return (null, null);
+        if (!CanEncodeOffshore)
+            return (null, "Your role cannot encode orders For another branch.");
+        if (code == CurrentBranch)
+            return (null, "For Branch must be a different branch than your own.");
+        var ok = (await siteRepo.GetAllAsync())
+            .Any(s => s.IsActive && s.AcceptsOffshoreOrders && s.Code == code);
+        return ok ? (code, null) : (null, $"Branch {code} does not accept offshore orders.");
+    }
+
     public async Task<IEnumerable<SalesOrderDto>> GetAllAsync()
     {
         var orders = await orderRepo.GetAllAsync();
-        if (!string.IsNullOrEmpty(CurrentBranch))
-            orders = orders.Where(o => o.Branch == CurrentBranch);
+        orders = orders.Where(IsVisible);
         var result = new List<SalesOrderDto>();
         foreach (var order in orders)
             result.Add(await MapToDtoAsync(order));
@@ -47,7 +78,7 @@ public class SalesOrderService(
     {
         var order = await orderRepo.GetByIdAsync(soId);
         if (order is null) return null;
-        if (!string.IsNullOrEmpty(CurrentBranch) && order.Branch != CurrentBranch) return null;
+        if (!IsVisible(order)) return null;
         return await MapToDtoAsync(order);
     }
 
@@ -390,6 +421,10 @@ public class SalesOrderService(
         if (linesError is not null)
             return (null, linesError);
 
+        var (forBranch, forBranchError) = await ResolveForBranchAsync(dto.ForBranch);
+        if (forBranchError is not null)
+            return (null, forBranchError);
+
         var now = DateTime.UtcNow;
 
         // Legacy uses sysparam.transdate as the order date. sysparam is not
@@ -414,6 +449,8 @@ public class SalesOrderService(
 
             UserName = CurrentUser,
             Branch = CurrentBranch,
+            OriginBranch = CurrentBranch,
+            ForBranch = forBranch,
             SysDate = orderDate,
 
             SoTymStart = dto.SoTymStart,
@@ -495,8 +532,11 @@ public class SalesOrderService(
     public async Task<(SalesOrderDto? order, string? error)> UpdateAsync(int soId, CreateSalesOrderDto dto)
     {
         var order = await orderRepo.GetForUpdateAsync(soId);
-        if (order is null || (!string.IsNullOrEmpty(CurrentBranch) && order.Branch != CurrentBranch))
+        if (order is null || !IsVisible(order))
             return (null, $"Sales order {soId} not found.");
+
+        if (order.OffshoreUploadedAt is not null)
+            return (null, $"Sales order {soId} has been handed off to {order.ForBranch} and cannot be edited.");
 
         if (order.WorkflowStatus == "Cancelled")
             return (null, $"Sales order {soId}'s invoice (INV# {order.CancelledInvNo}) was cancelled in BMS. It cannot be edited — encode a new order instead.");
@@ -534,6 +574,19 @@ public class SalesOrderService(
         var (lines, products, linesError) = await ResolveLinesAndProducts(dto.Lines);
         if (linesError is not null)
             return (null, linesError);
+
+        // For Branch decides which BMS processes the order first, so it is fixed
+        // once the order is in BMS.
+        var requestedForBranch = string.IsNullOrWhiteSpace(dto.ForBranch) ? null : dto.ForBranch.Trim();
+        if (requestedForBranch != order.ForBranch)
+        {
+            if (order.SoNo is not null)
+                return (null, $"Sales order {soId} is already in BMS as SO# {order.SoNo}; its For Branch can no longer be changed.");
+            var (forBranch, forBranchError) = await ResolveForBranchAsync(requestedForBranch);
+            if (forBranchError is not null)
+                return (null, forBranchError);
+            order.ForBranch = forBranch;
+        }
 
         var originalPoNum = order.PoNum;
 
@@ -758,6 +811,12 @@ public class SalesOrderService(
         Eda2 = o.Eda2,
         CreatedAt = o.CreatedAt,
         CreatedBy = o.CreatedBy,
+        Branch = o.Branch,
+        OriginBranch = o.OriginBranch,
+        ForBranch = o.ForBranch,
+        OffshoreUploadedAt = o.OffshoreUploadedAt,
+        OffshoreReceivedAt = o.OffshoreReceivedAt,
+        OffshoreError = o.OffshoreError,
         Lines = o.Lines.OrderBy(l => l.LineNo).Select(l => new SalesOrderLineDto
         {
             Id = l.Id,

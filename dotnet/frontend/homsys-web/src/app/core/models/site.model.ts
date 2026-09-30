@@ -11,6 +11,8 @@ export interface SiteDto {
   contactPerson: string;
   description: string;
   cuwhsenos: string;
+  pricesOffHon?: boolean;
+  acceptsOffshoreOrders?: boolean;
   isActive: boolean;
   createdAt: string;
   createdBy: string;
@@ -28,6 +30,8 @@ export interface CreateSiteDto {
   contactPerson: string;
   description: string;
   cuwhsenos: string;
+  pricesOffHon?: boolean;
+  acceptsOffshoreOrders?: boolean;
 }
 
 export interface UpdateSiteDto {
@@ -40,5 +44,8 @@ export interface UpdateSiteDto {
   contactPerson: string;
   description: string;
   cuwhsenos: string;
+  /** Not edited on this page — sent back unchanged so an edit never resets it. */
+  pricesOffHon?: boolean;
+  acceptsOffshoreOrders?: boolean;
   isActive: boolean;
 }

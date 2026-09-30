@@ -62,9 +62,36 @@ public class SalesOrderRepository(AppDbContext db) : ISalesOrderRepository
         await db.SalesOrders.AsNoTracking()
             .Include(o => o.Rfcs)
             .Where(o => o.Branch == branch && o.SoNo != null && o.OrderDate >= since
-                        && o.WorkflowStatus != "Cancelled" && o.WorkflowStatus != SalesOrderBridgeService.FullRfc)
+                        && o.WorkflowStatus != "Cancelled" && o.WorkflowStatus != SalesOrderBridgeService.FullRfc
+                        // Handed off to this branch but not in its BMS yet — nothing to reconcile.
+                        && !(o.ForBranch != null && o.OffshoreUploadedAt != null && o.OffshoreReceivedAt == null))
             .OrderBy(o => o.SoNo)
             .ToListAsync();
+
+    public async Task<IEnumerable<SalesOrder>> GetOffshoreAwaitingAsync(string branch) =>
+        await db.SalesOrders.AsNoTracking()
+            .Where(o => o.Branch == branch && o.ForBranch != null && o.SoNo != null
+                        && o.OffshoreUploadedAt == null && o.WorkflowStatus != "Cancelled")
+            .OrderBy(o => o.SoNo)
+            .ToListAsync();
+
+    public async Task<IEnumerable<SalesOrder>> GetOffshoreInboundAsync(string branch) =>
+        await db.SalesOrders.AsNoTracking()
+            .Include(o => o.OffshoreTransfer)
+            .Where(o => o.Branch == branch && o.ForBranch != null
+                        && o.OffshoreUploadedAt != null && o.OffshoreReceivedAt == null)
+            .OrderBy(o => o.SoNo)
+            .ToListAsync();
+
+    public async Task<SalesOrder?> GetOffshoreForUpdateAsync(int soNo, string originBranch) =>
+        await db.SalesOrders
+            .Where(o => o.SoNo == soNo && o.OriginBranch == originBranch && o.ForBranch != null
+                        && (o.Branch == originBranch || o.OffshoreUploadedAt != null))
+            .OrderByDescending(o => o.SoId)
+            .FirstOrDefaultAsync();
+
+    public Task<bool> SoNoTakenAsync(int soNo, string branch, int excludeSoId) =>
+        db.SalesOrders.AnyAsync(o => o.SoNo == soNo && o.Branch == branch && o.SoId != excludeSoId);
 
     public async Task<SalesOrder?> GetForRfcSyncAsync(int? soNo, int invNo, string branch)
     {

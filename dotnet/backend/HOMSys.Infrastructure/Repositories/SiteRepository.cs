@@ -45,6 +45,7 @@ public class SiteRepository(AppDbContext db) : ISiteRepository
             .SetProperty(s => s.Description,   site.Description)
             .SetProperty(s => s.Cuwhsenos,     site.Cuwhsenos)
             .SetProperty(s => s.PricesOffHon,  site.PricesOffHon)
+            .SetProperty(s => s.AcceptsOffshoreOrders, site.AcceptsOffshoreOrders)
             .SetProperty(s => s.IsActive,      site.IsActive)
             .SetProperty(s => s.UpdatedAt,     site.UpdatedAt)
             .SetProperty(s => s.UpdatedBy,     site.UpdatedBy));

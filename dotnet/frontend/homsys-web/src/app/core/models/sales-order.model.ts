@@ -194,6 +194,15 @@ export interface SalesOrderDto {
   estAmt: number;
   createdAt: string;
   createdBy: string;
+  /** Owning branch now — flips to forBranch on an offshore hand-off. */
+  branch?: string | null;
+  /** The encoder's branch; never changes. */
+  originBranch?: string | null;
+  /** Offshore Encoder only: the branch the order was encoded for (null = normal order). */
+  forBranch?: string | null;
+  offshoreUploadedAt?: string | null;
+  offshoreReceivedAt?: string | null;
+  offshoreError?: string | null;
   lines: SalesOrderLineDto[];
   /** Posted BMS RFCs against the invoice. */
   rfcs?: SalesOrderRfcDto[];
@@ -226,7 +235,15 @@ export interface CreateSalesOrderDto {
   sourceFileHash?: string | null;
   /** Original filename of the import source. Set only for orders that originated from the import wizard. */
   sourceFileName?: string | null;
+  /** Offshore Encoder only — target Site code. Null/empty for a normal order. */
+  forBranch?: string | null;
   lines: CreateSalesOrderLineDto[];
+}
+
+/** "For Branch" picker option — a Site that accepts offshore orders. */
+export interface OffshoreBranchOptionDto {
+  value: string;
+  label: string;
 }
 
 /** One Customer Key + PO Number pair to check for an existing Sales Order. */

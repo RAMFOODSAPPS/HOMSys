@@ -19,6 +19,7 @@ import { ConfirmationService, MessageService } from 'primeng/api';
 import { GlobalToolbarService } from '../../../core/services/global-toolbar.service';
 import { TabBarService } from '../../../core/services/tab-bar.service';
 import { SalesOrderService } from '../../../core/services/sales-order.service';
+import { AuthService } from '../../../core/services/auth.service';
 import {
   CustomerLookupDto,
   CustomerSuggestionDto,
@@ -29,7 +30,8 @@ import {
   DocClassDto,
   ImportedOrderDraft,
   SalesOrderRfcDto,
-  SalesOrderRfcLineDto
+  SalesOrderRfcLineDto,
+  OffshoreBranchOptionDto
 } from '../../../core/models/sales-order.model';
 
 /**
@@ -68,6 +70,22 @@ import {
       <form [formGroup]="form" autocomplete="off">
       <div class="two-col" [class.has-rfc]="rfcs().length > 0">
       <div class="left-panel">
+
+        <!-- ── offshore: For Branch (HON / LKA-HO Offshore Encoder) ────────── -->
+        @if (showForBranch()) {
+          <div class="field-row" style="grid-template-columns: 1fr;">
+            <div class="field">
+              <label>For Branch @if (canEncodeOffshore && soId() === null) { <span class="required-star">*</span> }</label>
+              <p-select formControlName="forBranch" [options]="offshoreBranches()" optionLabel="label" optionValue="value"
+                        placeholder="Select the branch this order is for" styleClass="w-full" appendTo="body"
+                        [showClear]="!viewOnly()" />
+              @if (offshoreInfo(); as info) {
+                <small [class.field-error]="info.error" [class.field-warning]="!info.error">{{ info.text }}</small>
+              }
+            </div>
+          </div>
+          <p-divider />
+        }
 
         <!-- ── encode customer ─────────────────────────────────────────── -->
         <div class="field-row" style="grid-template-columns: 85px 1fr 48px;">
@@ -577,8 +595,13 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
   private tabBar = inject(TabBarService);
   private toast = inject(MessageService);
   private confirm = inject(ConfirmationService);
+  private auth = inject(AuthService);
+
+  /** Offshore Encoder (HON / LKA-HO): new orders must name the branch they are for. */
+  readonly canEncodeOffshore = this.auth.hasPermission('offshore-encode');
 
   form = this.fb.group({
+    forBranch: [null as string | null],
     custKey: ['', Validators.required],
     poNum: [{ value: '', disabled: true }],
     poDate: [{ value: null as Date | null, disabled: true }],
@@ -645,7 +668,26 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
   private startedAt = new Date();
 
   canSave = computed(() =>
-    !this.viewOnly() && !!this.customer() && this.lines().some(l => l.cProdNo.trim().length > 0));
+    !this.viewOnly() && !!this.customer() && this.lines().some(l => l.cProdNo.trim().length > 0) &&
+    (!this.canEncodeOffshore || this.soId() !== null || !!this.formRaw().forBranch));
+
+  /** "For Branch" options — Sites flagged Accepts offshore orders. */
+  offshoreBranches = signal<OffshoreBranchOptionDto[]>([]);
+
+  /** Offshore hand-off state of the loaded order (null for a normal / new order). */
+  offshore = signal<{ forBranch: string; uploadedAt: string | null; receivedAt: string | null; error: string | null } | null>(null);
+
+  showForBranch = computed(() => this.canEncodeOffshore || !!this.offshore());
+
+  offshoreInfo = computed(() => {
+    const o = this.offshore();
+    if (!o) return null;
+    const when = (d: string) => new Date(d.endsWith('Z') ? d : d + 'Z').toLocaleString();
+    if (o.error) return { error: true, text: o.error };
+    if (o.receivedAt) return { error: false, text: `Handed off — in ${o.forBranch}'s BMS since ${when(o.receivedAt)} (PickListed).` };
+    if (o.uploadedAt) return { error: false, text: `Uploaded ${when(o.uploadedAt)} — waiting for ${o.forBranch}'s BMS to download it.` };
+    return { error: false, text: `Will be handed off to ${o.forBranch} once it clears Process / FCCOS at this branch (it is not picklisted here).` };
+  });
 
   private saveDisabled = computed(() => !this.canSave() || this.saving());
 
@@ -754,6 +796,13 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
       next: res => this.docClasses.set(res.data ?? []),
       error: () => this.docClasses.set([])
     });
+
+    if (this.canEncodeOffshore) {
+      this.api.getOffshoreBranches().subscribe({
+        next: res => this.addOffshoreBranches(res.data ?? []),
+        error: () => {}
+      });
+    }
   }
 
   private isNewFormDirty(): boolean {
@@ -832,7 +881,14 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
       : null);
     this.originalPoNum = order.poNum;
 
+    this.offshore.set(order.forBranch
+      ? { forBranch: order.forBranch, uploadedAt: order.offshoreUploadedAt ?? null,
+          receivedAt: order.offshoreReceivedAt ?? null, error: order.offshoreError ?? null }
+      : null);
+    if (order.forBranch) this.addOffshoreBranches([{ value: order.forBranch, label: order.forBranch }]);
+
     this.form.reset({
+      forBranch: order.forBranch ?? null,
       custKey: order.custKey,
       poNum: order.poNum,
       poDate: order.poDate ? new Date(order.poDate) : null,
@@ -844,6 +900,8 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
       orAmt: order.orAmt ?? null
     });
     viewOnly ? this.form.disable() : this.form.enable();
+    // For Branch decides which BMS processes the order first -- fixed once it is in BMS.
+    if (order.soNo != null) this.form.controls.forBranch.disable({ emitEvent: false });
     this.formRaw.set(this.form.getRawValue());
 
     this.lines.set(
@@ -908,12 +966,14 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
     this.eda2.set(null);
     this.draftKey.set(draftKey);
     this.viewOnly.set(false);
+    this.offshore.set(null);
     this.originalPoNum = draftOrder.poNum;
     this.sourceFileHash = draftOrder.sourceFileHash ?? null;
     this.sourceFileName = draftOrder.sourceFileName ?? null;
 
     this.form.enable();
     this.form.reset({
+      forBranch: null,
       custKey: draftOrder.custKey,
       poNum: draftOrder.poNum,
       poDate: draftOrder.poDate ? new Date(draftOrder.poDate) : null,
@@ -1182,6 +1242,7 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
       soTymStart: this.startedAt.toISOString(),
       sourceFileHash: this.sourceFileHash,
       sourceFileName: this.sourceFileName,
+      forBranch: this.form.getRawValue().forBranch || null,
       // Blank product codes are dropped server-side too; filter here so the
       // trailing empty row never travels.
       lines: this.lines()
@@ -1259,8 +1320,10 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
   }
 
   protected reset(): void {
+    this.offshore.set(null);
     this.form.enable();
     this.form.reset({
+      forBranch: null,
       custKey: '', poNum: '', invRem: '',
       docClass: null, orNo: null, chkDate: null, orAmt: null
     });
@@ -1302,6 +1365,13 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
     this.currentTabKey = '/sales-orders';
     this.tabBar.registerDirtyChecker('/sales-orders', () => this.isNewFormDirty());
     this.syncToolbar();
+  }
+
+  private addOffshoreBranches(opts: OffshoreBranchOptionDto[]): void {
+    this.offshoreBranches.update(cur => {
+      const known = new Set(cur.map(o => o.value));
+      return [...cur, ...opts.filter(o => !known.has(o.value))];
+    });
   }
 
   /** PrimeNG gives a Date; the API expects a DateOnly (yyyy-MM-dd). */

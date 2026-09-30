@@ -29,6 +29,7 @@ public class UpdateSiteDto
     public string Cuwhsenos { get; set; } = string.Empty;
 
     public bool PricesOffHon { get; set; }
+    public bool AcceptsOffshoreOrders { get; set; }
 
     public bool IsActive { get; set; }
 

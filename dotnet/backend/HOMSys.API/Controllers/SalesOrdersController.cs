@@ -18,6 +18,10 @@ public class SalesOrdersController(SalesOrderService salesOrderService, ZonePric
     public async Task<IActionResult> BridgeStatus() =>
         Ok(new { success = true, data = await salesOrderService.GetBridgeStatusAsync() });
 
+    [HttpGet("offshore-branches"), Authorize(Policy = "offshore-encode")]
+    public async Task<IActionResult> OffshoreBranches() =>
+        Ok(new { success = true, data = await salesOrderService.GetOffshoreBranchesAsync() });
+
     [HttpGet("{id:int}"), Authorize(Policy = "sales-orders")]
     public async Task<IActionResult> GetById(int id)
     {

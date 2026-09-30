@@ -136,6 +136,9 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
             <th pSortableColumn="custKey">CustKey <p-sortIcon field="custKey" /></th>
             <th pSortableColumn="cusName">Customer <p-sortIcon field="cusName" /></th>
             <th pSortableColumn="poNum">PO No. <p-sortIcon field="poNum" /></th>
+            @if (hasOffshore()) {
+              <th pSortableColumn="forBranch">For Branch <p-sortIcon field="forBranch" /></th>
+            }
             <th pSortableColumn="workflowStatus">Status <p-sortIcon field="workflowStatus" /></th>
             <th pSortableColumn="deliveryStatus">Delivery <p-sortIcon field="deliveryStatus" /></th>
             <th style="text-align: center">OOS</th>
@@ -169,6 +172,16 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
             <td>{{ o.custKey }}</td>
             <td>{{ o.cusName }}</td>
             <td>{{ o.poNum }}</td>
+            @if (hasOffshore()) {
+              <td>
+                @if (o.forBranch) {
+                  <p-tag [severity]="o.offshoreError ? 'danger' : 'secondary'" [value]="o.forBranch"
+                         [pTooltip]="o.offshoreError || ('Encoded at ' + (o.originBranch || '—') + ' for ' + o.forBranch)" />
+                } @else {
+                  <span class="text-muted">—</span>
+                }
+              </td>
+            }
             <td><p-tag [severity]="statusSeverity(o.workflowStatus)" [value]="o.workflowStatus || 'Entered'"
                        [pTooltip]="o.cancelledInvNo ? cancelTooltip(o) : undefined" /></td>
             <td>
@@ -216,7 +229,7 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
           </tr>
         </ng-template>
         <ng-template pTemplate="emptymessage">
-          <tr><td colspan="16">No sales orders encoded yet.</td></tr>
+          <tr><td [attr.colspan]="hasOffshore() ? 17 : 16">No sales orders encoded yet.</td></tr>
         </ng-template>
       </p-table>
 
@@ -380,6 +393,9 @@ export class SalesOrderListPageComponent implements OnInit, OnDestroy {
 
   /** Customer Name import: only the product is resolvable before the mapping dialog. */
   protected readonly importByNameEnrichCols: ImportEnrichColumn[] = this.importEnrichCols.filter(c => c.after === 'cProdNo');
+
+  /** Shows the For Branch column once any offshore (HON / LKA-HO) order is listed. */
+  hasOffshore = computed(() => this.orders().some(o => !!o.forBranch));
 
   filtered = computed(() => {
     const words = this.searchTerm().toLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -742,6 +758,8 @@ export class SalesOrderListPageComponent implements OnInit, OnDestroy {
       case 'Downloaded': return 'info';
       case 'Processed': return 'success';
       case 'Deallocated': return 'warn';
+      case 'Transferring': return 'info';
+      case 'Transferred': return 'success';
       case 'Invoiced': return 'success';
       case 'Invoiced with RFC': return 'warn';
       case 'Full RFC': return 'danger';
