@@ -394,7 +394,12 @@ export class ImportDialogComponent {
       XLSX.utils.sheet_to_json<unknown[]>(this.workbook!.Sheets[name], { header: 1, defval: '' }));
 
     const headers = (grids[0]?.[0] ?? []).map(h => ImportDialogComponent.cellToString(h));
-    const dataRows = grids.flatMap(g => g.slice(1)).map(r => r.map(v => ImportDialogComponent.cellToString(v)));
+    // Decode date columns here too, not only in the mapped step — an unformatted
+    // date cell would otherwise preview as its Excel serial number (e.g. 46295).
+    const dateHeaders = new Set(this.columns.filter(c => c.dateField).map(c => c.header.trim().toLowerCase()));
+    const isDateCol = headers.map(h => dateHeaders.has(h.trim().toLowerCase()));
+    const dataRows = grids.flatMap(g => g.slice(1))
+      .map(r => r.map((v, i) => ImportDialogComponent.cellToString(v, isDateCol[i])));
 
     this.rawHeaders.set(headers);
     this.rawDataRows.set(dataRows);

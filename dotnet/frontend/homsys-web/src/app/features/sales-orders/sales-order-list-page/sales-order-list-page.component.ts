@@ -93,7 +93,7 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
       <app-import-dialog
         [(visible)]="importByNameVisible"
         [columns]="importByNameCols"
-        [skipMappedPreview]="true"
+        [enrichColumns]="importByNameEnrichCols"
         [expectedHeaders]="importByNameExpectedHeaders"
         [validateRows]="checkPoNumsEarly"
         entityName="Sales Orders By Customer Name"
@@ -377,6 +377,9 @@ export class SalesOrderListPageComponent implements OnInit, OnDestroy {
         catchError(() => of(null)))
     }
   ];
+
+  /** Customer Name import: only the product is resolvable before the mapping dialog. */
+  protected readonly importByNameEnrichCols: ImportEnrichColumn[] = this.importEnrichCols.filter(c => c.after === 'cProdNo');
 
   filtered = computed(() => {
     const words = this.searchTerm().toLowerCase().trim().split(/\s+/).filter(Boolean);
