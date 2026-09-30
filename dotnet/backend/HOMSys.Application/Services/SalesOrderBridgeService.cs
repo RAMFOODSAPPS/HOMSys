@@ -449,12 +449,11 @@ public class SalesOrderBridgeService(
     /// <summary>
     /// Fired by a1112.scx's drunbridge(SO#, "DEALLOCATE") once BMS has reset
     /// this order's oowkhdr status back to Entered. Unlocks the order for
-    /// editing in HOMSys again. Deliberately leaves OosSyncLine rows alone --
-    /// they're the only record of a real stockout that happened at Process
-    /// time, and BMS's own deallocate wipes that evidence out of oowkdet, so
-    /// clearing them here too would erase it from the OOS report as well.
-    /// A later re-Process (lock_order/sync_oos) still full-overwrites them
-    /// with whatever actually happens next time.
+    /// editing in HOMSys again and clears its OOS snapshot: BMS released the
+    /// allocation, so the last Process's OOS/INV CS no longer applies (it was
+    /// still showing on the deallocated, editable order). The next Process
+    /// posts a fresh snapshot -- the bridge forgets its "oos:<so>" sent-event
+    /// fingerprint on deallocate so an identical re-snapshot isn't skipped.
     /// </summary>
     public async Task<string?> DeallocateAsync(int soId)
     {
@@ -465,6 +464,7 @@ public class SalesOrderBridgeService(
         order.IsLocked = false;
         order.WorkflowStatus = "Deallocated";
         await orderRepo.SaveChangesAsync();
+        await oosSyncRepo.ReplaceForOrderAsync(soId, []);
         return null;
     }
 
