@@ -108,6 +108,158 @@ customer lookup, and shows the result in a "LP w/ VAT" column — purely
 display-only, never written to `SalesOrderLine.Price/Amt/NetAmt` or sent in
 the save payload.
 
+### Invoice cancellation (a1174) and RFC returns (c1110k2 RSR → RFC)
+
+Both screens are patched in `legacy\vfp\` to call
+`run_bridge.bat <marker> <dir> <so#> <action> [invno]` (`%5` = invno). Every
+event goes through the offline outbox.
+
+| Screen | Action | What BMS does | HOMSys result |
+|---|---|---|---|
+| `a1174.SCX` Invoice Cancellation (`CmdCancel.Click`) | `CANCELINV` | logs `DOCCANCEL.DBF` (`canceld.prg`), then **deletes** `oowkhdr`/`oowkdet` (or `oocuhdr`/`oocudet`) | **Cancelled**, which is void and terminal |
+| `c1110k2.SCX` **toRFC** (`CmdToRfc.Click` → `updaterfc`): approved RSR (Request for Stock Returns) → RFC | `RFCPOST` (so# `0`, `"D"+DTOS(sysparam.transdate)`) | creates an **auto-posted** RFC per RSR (`POSTED = sysparam.transdate`, `REFNO1`=invoice, `REFTYPE3="CRSR"`/`REFNO3`=RSR#, `REMARKS2`=RSR remarks); the order record **stays** | **Full RFC** or **Invoiced with RFC** for every invoice with an RFC posted on/after that date |
+
+**Cancel (a1174).** `POST bridge/invoice-cancel?branch=` →
+`CancelInvoiceAsync` sets `CancelledInvNo`/`InvCancelDate`/`Remarks`/`CancelledBy`
+and `WorkflowStatus = "Cancelled"`. The order is matched on SO#, else on
+InvNo/CancelledInvNo. **The invoice details are kept**: `InvNo`/`InvDate`/`InvAmt`,
+OOS lines and delivery fields, at the user's request (2026-09-28). Missing details
+are filled in from `DOCCANCEL` `DOCDATE`/`AMOUNT`. Analytics excludes Cancelled
+(`Live` const in `AnalyticsCatalog`). Delivery status shows `"C"` → "Cancelled".
+
+**RFC.** Both RFC kinds stamp the **same header**: `REFTYPE1="INVOICE"`,
+`REFNO1`=inv, `REFTYPE2="RSR"`. So full vs partial is decided **by quantities**,
+never by header fields. (An earlier reconcile treated any RSR RFC as a cancel,
+which would have cancelled 60 real invoices in the test data. Fixed.)
+- **Bridge.** `read_rfcs` (`scan_fields` over `imtr_hdr` + `imtr_det`) collects
+  **posted** RFCs only (`STATUS="2"`). It posts per-invoice snapshots as a batch to
+  `POST bridge/invoice-rfcs?branch=`, which always returns 200 `{matched}`.
+  Outbox events: `rfc {so_no, inv_no}` (RFCINV) and `rfc_scan {rfc_nos, since}`
+  (RFCPOST). **Only RFCs not uploaded before are sent.** The bridge keeps
+  `homsys_outbox\rfc_sent.json` (`{inv: [rfc#...]}`, in the shared folder, written
+  under the drain lock). An invoice with nothing new isn't sent at all. RFCs are
+  recorded only for invoices HOMSys reports as matched (`matchedInvNos`). If the
+  list is missing, it's seeded from HOMSys's own `RfcNos`. The RFC gap check
+  (every bridge run) and the reconcile compare against HOMSys's `RfcNos`, send
+  only the missing RFCs, and record them, which heals drift such as a DB restore.
+  If `imtr_hdr`/`imtr_det` is missing, the sync is skipped (no outbox block).
+- **Server.** `SyncRfcsAsync` **merges**: it adds new RFCs, rewrites an existing
+  one only if its content differs, and **never deletes** (a posted RFC can't be
+  cancelled in BMS). It returns the invoices that matched. It then recomputes
+  the status over all the order's RFCs:
+  - **Full RFC** when returned pieces ≥ invoiced pieces for every invoiced SKU.
+    Invoiced = the INV CS snapshot (`OosSyncLines`), falling back to the encoded
+    quantities. Pieces come from `SalesOrderLine.Pieces`, since `imtr_det.PIECES`
+    is often 0.
+  - **Invoiced with RFC** otherwise.
+  - No RFCs → reverts to Invoiced.
+  - Precedence: Cancelled > Full RFC > Invoiced with RFC.
+  - An invoice (re)sync never resets Cancelled / Full RFC / Invoiced with RFC
+    (`ConfirmInvoiceAsync` only fills a missing InvNo/date/amount). Full RFC is
+    excluded from reconcile candidates. A posted RFC can't be cancelled in BMS,
+    so Full RFC never needs to revert. Delivery status shows `"R"` → "Returned".
+  - `GetForRfcSyncAsync` accepts an SO# match only if that order's
+    InvNo/CancelledInvNo agrees with the RFC's invoice (or InvNo is still
+    null); otherwise it matches by InvNo.
+- **Stored data.** Raw `imtr_det` fields: `SpAmt` (selling amount **ex-VAT**), `Tax`
+  (12% VAT), `Amt` (**cost**). **"RFC Amount" = `SpAmt + Tax`** (VAT-inclusive like
+  `InvAmt`; verified on RFC 87139572: 1,599.10 + 191.89), `DiscAmt1/2`, `RetCode`, `RsNo`, line `Remarks`. Header:
+  `REMARKS`/`REMARKS2`, user, dates. RFC'd invoices stay **Live** in analytics
+  (gross), with new `rfcAmt` / `netInvAmt` measures and a `hasRfc` flag.
+- **UI.** Status tags; an **RFC Returns** section in the SO view (below Delivery /
+  Invoice Cancellation); an **RFC Qty** column next to INV CS (cases + loose
+  pieces). The Sales Orders list has **RFC** (count, clickable → dialog of that
+  invoice's RFC numbers → clicking one opens View — SO#) and **RFC Amt** columns
+  (`SalesOrderDto.RfcCount`/`RfcAmt`; `GetAllAsync` includes `Rfcs.Lines`).
+- **Out of scope:** RGW auto-RFCs (`cmdautorfc`, invoice in `REFNO2`) and
+  unposted RFCs.
+
+### Offline resilience (bridge outbox)
+
+A branch can lose internet while BMS keeps running on its LAN share. Rule:
+**VFP never waits on HOMSys, and no BMS event is lost. HOMSys catches up late.**
+
+- **Outbox.** Every single-SO action (`PROCESS`→lock+oos, `DEALLOCATE`,
+  default→invoice+oos, `DELIVERED`, `CANCELINV`, `RFCINV`/`RFCPOST`) is first written as one
+  JSON file to `<bms data folder>\homsys_outbox\` (`watcher\outbox.py`). It's a
+  shared LAN folder, so any PC can deliver the event. The marker is touched
+  **right after**, so VFP resumes in about 1 s even offline (the old flow could
+  freeze 10–15 s). Delivery is oldest-first under `.drain.lock`. A 404 (not a
+  HOMSys order) is dropped; any other 4xx is parked in `homsys_outbox\failed\`;
+  a network error, timeout, 5xx or 401 keeps the file and stops the drain.
+  Delivery is at-least-once, and every endpoint is idempotent.
+  **Processed backlog is never re-sent**: `homsys_outbox\sent_events.json` keeps a
+  fingerprint of the last content uploaded per key (`confirm:<so>`,
+  `state:<so>` for lock/deallocate, `invoice:<so>`, `oos:<so>`, `delivery:<so>`,
+  `cancel:<inv>`). An event whose content matches is skipped (`send_once`). A
+  failure or a 404 is never recorded. Reconcile posts with `force=True` (it acts
+  on HOMSys's own state) and records what it sends. RFCs use `rfc_sent.json`.
+  **Strict FIFO**: file names start with a timestamp, strictly increasing
+  within a process (`_next_stamp`), because Windows `time_ns` repeats within a
+  tick. One drainer at a time. The folder is re-listed after every event, and
+  the drain stops at the first network failure, so nothing jumps ahead. A new
+  order's SoNo confirm is a `confirm` outbox event, queued the moment
+  `APPENDED` is seen (it works offline), so it always precedes that order's
+  later events. The reconcile runs only inside the drain lock, once the queue
+  is empty. Only cross-PC clock skew can reorder events recorded on
+  different PCs within the same few seconds. lock, deallocate,
+  invoice, delivery and cancel re-read BMS when delivered. oos carries its
+  oowkdet snapshot from event time, because BMS's deallocate later wipes it.
+- **by-sono endpoints.** `bridge/by-sono/{soNo}/lock|deallocate|invoice|oos-status?branch=`
+  replaced the old per-workstation ledger lookups (`%LOCALAPPDATA%`), which
+  silently skipped events fired from a PC other than the one that downloaded the
+  order. The ledger is now only used for the SO#-confirm step (only the
+  claiming PC can confirm). The soId routes remain for bridges not yet upgraded.
+- **Drain task.** `SalesOrderBridge.exe --drain [datadir]`, registered on one
+  always-on PC per branch by `watcher\register-bridge-drain-task.ps1`, runs
+  every 5 min: ledger confirm, outbox drain, heartbeat, reconcile.
+  `bms-client.ps1` is **not** involved; it only delivers the `homsys_*` keys
+  into `C:\fox\client\config.json`.
+- **Reconciliation sweep** (at most every 30 min, `.last_reconcile`). It pulls
+  `bridge/reconcile-candidates` (in-BMS, non-Cancelled orders from the last 60
+  days) and compares them with BMS: `oocuhdr`+`oowkhdr` STATUS/INVNO, VSHDR,
+  DOCCANCEL, and the RFC in `imtr_hdr`. It re-posts cancel, invoice,
+  lock/deallocate (STATUS outside `{"", "1", "B"}` counts as processed) and
+  delivery gaps. This catches events that were never captured.
+  `dbf.reader.scan_fields` keeps it cheap: ~0.4 s for 45k vshdr rows.
+- **Heartbeat and stale guard.** Every bridge run that reaches HOMSys writes
+  `SyncLog` section `SoBridge:{branch}` (`bridge/heartbeat`; no new table).
+  `SalesOrderService.UpdateAsync` refuses to edit an order already in BMS when
+  that branch's heartbeat is older than `SalesOrderBridgeService.StaleAfter`
+  (15 min). The reason: a Processed lock may be sitting undelivered in the
+  outbox. If a branch has no heartbeat row at all (not upgraded yet), the edit
+  is allowed. The Sales Orders page shows a warning banner for stale branches
+  (`GET /api/salesorders/bridge-status`).
+
+### One SO# per order (download claim)
+
+On 2026-09-29, SoId 2043 was downloaded twice, as 88265761 and 88265762. Its first confirm sat undelivered in the outbox, and `/pending` still listed it. Two guards now prevent that:
+
+1. **Server claim.** `process_order` calls `POST bridge/{soId}/claim?branch=` `{claimedBy: COMPUTERNAME}` *before* it takes a SO# from `docnum.dbf`.
+   - It is one atomic `UPDATE … WHERE SoNo IS NULL AND (BridgeClaimedBy IS NULL OR = me)`, so only one PC ever wins. A **409** response means skip the order.
+   - `/pending?claimant=` hides orders claimed by other PCs.
+   - `UpdateAsync` refuses edits while an order is claimed and not yet confirmed.
+   - The list shows such orders as "downloading…".
+   - **A claim never expires.** If an order is stuck with a claimed PC that no longer exists, first check that branch's BMS for the order. Then clear it by hand: `UPDATE SalesOrders SET BridgeClaimedAt = NULL, BridgeClaimedBy = NULL WHERE SoId = …`.
+2. **Bridge `_unclaimed`.** This covers old claims and lost state. It skips any order whose confirm is still queued in the shared outbox. If this PC's ledger says the order is already claimed and appended, it re-queues that confirm (forced) instead of taking a new SO#.
+
+### Offshore Encoder (HON / LKA-HO → For Branch)
+
+This automates the old UTIL18 TCODE 31 (`download7`) → emailed `B#######.ZIP` → UTIL19 `uploadoowk` flow.
+- **Encode.** Permission 15 `offshore-encode` is seeded with the **Offshore Encoder** role (8, 13, 15). Holders must pick **For Branch**. The options are Sites flagged `AcceptsOffshoreOrders` (the Sites page toggle), from `GET salesorders/offshore-branches`.
+- **Fields.** `SalesOrder.OriginBranch` is the encoder's branch and never changes. `ForBranch` is the target. `Branch` is still "which bridge owns it": it flips to `ForBranch` on upload. Because of that flip, every `(SoNo, Branch)` by-sono, reconcile and heartbeat path follows the order unchanged. The list, GetById and analytics `SalesScope` show an order to `Branch` **or** `OriginBranch`.
+- **Origin.** `write_order` stages For-Branch orders with **`OFFSHORE=.T.`**, the same as a11102 forces at bcode 28/88. That flag skips allocation, keeps the order **out of the origin's Print Picklist** (`optn_init5` requires `.not. offshore`) and routes it to Confirm Clean Orders.
+  - `offshore_scan` runs on every bulk run: invoice form **Init/Refresh** via `drunbridge(0)`, and the 5-minute drain as catch-up. It uploads an `offshore-awaiting` SO# once live oowkhdr meets `ready_for_handoff`: status 4/E/F with offshore. That is the `optn_init4` Confirm Clean Orders list plus F, meaning Process, FCCOS and verify are done, with `optn_init5`'s exclusions (For Allocation / DUS PROCESSED / BEYOND HARD LIMIT).
+  - Each upload is queued as outbox `offshore_upload`, carrying the full text-type oowkhdr/oowkdet/oowkdis rows with `ORIGQTY = QTY`. The scan also stages `homsys_offshore_sent\<so#>\`.
+  - In the same Refresh click, `pMarkOffshoreSent` sets the origin copy to **E "To ADC-Picklist"**, as UTIL18 did. It stays visible in Confirm Clean Orders, as in legacy (user decision), so staff must not confirm it again.
+- **Server.** `offshore-upload` stores `OffshoreTransfer` (JSON rows), sets `Branch = ForBranch`, and sets status **Transferring**. It returns **409** if the target already has that SO#; the outbox parks the event and `OffshoreError` shows on the order.
+- **Target.**
+  - `offshore_receive` stages `offshore-inbound` into `homsys_offshore_in\<so#>\`. The stage is built in `.tmp` and renamed into place.
+  - `pAppendOffshore` (UTIL19 rules) appends it as **5 "PickListed", PICKNO 0, `OFFSHORE=.F.`**, keeping the origin SO#. That puts it in the target's Print Picklist. It also writes the offwk* mirrors and an appfccos row. An SO# already in oowkhdr or appfccos is flagged `DUP` instead.
+  - The bridge queues `offshore_received` and the order becomes **Transferred**. It keeps a `REPORTED.txt` folder until HOMSys stops listing the order.
+  - Reconcile skips offshore orders until they are received.
+- **Not carried:** oowkhdr's four T (datetime) columns (encode-speed stamps) and tparprod.
+
 ### Reference data import — removed
 
 The BMSRAM pull-sync (`ReferenceDataImporter`, `import-reference-data` CLI
@@ -282,4 +434,5 @@ User-customizable reports + dashboards (replaced the fixed Sales Analytics page 
 - **Branch RLS is injected server-side from the JWT `branch` claim on every query/values/export/drill** (sales = encoder's `SalesOrders.Branch`, same as the Sales Orders list; folder datasets = pricing folder + hon `Cuwhsenos`). A dataset must be `National` or declare a `Scope` (startup assert). Shared items always run with the VIEWER's scope.
 - **Persistence:** one table `SavedReports` (Kind report|dashboard, DefinitionJson, OwnerUserId, IsSystem, SharedRoleIds CSV). Dashboards embed copies of widget specs. Specs are validated on save.
 - **Permissions:** `data-analytics` (13; build/view/share own) and `data-analytics-admin` (14; publish system templates, edit any shared item). Migration `AddDataAnalytics` granted 13 to every role holding `sales-orders`; grant COO/ASM on the Authorization page.
+- **RFC widgets (Sales Overview):** migration `AddRfcWidgetsToSalesOverview` **appends** 7 widgets (`rfc1`–`rfc7`) to the system dashboard's widget array: RFC Amount, Net Invoiced, Orders with RFC and Full RFC Orders KPIs; RFC Amount by Branch; Top Customers by RFC Amount; and an Orders with RFC Returns table. It's idempotent (skipped if `rfc1` exists) and never replaces the definition, so admin edits survive. `Down` removes only `rfc1`–`rfc7`.
 - **Money:** only `SalesOrders.InvAmt` (invoiced), `OosSyncLines.NetAmt` (line, since 2026-09-01; reconciles to InvAmt) and `ReceivedAmt` are real; `estAmt` is an estimate and labelled so.
