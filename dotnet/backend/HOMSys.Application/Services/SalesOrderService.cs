@@ -538,6 +538,10 @@ public class SalesOrderService(
         if (order.OffshoreUploadedAt is not null)
             return (null, $"Sales order {soId} has been handed off to {order.ForBranch} and cannot be edited.");
 
+        // A bridge PC is writing this order into BMS right now; an edit would never reach it.
+        if (order.SoNo is null && order.BridgeClaimedAt is not null)
+            return (null, $"Sales order {soId} is being downloaded into BMS by {order.BridgeClaimedBy} and cannot be edited now.");
+
         if (order.WorkflowStatus == "Cancelled")
             return (null, $"Sales order {soId}'s invoice (INV# {order.CancelledInvNo}) was cancelled in BMS. It cannot be edited — encode a new order instead.");
 
@@ -817,6 +821,8 @@ public class SalesOrderService(
         OffshoreUploadedAt = o.OffshoreUploadedAt,
         OffshoreReceivedAt = o.OffshoreReceivedAt,
         OffshoreError = o.OffshoreError,
+        BridgeClaimedAt = o.BridgeClaimedAt,
+        BridgeClaimedBy = o.BridgeClaimedBy,
         Lines = o.Lines.OrderBy(l => l.LineNo).Select(l => new SalesOrderLineDto
         {
             Id = l.Id,

@@ -164,6 +164,9 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
                 } @else if (o.needsResync) {
                   <p-tag severity="info" value="syncing to BMS…" pTooltip="Edited after deallocation — waiting for BMS to pick up the change." />
                 }
+              } @else if (o.bridgeClaimedAt) {
+                <p-tag severity="info" value="downloading…"
+                       [pTooltip]="'Being written into BMS by ' + o.bridgeClaimedBy + ' since ' + (o.bridgeClaimedAt + 'Z' | date: 'MM/dd/yyyy h:mm a')" />
               } @else {
                 <p-tag severity="warn" value="not pushed" />
               }

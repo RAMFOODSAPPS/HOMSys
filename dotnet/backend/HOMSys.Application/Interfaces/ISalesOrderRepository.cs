@@ -8,8 +8,13 @@ public interface ISalesOrderRepository
     Task<SalesOrder?> GetByIdAsync(int soId);
     Task<SalesOrder?> GetForUpdateAsync(int soId);
 
-    /// <summary>Orders not yet pushed to BMS — SoNo IS NULL. For the Python bridge.</summary>
-    Task<IEnumerable<SalesOrder>> GetPendingBridgeAsync(string branch);
+    /// <summary>Orders not yet pushed to BMS — SoNo IS NULL — and not claimed by
+    /// another bridge PC (unclaimed, or claimed by <paramref name="claimant"/>). For the Python bridge.</summary>
+    Task<IEnumerable<SalesOrder>> GetPendingBridgeAsync(string branch, string? claimant);
+
+    /// <summary>Atomic claim (one UPDATE ... WHERE): succeeds only while SoNo IS NULL and
+    /// the order is unclaimed or already claimed by this same claimant. True if it claimed.</summary>
+    Task<bool> TryClaimAsync(int soId, string branch, string claimant, DateTime now);
 
     /// <summary>Orders already pushed to BMS but edited again in HOMSys since (post-deallocation edit) — SoNo IS NOT NULL and NeedsResync. For the Python bridge.</summary>
     Task<IEnumerable<SalesOrder>> GetResyncPendingAsync(string branch);

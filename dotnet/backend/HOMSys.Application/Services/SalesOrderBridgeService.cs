@@ -280,9 +280,9 @@ public class SalesOrderBridgeService(
         return due.Count > 0 && due.All(kv => returned.TryGetValue(kv.Key, out var r) && r >= kv.Value);
     }
 
-    public async Task<IEnumerable<BridgePendingOrderDto>> GetPendingAsync(string branch)
+    public async Task<IEnumerable<BridgePendingOrderDto>> GetPendingAsync(string branch, string? claimant = null)
     {
-        var orders = await orderRepo.GetPendingBridgeAsync(branch);
+        var orders = await orderRepo.GetPendingBridgeAsync(branch, string.IsNullOrWhiteSpace(claimant) ? null : claimant.Trim());
         var result = new List<BridgePendingOrderDto>();
         foreach (var o in orders)
             result.Add(await ToPendingDtoAsync(o));
@@ -336,6 +336,30 @@ public class SalesOrderBridgeService(
                 TaxRate = l.TaxRate
             }).ToList()
         };
+    }
+
+    /// <summary>
+    /// Reserves an order for one bridge PC before it takes a SO# from docnum.dbf —
+    /// see SalesOrder.BridgeClaimedAt. Conflict = another PC holds it, or it is
+    /// already in BMS (SoNo set); the bridge then skips it.
+    /// </summary>
+    public async Task<(bool Found, bool Conflict, string? Error)> ClaimAsync(int soId, string branch, string claimant)
+    {
+        claimant = (claimant ?? string.Empty).Trim();
+        if (claimant.Length == 0)
+            return (true, true, "claimedBy is required.");
+        if (claimant.Length > 100)
+            claimant = claimant[..100];
+
+        if (await orderRepo.TryClaimAsync(soId, branch, claimant, DateTime.UtcNow))
+            return (true, false, null);
+
+        var order = await orderRepo.GetByIdAsync(soId);
+        if (order is null || order.Branch != branch)
+            return (false, false, $"Sales order {soId} not found for branch {branch}.");
+        if (order.SoNo is not null)
+            return (true, true, $"Sales order {soId} is already in BMS as SO# {order.SoNo}.");
+        return (true, true, $"Sales order {soId} is being downloaded by {order.BridgeClaimedBy} (since {order.BridgeClaimedAt:u}).");
     }
 
     /// <summary>

@@ -437,6 +437,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.OriginBranch).HasMaxLength(20);
             e.Property(x => x.ForBranch).HasMaxLength(20);
             e.Property(x => x.OffshoreError).HasMaxLength(500);
+            e.Property(x => x.BridgeClaimedBy).HasMaxLength(100);
             e.HasOne(x => x.OffshoreTransfer)
                 .WithOne(t => t.SalesOrder)
                 .HasForeignKey<OffshoreTransfer>(t => t.SoId)

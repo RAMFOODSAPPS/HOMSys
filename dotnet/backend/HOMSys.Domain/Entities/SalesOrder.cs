@@ -151,6 +151,19 @@ public class SalesOrder
     /// </summary>
     public string WorkflowStatus { get; set; } = "Entered";
 
+    /// <summary>
+    /// Set atomically by POST bridge/{soId}/claim right before a branch bridge
+    /// takes a BMS SO# from docnum.dbf for this order. From then on /pending hides
+    /// the order from every other PC, so one HOMSys order can never get two SO#s
+    /// (SoId 2043 became 88265761 + 88265762 on 2026-09-29 while its first
+    /// confirm sat undelivered). Only the same claimant may re-claim (its own
+    /// crash recovery). Never expires: an order claimed by a PC that then vanished
+    /// may already be in BMS, so release it by hand after checking BMS. Kept
+    /// after the confirm as an audit of who downloaded it.
+    /// </summary>
+    public DateTime? BridgeClaimedAt { get; set; }
+    public string? BridgeClaimedBy { get; set; }
+
     /// <summary>Offshore hand-off: when the origin bridge uploaded the order's
     /// BMS rows (clean at the origin: invoice.optn_init4 Confirm Clean Orders), when
     /// the ForBranch BMS appended them, and why a hand-off step failed.</summary>

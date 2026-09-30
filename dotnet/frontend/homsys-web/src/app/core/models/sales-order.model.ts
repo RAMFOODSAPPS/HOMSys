@@ -203,6 +203,9 @@ export interface SalesOrderDto {
   offshoreUploadedAt?: string | null;
   offshoreReceivedAt?: string | null;
   offshoreError?: string | null;
+  /** Set once a branch bridge PC has reserved the order for download into BMS. */
+  bridgeClaimedAt?: string | null;
+  bridgeClaimedBy?: string | null;
   lines: SalesOrderLineDto[];
   /** Posted BMS RFCs against the invoice. */
   rfcs?: SalesOrderRfcDto[];

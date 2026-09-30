@@ -32,13 +32,22 @@ public class SalesOrderRepository(AppDbContext db) : ISalesOrderRepository
             .Include(o => o.Lines)
             .FirstOrDefaultAsync(o => o.SoId == soId);
 
-    public async Task<IEnumerable<SalesOrder>> GetPendingBridgeAsync(string branch) =>
+    public async Task<IEnumerable<SalesOrder>> GetPendingBridgeAsync(string branch, string? claimant) =>
         await db.SalesOrders
             .Include(o => o.Lines.OrderBy(l => l.LineNo))
             .AsNoTracking()
-            .Where(o => o.SoNo == null && o.Branch == branch)
+            .Where(o => o.SoNo == null && o.Branch == branch
+                        && (o.BridgeClaimedBy == null || (claimant != null && o.BridgeClaimedBy == claimant)))
             .OrderBy(o => o.SoId)
             .ToListAsync();
+
+    public async Task<bool> TryClaimAsync(int soId, string branch, string claimant, DateTime now) =>
+        await db.SalesOrders
+            .Where(o => o.SoId == soId && o.Branch == branch && o.SoNo == null
+                        && (o.BridgeClaimedBy == null || o.BridgeClaimedBy == claimant))
+            .ExecuteUpdateAsync(x => x
+                .SetProperty(o => o.BridgeClaimedBy, claimant)
+                .SetProperty(o => o.BridgeClaimedAt, now)) == 1;
 
     public async Task<IEnumerable<SalesOrder>> GetResyncPendingAsync(string branch) =>
         await db.SalesOrders

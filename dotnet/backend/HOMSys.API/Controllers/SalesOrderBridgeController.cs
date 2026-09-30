@@ -24,9 +24,12 @@ public class SalesOrderBridgeController(
         return !string.IsNullOrEmpty(expected) && apiKey == expected;
     }
 
+    /// <summary>claimant = this bridge PC: orders it already claimed stay listed (its own
+    /// crash recovery); orders claimed by another PC are hidden.</summary>
     [HttpGet("pending")]
     public async Task<IActionResult> Pending(
         [FromQuery] string branch,
+        [FromQuery] string? claimant,
         [FromHeader(Name = "X-Api-Key")] string? apiKey)
     {
         if (!IsAuthorized(apiKey))
@@ -35,7 +38,31 @@ public class SalesOrderBridgeController(
         if (string.IsNullOrWhiteSpace(branch))
             return BadRequest(new { success = false, message = "branch query parameter is required." });
 
-        return Ok(new { success = true, data = await bridgeService.GetPendingAsync(branch) });
+        return Ok(new { success = true, data = await bridgeService.GetPendingAsync(branch, claimant) });
+    }
+
+    /// <summary>Reserve an order before taking a SO# from docnum.dbf. 409 = another PC
+    /// holds it or it is already in BMS: skip it.</summary>
+    [HttpPost("{soId:int}/claim")]
+    public async Task<IActionResult> Claim(
+        int soId,
+        [FromQuery] string branch,
+        [FromBody] BridgeClaimDto dto,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey)
+    {
+        if (!IsAuthorized(apiKey))
+            return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+
+        if (string.IsNullOrWhiteSpace(branch))
+            return BadRequest(new { success = false, message = "branch query parameter is required." });
+
+        var (found, conflict, error) = await bridgeService.ClaimAsync(soId, branch, dto.ClaimedBy);
+        if (!found)
+            return NotFound(new { success = false, message = error });
+        if (conflict)
+            return Conflict(new { success = false, message = error });
+
+        return Ok(new { success = true });
     }
 
     [HttpPost("{soId:int}/confirm")]

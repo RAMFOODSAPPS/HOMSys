@@ -214,6 +214,10 @@ public class SalesOrderDto
     public DateTime? OffshoreReceivedAt { get; set; }
     public string? OffshoreError { get; set; }
 
+    /// <summary>Set once a branch bridge PC has reserved the order for download (see SalesOrder.BridgeClaimedAt).</summary>
+    public DateTime? BridgeClaimedAt { get; set; }
+    public string? BridgeClaimedBy { get; set; }
+
     public List<SalesOrderLineDto> Lines { get; set; } = [];
 
     /// <summary>Posted BMS RFCs against this order's invoice.</summary>
@@ -408,6 +412,13 @@ public class BridgeOffshoreReceivedDto
     /// <summary>"appended", or "duplicate" when the DOCNO already exists in the target BMS.</summary>
     public string Result { get; set; } = string.Empty;
     public string? Message { get; set; }
+}
+
+/// <summary>Body of POST /api/salesorders/bridge/{soId}/claim.</summary>
+public class BridgeClaimDto
+{
+    /// <summary>The claiming bridge PC (its computer name).</summary>
+    public string ClaimedBy { get; set; } = string.Empty;
 }
 
 /// <summary>Body of POST /api/salesorders/bridge/{soId}/resync-confirm.</summary>
