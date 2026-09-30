@@ -74,6 +74,34 @@ def decode_record(buf: bytes, fields: list[DbfField]) -> dict:
     return {f.name: buf[f.offset:f.offset + f.length].decode(ENCODING, errors="replace") for f in fields}
 
 
+def scan_fields(path: str, names: list[str], chunk_records: int = 2000):
+    """Fast sequential scan yielding {name: raw text} for just `names`, for
+    every non-deleted record. Unlike DbfTable.records() (one seek + full-row
+    decode per record), this reads big chunks and decodes only the requested
+    fields -- what the bridge's reconciliation sweep needs to pass over the
+    ~57 MB oowkhdr / ~33 MB vshdr every half hour without dragging.
+    """
+    with open(path, "rb") as fh:
+        header = DbfHeader(fh)
+        # Unknown names are skipped (row.get(...) then falls back to its default),
+        # same tolerance as the dict rows DbfTable.records() yields.
+        fields = [header.field(n) for n in names if header.has_field(n)]
+        rec_len = header.record_length
+        fh.seek(header.header_length)
+        remaining = header.record_count
+        while remaining > 0:
+            n = min(chunk_records, remaining)
+            buf = fh.read(n * rec_len)
+            if not buf:
+                break
+            for i in range(0, len(buf) - rec_len + 1, rec_len):
+                if buf[i:i + 1] == b"*":
+                    continue
+                yield {f.name: buf[i + f.offset:i + f.offset + f.length].decode(ENCODING, errors="replace")
+                       for f in fields}
+            remaining -= n
+
+
 def get_string(row: dict, name: str) -> str:
     return row.get(name, "").strip()
 
