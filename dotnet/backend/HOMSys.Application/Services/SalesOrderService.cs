@@ -447,7 +447,9 @@ public class SalesOrderService(
 
             ExpectDel = false,   // legacy sets this false explicitly on save
 
-            UserName = CurrentUser,
+            // oowkhdr.USERNAME is C(20); a longer login (e.g. "Farah_Bianca_Zarsuelo",
+            // 21 chars) failed the whole save. CreatedBy keeps the full username.
+            UserName = Truncate(CurrentUser, 20),
             Branch = CurrentBranch,
             OriginBranch = CurrentBranch,
             ForBranch = forBranch,
