@@ -129,6 +129,23 @@ def read_product_prices(pmdm_dir: str) -> dict:
                 "category": r.get_string("CATEGORY"),
                 "barcode": r.get_string("BARCODE"),
                 "caseBarcode": r.get_string("CBARCODE"),
+                # Product master fields: the server adds a new SKU from these once it
+                # is ACTIVE + PRICELIST with NEWPRICE > 0 (nothing else adds products
+                # since the BMSRAM reference sync was removed on 2026-09-05).
+                "cProdNo": r.get_string("CPRODNO"),
+                "prodDesc": r.get_string("PRODDESC"),
+                "packSize": r.get_string("PACKSIZE"),
+                "pieces": r.get_int("PIECES"),
+                "qtyPerPc": r.get_int("QTYPERPC"),
+                "innerQty": r.get_int("INNERQTY"),
+                "um": r.get_string("UM"),
+                "supplier": r.get_int("SUPPLIER"),
+                "priceList": r.get_bool("PRICELIST"),
+                "taxRate": r.get_decimal("TAXRATE"),
+                "brand": r.get_string("BRAND"),
+                "sBrand": r.get_string("SBRAND"),
+                "phOut": r.get_bool("PHOUT"),
+                "active": r.get_bool("ACTIVE"),
             }
     return result
 
@@ -398,6 +415,76 @@ def build_delta(current: dict, previous: dict) -> dict:
     return payload
 
 
+# Azure App Service (IIS) rejects request bodies over ~28.6 MB with a 413 before
+# they reach the API. One full delta can be far bigger -- e.g. after a release
+# adds customer fields, every customer row differs from the old snapshot --
+# and because the snapshot only advanced on success, the same oversized delta
+# was re-sent (and 413'd) every hour from 2026-09-07 to 2026-10-01. So the
+# delta is posted in parts: the national masters together, then each branch
+# table in row chunks, advancing the snapshot part by part.
+MAX_ROWS_PER_POST = 4000
+
+
+def _delta_parts(delta: dict) -> list[tuple[dict, tuple]]:
+    """(payload, snapshot-advance info) per POST. info is ("masters", [section names])
+    or ("branch", branch, table, [upsert keys], [delete keys])."""
+    parts: list[tuple[dict, tuple]] = []
+    masters = {k: v for k, v in delta.items() if k != "branches"}
+    if masters:
+        parts.append((masters, ("masters", list(masters))))
+    for branch, entry in (delta.get("branches") or {}).items():
+        for table, section in entry.items():
+            ups, dels = section["upserts"], section["deletes"]
+            for i in range(0, max(len(ups), len(dels), 1), MAX_ROWS_PER_POST):
+                up_chunk, del_chunk = ups[i:i + MAX_ROWS_PER_POST], dels[i:i + MAX_ROWS_PER_POST]
+                if not up_chunk and not del_chunk:
+                    continue
+                payload = {"branches": {branch: {table: {"upserts": up_chunk, "deletes": del_chunk}}}}
+                info = ("branch", branch, table, [str(u["recNo"]) for u in up_chunk], [str(d) for d in del_chunk])
+                parts.append((payload, info))
+    return parts
+
+
+def _advance_snapshot(snapshot: dict, current: dict, info: tuple) -> None:
+    """Record one successfully applied part in the working snapshot."""
+    if info[0] == "masters":
+        for section in info[1]:
+            snapshot[section] = current.get(section, {})
+        return
+    _, branch, table, up_keys, del_keys = info
+    cur_t = current.get("branches", {}).get(branch, {}).get(table, {})
+    snap_t = snapshot.setdefault("branches", {}).setdefault(branch, {}).setdefault(table, {})
+    for k in up_keys:
+        snap_t[k] = cur_t[k]
+    for k in del_keys:
+        snap_t.pop(k, None)
+
+
+def _post(url: str, api_key: str, payload: dict, conn_failures: list[str]) -> str | None:
+    """POST one delta part; the server's result summary on success, else None."""
+    try:
+        resp = requests.post(url, headers={"X-Api-Key": api_key}, json=payload, timeout=600)
+    except requests.ConnectionError as exc:
+        log.error("%s -> could not connect (check network/VPN and the URL): %s", url, exc)
+        if url not in conn_failures:
+            conn_failures.append(url)
+        return None
+    except requests.RequestException as exc:
+        log.error("%s -> failed: %s", url, exc)
+        return None
+    try:
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        log.error("%s -> failed: %s", url, exc)
+        return None
+    data = str(resp.json().get("data") or "")  # PricingImportResult.ToString()
+    if data.startswith("Skipped"):
+        # Another sync held the server's single-flight lock -- nothing was applied.
+        log.warning("%s -> server busy with another sync, part not applied", url)
+        return None
+    return data
+
+
 def sync_pricing(url: str, api_key: str, root: str, conn_failures: list[str]) -> bool:
     log.info("Reading pricing masters from %s ...", root)
     try:
@@ -406,33 +493,29 @@ def sync_pricing(url: str, api_key: str, root: str, conn_failures: list[str]) ->
         log.error("Failed to read DBFs under %s: %s", root, exc)
         return False
 
-    delta = build_delta(current, load_snapshot())
-    if delta:
-        log.info("%s -> sending delta covering: %s", url, ", ".join(delta.keys()))
-    else:
+    snapshot = load_snapshot()
+    delta = build_delta(current, snapshot)
+    if not delta:
         log.info("%s -> nothing changed, sending empty delta", url)
+        data = _post(url, api_key, {}, conn_failures)  # still checks in (last-synced)
+        if data is None:
+            return False
+        log.info("%s -> ok: %s", url, data)
+        save_snapshot(current)
+        return True
 
-    try:
-        # A first-run baseline (no prior snapshot) can be tens of MB across
-        # every branch found on disk — give the server room to actually
-        # finish applying it rather than timing out a slow-but-succeeding
-        # sync and re-sending the same huge payload forever.
-        resp = requests.post(url, headers={"X-Api-Key": api_key}, json=delta, timeout=600)
-    except requests.ConnectionError as exc:
-        log.error("%s -> could not connect (check network/VPN and the URL): %s", url, exc)
-        conn_failures.append(url)
-        return False
-    except requests.RequestException as exc:
-        log.error("%s -> failed: %s", url, exc)
-        return False
-
-    try:
-        resp.raise_for_status()
-    except requests.RequestException as exc:
-        log.error("%s -> failed: %s", url, exc)
-        return False
-
-    log.info("%s -> ok: %s", url, resp.json().get("data"))
+    parts = _delta_parts(delta)
+    log.info("%s -> sending delta covering: %s in %d part(s)", url, ", ".join(delta.keys()), len(parts))
+    for n, (payload, info) in enumerate(parts, 1):
+        data = _post(url, api_key, payload, conn_failures)
+        if data is None:
+            log.error("%s -> stopped at part %d/%d (%s); %d part(s) applied, the rest retry next run",
+                      url, n, len(parts), " ".join(str(x) for x in info[:3]), n - 1)
+            if n > 1:
+                save_snapshot(snapshot)  # keep the progress made this run
+            return False
+        _advance_snapshot(snapshot, current, info)
+        log.info("%s -> part %d/%d ok (%s): %s", url, n, len(parts), " ".join(str(x) for x in info[:3]), data)
     save_snapshot(current)
     return True
 

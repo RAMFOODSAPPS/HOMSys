@@ -95,13 +95,31 @@ public class PricingDeltaImporter(AppDbContext db)
         var existing = await db.Products.Where(p => prodNos.Contains(p.ProdNo)).ToDictionaryAsync(p => p.ProdNo);
 
         var updated = 0;
+        var inserted = 0;
         foreach (var d in deltas)
         {
             if (!existing.TryGetValue(d.ProdNo, out var product))
             {
-                log($" ProdNo={d.ProdNo} not found in Products — skipped");
-                continue;
+                // New SKU in PROD4WIN. Same condition every product already in
+                // HOMSys met (all were ACTIVE + PRICELIST with a price); one that
+                // doesn't qualify yet is added by a later sync once it does.
+                if (string.IsNullOrWhiteSpace(d.CProdNo) || d.Active != true || d.PriceList != true || !(d.NewPrice > 0))
+                {
+                    log($" ProdNo={d.ProdNo} not in Products and not yet syncable (needs ACTIVE, PRICELIST, NEWPRICE > 0) — skipped");
+                    continue;
+                }
+                product = new Product { ProdNo = d.ProdNo };
+                db.Products.Add(product);
+                existing[d.ProdNo] = product;
+                inserted++;
             }
+            else
+            {
+                updated++;
+            }
+
+            if (d.CProdNo is not null)
+                ApplyProductMaster(product, d);
 
             product.NewPrice = d.NewPrice;
             product.PriceFrom = d.PriceFrom;
@@ -110,13 +128,31 @@ public class PricingDeltaImporter(AppDbContext db)
             product.Category = d.Category;
             product.Barcode = d.Barcode;
             product.CaseBarcode = d.CaseBarcode;
-            updated++;
         }
 
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
-        log($" ProductPrices: updated={updated:N0}");
-        return updated;
+        log($" ProductPrices: inserted={inserted:N0} updated={updated:N0}");
+        return inserted + updated;
+    }
+
+    /// <summary>Encode-time product fields (what the removed BMSRAM product sync used to keep current).</summary>
+    private static void ApplyProductMaster(Product p, ProductPriceDelta d)
+    {
+        static string Cut(string? s, int max) => (s ?? string.Empty).Trim() is var t && t.Length > max ? t[..max] : t;
+        p.CProdNo = Cut(d.CProdNo, 4);
+        p.ProdDesc = Cut(d.ProdDesc, 75);
+        p.PackSize = Cut(d.PackSize, 10);
+        p.Pieces = d.Pieces ?? p.Pieces;
+        p.QtyPerPc = d.QtyPerPc ?? p.QtyPerPc;
+        p.InnerQty = d.InnerQty ?? p.InnerQty;
+        p.Um = Cut(d.Um, 3);
+        p.Supplier = d.Supplier ?? p.Supplier;
+        p.PriceList = d.PriceList ?? p.PriceList;
+        p.TaxRate = d.TaxRate ?? p.TaxRate;
+        p.Brand = (d.Brand ?? p.Brand).Trim();
+        p.SBrand = (d.SBrand ?? p.SBrand).Trim();
+        p.PhOut = d.PhOut ?? p.PhOut;
     }
 
     private async Task<int> ApplyProductCategoriesAsync(ProductCategoryDeltaSection section, Action<string> log)

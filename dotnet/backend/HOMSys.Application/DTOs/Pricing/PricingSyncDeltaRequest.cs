@@ -15,7 +15,13 @@ public record PricingSyncDeltaRequest(
     PriceHistoryDeltaSection? PriceHistory,
     Dictionary<string, BranchDelta>? Branches);
 
-/// <summary>Product pricing fields, matched by ProdNo — upsert only, never deleted.</summary>
+/// <summary>
+/// A F:\PMDM\PROD4WIN.DBF product, matched by ProdNo — never deleted. The
+/// master fields (CProdNo..Active) are null from older watchers, which can then
+/// only update an existing product's pricing; when present, a product HOMSys
+/// doesn't have yet is added if it meets the sync condition every product in
+/// HOMSys already met: ACTIVE, PRICELIST and NEWPRICE &gt; 0.
+/// </summary>
 public record ProductPriceDelta(
     int ProdNo,
     decimal? NewPrice,
@@ -24,7 +30,21 @@ public record ProductPriceDelta(
     decimal? Srp,
     string? Category,
     string? Barcode,
-    string? CaseBarcode);
+    string? CaseBarcode,
+    string? CProdNo = null,
+    string? ProdDesc = null,
+    string? PackSize = null,
+    int? Pieces = null,
+    int? QtyPerPc = null,
+    int? InnerQty = null,
+    string? Um = null,
+    int? Supplier = null,
+    bool? PriceList = null,
+    decimal? TaxRate = null,
+    string? Brand = null,
+    string? SBrand = null,
+    bool? PhOut = null,
+    bool? Active = null);
 
 public record ProductCategoryDelta(string CategoryCode, int GroupNo, string? GroupDesc, string? SubCat, int SeqNo);
 
