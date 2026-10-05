@@ -454,6 +454,12 @@ public class BridgeReconcileCandidateDto
     public List<int> RfcNos { get; set; } = [];
 }
 
+/// <summary>Body of POST /api/salesorders/bridge/bms-date — the branch's sysparam.transdate.</summary>
+public class BridgeBmsDateDto
+{
+    public DateOnly TransDate { get; set; }
+}
+
 /// <summary>Body of POST /api/salesorders/bridge/invoice-rfcs — posted BMS RFCs
 /// grouped per invoice (a batch, so one scan = one request).</summary>
 public class BridgeRfcSyncDto

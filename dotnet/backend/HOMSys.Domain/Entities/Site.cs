@@ -20,6 +20,10 @@ public class Site
     /// BMS receives offshore orders handed off by HON / LKA-HO.</summary>
     public bool AcceptsOffshoreOrders { get; set; }
 
+    /// <summary>This branch's BMS sysparam.transdate, pushed by the BMS EOD/EOM forms and the bridge drain. SO encoding uses it as the order date. Null until first synced.</summary>
+    public DateOnly? BmsDate { get; set; }
+    public DateTime? BmsDateUpdatedUtc { get; set; }
+
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string CreatedBy { get; set; } = string.Empty;

@@ -302,6 +302,27 @@ public class SalesOrderBridgeController(
         return Ok(new { success = true });
     }
 
+    /// <summary>Branch's BMS sysparam.transdate — pushed by the EOD/EOM forms (PARAMDATE) and every bridge drain.</summary>
+    [HttpPost("bms-date")]
+    public async Task<IActionResult> BmsDate(
+        [FromQuery] string branch,
+        [FromBody] BridgeBmsDateDto dto,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey)
+    {
+        if (!IsAuthorized(apiKey))
+            return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+
+        if (string.IsNullOrWhiteSpace(branch))
+            return BadRequest(new { success = false, message = "branch query parameter is required." });
+
+        if (dto.TransDate.Year < 2000)
+            return BadRequest(new { success = false, message = "transDate is not a valid date." });
+
+        return await bridgeService.SetBmsDateAsync(branch, dto.TransDate)
+            ? Ok(new { success = true })
+            : NotFound(new { success = false, message = $"No site matches branch {branch}." });
+    }
+
     [HttpGet("reconcile-candidates")]
     public async Task<IActionResult> ReconcileCandidates(
         [FromQuery] string branch,

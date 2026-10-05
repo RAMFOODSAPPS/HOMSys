@@ -94,6 +94,18 @@ public class SalesOrderService(
         return Math.Round(total, 2);
     }
 
+    /// <summary>The caller's branch BMS date (sysparam.transdate), or null if the branch has never synced one.</summary>
+    public Task<DateOnly?> GetOrderDateAsync() => GetBmsDateAsync();
+
+    private async Task<DateOnly?> GetBmsDateAsync() =>
+        string.IsNullOrWhiteSpace(CurrentBranch)
+            ? null
+            : (await siteRepo.GetByBranchCodeAsync(CurrentBranch))?.BmsDate;
+
+    /// <summary>Display-only lookups: BMS date, else today (Manila) so a lookup never fails.</summary>
+    private async Task<DateOnly> BmsDateOrTodayAsync() =>
+        await GetBmsDateAsync() ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8));
+
     public async Task<CustomerLookupDto?> LookupCustomerAsync(string custKey)
     {
         var c = await customerRepo.GetByCustKeyAsync(custKey.Trim());
@@ -122,7 +134,7 @@ public class SalesOrderService(
             Tpc = c.Tpc,
             Offshore = c.Offshore,
             ExBranch = c.ExBranch,
-            CCode = ResolveCCode(c),
+            CCode = ResolveCCode(c, await BmsDateOrTodayAsync()),
             IsCash = c.Term == 0
         };
     }
@@ -131,9 +143,8 @@ public class SalesOrderService(
     /// Legacy addnew: when IEffDate is set and the order date is on or after it,
     /// use CCode; otherwise fall back to OldCCode.
     /// </summary>
-    private static int ResolveCCode(Customer c)
+    private static int ResolveCCode(Customer c, DateOnly today)
     {
-        var today = DateOnly.FromDateTime(DateTime.Now);
         if (c.IEffDate is null) return c.OldCCode != 0 ? c.OldCCode : c.CCode;
         return today >= c.IEffDate.Value ? c.CCode : c.OldCCode;
     }
@@ -336,7 +347,7 @@ public class SalesOrderService(
     /// update — excludes creation-only fields (SoNo, UserName, SysDate,
     /// CreatedAt/By, SoTymStart/End/Elapsed, ExpectDel).
     /// </summary>
-    private static void ApplyCustomerToHeader(SalesOrder order, Customer customer)
+    private static void ApplyCustomerToHeader(SalesOrder order, Customer customer, DateOnly asOf)
     {
         var hasDel = !string.IsNullOrWhiteSpace(customer.DelAddrLn1) ||
                      !string.IsNullOrWhiteSpace(customer.DelAddrLn2);
@@ -345,7 +356,7 @@ public class SalesOrderService(
         order.CusName = customer.CusName;
         order.CKey = customer.CKey;
 
-        order.CCode = ResolveCCode(customer);
+        order.CCode = ResolveCCode(customer, asOf);
         order.WhseNo = customer.WhseNo;
         order.CustWhse = customer.CustWhse;
 
@@ -427,10 +438,13 @@ public class SalesOrderService(
 
         var now = DateTime.UtcNow;
 
-        // Legacy uses sysparam.transdate as the order date. sysparam is not
-        // imported into HOMSys, so the server date is used instead. If BMS
-        // transdate ever diverges from the calendar date this needs revisiting.
-        var orderDate = DateOnly.FromDateTime(DateTime.Now);
+        // Legacy uses sysparam.transdate as the order date. The branch's value is
+        // pushed into Site.BmsDate by the BMS EOD/EOM forms and the bridge drain;
+        // encoding is blocked until the branch has synced one.
+        var bmsDate = await GetBmsDateAsync();
+        if (bmsDate is null)
+            return (null, "BMS date not yet synced for this branch. Run EOD or wait for the next bridge sync, then try again.");
+        var orderDate = bmsDate.Value;
 
         var order = new SalesOrder
         {
@@ -466,7 +480,7 @@ public class SalesOrderService(
             CreatedBy = CurrentUser
         };
 
-        ApplyCustomerToHeader(order, customer);
+        ApplyCustomerToHeader(order, customer, orderDate);
 
         // O.R. details only apply to cash customers.
         if (customer.Term == 0)
@@ -596,7 +610,7 @@ public class SalesOrderService(
 
         var originalPoNum = order.PoNum;
 
-        ApplyCustomerToHeader(order, customer);
+        ApplyCustomerToHeader(order, customer, order.OrderDate);
 
         order.PoNum = (dto.PoNum ?? string.Empty).Trim();
         order.PoDate = dto.PoDate;

@@ -17,6 +17,7 @@ public class SalesOrderBridgeService(
     ICustomerRepository customerRepo,
     IOosSyncRepository oosSyncRepo,
     ISyncLogRepository syncLogRepo,
+    ISiteRepository siteRepo,
     IUnitOfWork uow)
 {
     /// <summary>How long a branch's bridge can go quiet before HOMSys treats its
@@ -41,6 +42,16 @@ public class SalesOrderBridgeService(
     /// so the UI can show "branch last synced N min ago" and the edit guard can
     /// tell an offline branch from a quiet one.</summary>
     public Task HeartbeatAsync(string branch) => syncLogRepo.RecordAsync(SyncLogSections.SoBridge(branch));
+
+    /// <summary>Stores the branch's BMS sysparam.transdate on its Site (shown in the Sites
+    /// list, used as the SO order date). False when no Site matches the branch code.</summary>
+    public async Task<bool> SetBmsDateAsync(string branch, DateOnly transDate)
+    {
+        var site = await siteRepo.GetByBranchCodeAsync(branch);
+        if (site is null) return false;
+        await siteRepo.SetBmsDateAsync(site.Id, transDate);
+        return true;
+    }
 
     /// <summary>HOMSys's current view of this branch's live (non-Cancelled, in-BMS)
     /// orders from the last <see cref="ReconcileWindowDays"/> days, for the bridge's

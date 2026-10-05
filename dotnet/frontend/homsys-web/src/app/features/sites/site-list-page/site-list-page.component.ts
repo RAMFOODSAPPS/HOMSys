@@ -28,6 +28,7 @@ const EXPORT_COLS: ExportColumn[] = [
   { header: 'Address',        field: 'address' },
   { header: 'Description',    field: 'description' },
   { header: 'Cuwhsenos',      field: 'cuwhsenos' },
+  { header: 'BMS Date',       field: 'bmsDate' },
   { header: 'Status',         field: 'isActive', formatter: v => v ? 'Active' : 'Inactive' },
 ];
 
@@ -77,6 +78,7 @@ const IMPORT_COLS: ImportColumn[] = [
           <th pSortableColumn="address">Address <p-sortIcon field="address" /></th>
           <th pSortableColumn="contactPerson">Contact <p-sortIcon field="contactPerson" /></th>
           <th pSortableColumn="cuwhsenos">Cuwhsenos <p-sortIcon field="cuwhsenos" /></th>
+          <th pSortableColumn="bmsDate">BMS Date <p-sortIcon field="bmsDate" /></th>
           <th pSortableColumn="isActive">Status <p-sortIcon field="isActive" /></th>
           <th pSortableColumn="createdAt">Created At <p-sortIcon field="createdAt" /></th>
           <th pSortableColumn="createdBy">Created By <p-sortIcon field="createdBy" /></th>
@@ -94,6 +96,9 @@ const IMPORT_COLS: ImportColumn[] = [
           <td>{{ site.address || '—' }}</td>
           <td>{{ site.contactPerson || '—' }}</td>
           <td>{{ site.cuwhsenos || '—' }}</td>
+          <td [pTooltip]="site.bmsDateUpdatedUtc ? 'Synced ' + (site.bmsDateUpdatedUtc | date:'MM/dd/yyyy hh:mm a') : ''">
+            {{ site.bmsDate ? (site.bmsDate | date:'MM/dd/yyyy') : '—' }}
+          </td>
           <td>
             <p-tag [value]="site.isActive ? 'Active' : 'Inactive'"
               [severity]="site.isActive ? 'success' : 'danger'" />
@@ -106,7 +111,7 @@ const IMPORT_COLS: ImportColumn[] = [
       </ng-template>
 
       <ng-template pTemplate="emptymessage">
-        <tr><td colspan="10" class="text-center">No sites found.</td></tr>
+        <tr><td colspan="12" class="text-center">No sites found.</td></tr>
       </ng-template>
     </p-table>
   `,

@@ -51,6 +51,22 @@ public class SiteRepository(AppDbContext db) : ISiteRepository
             .SetProperty(s => s.UpdatedBy,     site.UpdatedBy));
     }
 
+    public async Task<Site?> GetByBranchCodeAsync(string branchCode)
+    {
+        var raw = branchCode.Trim();
+        if (raw.Length == 0) return null;
+        var stripped = raw.EndsWith("-B", StringComparison.OrdinalIgnoreCase) ? raw[..^2] : raw;
+        var withB = stripped + "-B";
+        var sites = await db.Sites.AsNoTracking().Where(s => s.Code == raw || s.Code == withB).ToListAsync();
+        return sites.FirstOrDefault(s => string.Equals(s.Code, raw, StringComparison.OrdinalIgnoreCase))
+            ?? sites.FirstOrDefault(s => string.Equals(s.Code, withB, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public async Task SetBmsDateAsync(int siteId, DateOnly bmsDate) =>
+        await db.Sites.Where(s => s.Id == siteId).ExecuteUpdateAsync(x => x
+            .SetProperty(s => s.BmsDate, (DateOnly?)bmsDate)
+            .SetProperty(s => s.BmsDateUpdatedUtc, (DateTime?)DateTime.UtcNow));
+
     public async Task DeleteAsync(int id)
     {
         var site = await db.Sites.FindAsync(id);

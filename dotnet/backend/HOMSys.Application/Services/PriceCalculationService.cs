@@ -1,6 +1,8 @@
 using HOMSys.Application.DTOs.Pricing;
 using HOMSys.Application.Interfaces;
+using System.Security.Claims;
 using HOMSys.Domain.Entities;
+using Microsoft.AspNetCore.Http;
 
 namespace HOMSys.Application.Services;
 
@@ -16,14 +18,31 @@ namespace HOMSys.Application.Services;
 public class PriceCalculationService(
     IProductRepository productRepo,
     CustomerBranchResolver branchResolver,
-    IPricingRepository pricingRepo)
+    IPricingRepository pricingRepo,
+    ISiteRepository siteRepo,
+    IHttpContextAccessor http)
 {
-    public async Task<PriceQuoteDto> GetQuoteAsync(string cProdNo, string? custKey)
+    /// <summary>
+    /// Effectivity date for a quote: the caller's branch BMS date (sysparam.transdate,
+    /// the same date SO encoding stamps as the order date); Manila today if the
+    /// branch has not synced one yet (display-only, so it never blocks).
+    /// </summary>
+    private async Task<DateOnly> DefaultAsOfAsync()
+    {
+        var branch = http.HttpContext?.User?.FindFirstValue("branch");
+        var bms = string.IsNullOrWhiteSpace(branch) ? null : (await siteRepo.GetByBranchCodeAsync(branch))?.BmsDate;
+        return bms ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8));
+    }
+
+    /// <param name="useBmsDate">True only for the SO encode grid: price as of the caller's
+    /// branch BMS date (the order date it will be saved with). Everything else keeps
+    /// pricing as of today's server date.</param>
+    public async Task<PriceQuoteDto> GetQuoteAsync(string cProdNo, string? custKey, bool useBmsDate = false)
     {
         var product = await productRepo.GetByCProdNoAsync(cProdNo.Trim());
         if (product is null) return new PriceQuoteDto { HasPrice = false };
 
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        var today = useBmsDate ? await DefaultAsOfAsync() : DateOnly.FromDateTime(DateTime.Now);
         var basePrice = await GetBasePriceAsync(product, today);
         if (basePrice is null) return new PriceQuoteDto { HasPrice = false };
 

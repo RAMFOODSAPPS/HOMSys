@@ -12,6 +12,8 @@ public class SiteDto
     public string Cuwhsenos { get; set; } = string.Empty;
     public bool PricesOffHon { get; set; }
     public bool AcceptsOffshoreOrders { get; set; }
+    public DateOnly? BmsDate { get; set; }
+    public DateTime? BmsDateUpdatedUtc { get; set; }
     public bool IsActive { get; set; }
     public int CompanyId { get; set; }
     public string CompanyName { get; set; } = string.Empty;

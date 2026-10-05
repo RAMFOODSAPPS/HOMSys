@@ -27,6 +27,8 @@ export class SalesOrderService {
   getAll()            { return this.http.get<ApiResponse<SalesOrderDto[]>>(this.base); }
   getById(id: number) { return this.http.get<ApiResponse<SalesOrderDto>>(`${this.base}/${id}`); }
   getBridgeStatus()   { return this.http.get<ApiResponse<BridgeStatusDto[]>>(`${this.base}/bridge-status`); }
+  /** Caller's branch BMS date (what a new SO is stamped with); data null if not synced yet. */
+  getOrderDate() { return this.http.get<ApiResponse<string | null>>(`${this.base}/order-date`); }
   getOffshoreBranches() { return this.http.get<ApiResponse<OffshoreBranchOptionDto[]>>(`${this.base}/offshore-branches`); }
 
   create(dto: CreateSalesOrderDto) {
@@ -88,9 +90,10 @@ export class SalesOrderService {
   }
 
   /** Display-only LP w/ VAT quote — never persisted onto the line. */
-  getQuote(cProdNo: string, custKey: string) {
+  getQuote(cProdNo: string, custKey: string, bmsDate = false) {
     const params = new URLSearchParams({ cProdNo });
     if (custKey) params.set('custKey', custKey);
+    if (bmsDate) params.set('bmsDate', 'true'); // encode grid: price as of the branch's BMS date
     return this.http.get<ApiResponse<PriceQuoteDto>>(
       `${environment.apiUrl}/pricing/quote?${params.toString()}`);
   }

@@ -8,8 +8,24 @@ namespace HOMSys.Application.Services;
 
 public class SiteService(ISiteRepository siteRepo, IHttpContextAccessor http)
 {
+    // Same branch-locked roles as PricelistController: they only see their own site.
+    private static readonly string[] BranchLockedRoles = ["Branch Administrator", "Sales Encoder"];
+
+    private bool IsBranchLocked =>
+        http.HttpContext?.User?.FindAll(ClaimTypes.Role)
+            .Any(c => BranchLockedRoles.Contains(c.Value, StringComparer.OrdinalIgnoreCase)) ?? false;
+
+    private string? CurrentBranch => http.HttpContext?.User?.FindFirstValue("branch");
+
     public async Task<IEnumerable<SiteDto>> GetAllAsync()
     {
+        if (IsBranchLocked)
+        {
+            var own = string.IsNullOrWhiteSpace(CurrentBranch) ? null : await siteRepo.GetByBranchCodeAsync(CurrentBranch);
+            if (own is null) return [];
+            var ownFull = await siteRepo.GetByIdAsync(own.Id);
+            return ownFull is null ? [] : [MapToDto(ownFull)];
+        }
         var sites = await siteRepo.GetAllAsync();
         return sites.Select(MapToDto);
     }
@@ -17,7 +33,13 @@ public class SiteService(ISiteRepository siteRepo, IHttpContextAccessor http)
     public async Task<SiteDto?> GetByIdAsync(int id)
     {
         var site = await siteRepo.GetByIdAsync(id);
-        return site is null ? null : MapToDto(site);
+        if (site is null) return null;
+        if (IsBranchLocked)
+        {
+            var own = string.IsNullOrWhiteSpace(CurrentBranch) ? null : await siteRepo.GetByBranchCodeAsync(CurrentBranch);
+            if (own?.Id != site.Id) return null;
+        }
+        return MapToDto(site);
     }
 
     private string CurrentUser =>
@@ -100,6 +122,8 @@ public class SiteService(ISiteRepository siteRepo, IHttpContextAccessor http)
         Cuwhsenos     = s.Cuwhsenos,
         PricesOffHon  = s.PricesOffHon,
         AcceptsOffshoreOrders = s.AcceptsOffshoreOrders,
+        BmsDate       = s.BmsDate,
+        BmsDateUpdatedUtc = s.BmsDateUpdatedUtc,
         IsActive      = s.IsActive,
         CreatedAt     = s.CreatedAt,
         CreatedBy     = s.CreatedBy,

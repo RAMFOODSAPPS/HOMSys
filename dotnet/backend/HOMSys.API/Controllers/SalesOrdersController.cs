@@ -18,6 +18,11 @@ public class SalesOrdersController(SalesOrderService salesOrderService, ZonePric
     public async Task<IActionResult> BridgeStatus() =>
         Ok(new { success = true, data = await salesOrderService.GetBridgeStatusAsync() });
 
+    /// <summary>The caller's branch BMS date (yyyy-MM-dd) — the order date a new SO gets; null if not synced.</summary>
+    [HttpGet("order-date"), Authorize(Policy = "sales-orders")]
+    public async Task<IActionResult> OrderDate() =>
+        Ok(new { success = true, data = (await salesOrderService.GetOrderDateAsync())?.ToString("yyyy-MM-dd") });
+
     [HttpGet("offshore-branches"), Authorize(Policy = "offshore-encode")]
     public async Task<IActionResult> OffshoreBranches() =>
         Ok(new { success = true, data = await salesOrderService.GetOffshoreBranchesAsync() });

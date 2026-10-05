@@ -17,12 +17,12 @@ public class PricingController(
     ILogger<PricingController> logger) : ControllerBase
 {
     [HttpGet("quote")]
-    public async Task<IActionResult> Quote([FromQuery] string cProdNo, [FromQuery] string? custKey)
+    public async Task<IActionResult> Quote([FromQuery] string cProdNo, [FromQuery] string? custKey, [FromQuery] bool bmsDate = false)
     {
         if (string.IsNullOrWhiteSpace(cProdNo))
             return BadRequest(new { success = false, message = "cProdNo is required." });
 
-        var quote = await pricingService.GetQuoteAsync(cProdNo, custKey);
+        var quote = await pricingService.GetQuoteAsync(cProdNo, custKey, bmsDate);
         return Ok(new { success = true, data = quote });
     }
 

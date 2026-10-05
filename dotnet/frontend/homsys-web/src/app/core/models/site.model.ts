@@ -13,6 +13,9 @@ export interface SiteDto {
   cuwhsenos: string;
   pricesOffHon?: boolean;
   acceptsOffshoreOrders?: boolean;
+  /** BMS sysparam.transdate (yyyy-MM-dd), pushed by the branch's BMS; read-only here. */
+  bmsDate?: string | null;
+  bmsDateUpdatedUtc?: string | null;
   isActive: boolean;
   createdAt: string;
   createdBy: string;

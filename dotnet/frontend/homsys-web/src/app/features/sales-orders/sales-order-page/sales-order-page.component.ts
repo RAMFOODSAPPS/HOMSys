@@ -142,7 +142,12 @@ import {
         <p-divider />
 
         <!-- ── encode PO# ──────────────────────────────────────────────── -->
-        <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr;">
+        <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+          <div class="field">
+            <label>SO Date</label>
+            <input pInputText class="w-full" [disabled]="true"
+                   [value]="soDate() ? (soDate() | date:'MM/dd/yyyy') : 'BMS date not synced'" />
+          </div>
           <div class="field">
             <label>PO No.</label>
             <input pInputText formControlName="poNum" class="w-full" maxlength="15"
@@ -632,6 +637,13 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
 
   /** null while encoding a new order; set once loaded for View/Edit. */
   soId = signal<number | null>(null);
+
+  /** Branch BMS date (sysparam.transdate) — what a new order will be stamped with; null until synced. */
+  private bmsDate = signal<string | null>(null);
+  /** The saved order's own OrderDate while viewing/editing. */
+  private loadedOrderDate = signal<string | null>(null);
+  /** SO Date shown on the form: the order's own date once saved, else the date it will get. */
+  protected soDate = computed(() => this.soId() !== null ? this.loadedOrderDate() : this.bmsDate());
   viewOnly = signal(false);
 
   /** null until loaded for View/Edit and the order has been invoiced (order.invNo). */
@@ -797,6 +809,11 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
       error: () => this.docClasses.set([])
     });
 
+    this.api.getOrderDate().subscribe({
+      next: res => this.bmsDate.set(res.data ?? null),
+      error: () => this.bmsDate.set(null)
+    });
+
     if (this.canEncodeOffshore) {
       this.api.getOffshoreBranches().subscribe({
         next: res => this.addOffshoreBranches(res.data ?? []),
@@ -861,6 +878,7 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
   private applyOrder(order: SalesOrderDto, viewOnly: boolean): void {
     viewOnly = viewOnly || !!order.invNo || !!order.isLocked;
     this.soId.set(order.soId);
+    this.loadedOrderDate.set(order.orderDate ?? null);
     this.viewOnly.set(viewOnly);
     this.invNo.set(order.invNo ?? null);
     this.delivered.set(order.delivered ?? null);
@@ -1212,7 +1230,7 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
   private fetchQuote(index: number, cProdNo: string): void {
     const custKey = (this.form.value.custKey ?? '').trim();
 
-    this.api.getQuote(cProdNo, custKey).subscribe({
+    this.api.getQuote(cProdNo, custKey, true).subscribe({
       next: res => {
         const pricePerCase = res.data?.hasPrice ? (res.data?.pricePerCase ?? null) : null;
         this.lines.update(ls => ls.map((l, i) => i === index ? { ...l, pricePerCase } : l));
