@@ -788,7 +788,8 @@ public class PricingDataImporter(AppDbContext db)
         string DelArea, int WhseNo, int CustWhse, int ServeWh, int DelWhse, int Salesman, string CsMan,
         int Term, int TermDays, string CZone, string VatId, string Subd, bool Tpc, bool Offshore, bool ExBranch,
         int CCode, int OldCCode, DateOnly? IEffDate, bool BlockInv, string Tin, string AliasKey, string ConsoMax2,
-        DateOnly? FirstOrder, bool Inactive, string CusName2);
+        DateOnly? FirstOrder, bool Inactive, string CusName2, string NRegion, string NSlGrp, string NAccount,
+        string Territory, string NSlGrp1);
 
     private static CustomerFields ReadCustomerFields(DbfRecord r) => new(
         CKey: r.GetString("CKEY"), CusName: r.GetString("CUSNAME"), AddrLn1: r.GetString("ADDRLN1"),
@@ -801,7 +802,8 @@ public class PricingDataImporter(AppDbContext db)
         CCode: r.GetInt("CCODE"), OldCCode: r.GetInt("OLDCCODE"), IEffDate: r.GetDate("IEFFDATE"),
         BlockInv: r.GetBool("BLOCKINV"), Tin: r.GetString("TIN"), AliasKey: r.GetString("ALIASKEY"),
         ConsoMax2: r.GetString("CONSOMAX2"), FirstOrder: r.GetDate("FIRSTORDER"), Inactive: r.GetBool("INACTIVE"),
-        CusName2: r.GetString("CUSNAME2"));
+        CusName2: r.GetString("CUSNAME2"), NRegion: r.GetString("NREGION"), NSlGrp: r.GetString("NSLGRP"),
+        NAccount: r.GetString("NACCOUNT"), Territory: r.GetString("TERRITORY"), NSlGrp1: r.GetString("NSLGRP1"));
 
     private static CustomerFields SnapshotOf(Customer c) => new(
         CKey: c.CKey, CusName: c.CusName, AddrLn1: c.AddrLn1, AddrLn2: c.AddrLn2, DelAddrLn1: c.DelAddrLn1,
@@ -810,7 +812,8 @@ public class PricingDataImporter(AppDbContext db)
         CZone: c.CZone, VatId: c.VatId, Subd: c.Subd, Tpc: c.Tpc, Offshore: c.Offshore, ExBranch: c.ExBranch,
         CCode: c.CCode, OldCCode: c.OldCCode, IEffDate: c.IEffDate, BlockInv: c.BlockInv, Tin: c.Tin,
         AliasKey: c.AliasKey, ConsoMax2: c.ConsoMax2, FirstOrder: c.FirstOrder, Inactive: c.Inactive,
-        CusName2: c.CusName2);
+        CusName2: c.CusName2, NRegion: c.NRegion, NSlGrp: c.NSlGrp, NAccount: c.NAccount, Territory: c.Territory,
+        NSlGrp1: c.NSlGrp1);
 
     private static void ApplyFields(Customer c, CustomerFields f)
     {
@@ -821,7 +824,8 @@ public class PricingDataImporter(AppDbContext db)
         c.Subd = f.Subd; c.Tpc = f.Tpc; c.Offshore = f.Offshore; c.ExBranch = f.ExBranch; c.CCode = f.CCode;
         c.OldCCode = f.OldCCode; c.IEffDate = f.IEffDate; c.BlockInv = f.BlockInv; c.Tin = f.Tin;
         c.AliasKey = f.AliasKey; c.ConsoMax2 = f.ConsoMax2; c.FirstOrder = f.FirstOrder; c.Inactive = f.Inactive;
-        c.CusName2 = f.CusName2;
+        c.CusName2 = f.CusName2; c.NRegion = f.NRegion; c.NSlGrp = f.NSlGrp; c.NAccount = f.NAccount;
+        c.Territory = f.Territory; c.NSlGrp1 = f.NSlGrp1;
     }
 
     public async Task<int> ImportCustomersAsync(string root, string branch, Action<string> log)

@@ -302,6 +302,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Tin).HasMaxLength(20);
             e.Property(x => x.AliasKey).HasMaxLength(7);
             e.Property(x => x.ConsoMax2).HasMaxLength(7);
+            e.Property(x => x.NRegion).HasMaxLength(20);
+            e.Property(x => x.NSlGrp).HasMaxLength(5);
+            e.Property(x => x.NAccount).HasMaxLength(50);
+            e.Property(x => x.Territory).HasMaxLength(10);
+            e.Property(x => x.NSlGrp1).HasMaxLength(15);
         });
 
         // ── DocClass (from docclass.DBF) ─────────────────────────────────────

@@ -32,7 +32,8 @@ import { AppTab, TabBarService } from '../../core/services/tab-bar.service';
       display: flex;
       align-items: stretch;
       background: var(--p-surface-card);
-      border-bottom: 1px solid #d1d5db;
+      /* bottom rule as an inset shadow, so the active tab's 1px underline lands on the same row instead of stacking */
+      box-shadow: inset 0 -1px 0 #d1d5db;
       height: 34px;
       overflow-x: auto;
       overflow-y: hidden;
@@ -51,7 +52,7 @@ import { AppTab, TabBarService } from '../../core/services/tab-bar.service';
       color: var(--p-text-muted-color);
       cursor: pointer;
       border-right: 1px solid #e5e7eb;
-      border-bottom: 2px solid transparent;
+      border-bottom: 1px solid transparent;
       white-space: nowrap;
       transition: background 0.13s, color 0.13s;
       user-select: none;

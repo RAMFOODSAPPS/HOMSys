@@ -278,11 +278,11 @@ import {
 
         @if (cancellation(); as cx) {
           <p-divider />
-          <label class="section-label">Invoice Cancellation</label>
+          <label class="section-label">{{ cx.invNo ? 'Invoice Cancellation' : 'S.O. Deleted in BMS' }}</label>
           <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr;">
             <div class="field">
               <label>Cancelled INV#</label>
-              <input pInputText class="w-full" [disabled]="true" [value]="cx.invNo" />
+              <input pInputText class="w-full" [disabled]="true" [value]="cx.invNo ?? 'None (no invoice)'" />
             </div>
             <div class="field">
               <label>Cancel Date</label>
@@ -730,8 +730,9 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
     return [l.retCode, l.rsNo, l.remarks].filter(x => !!x).join(' · ');
   }
 
-  /** Set when BMS cancelled the invoice (a1174 Invoice Cancellation). */
-  cancellation = signal<{ invNo: number; date: string | null; by: string | null; remarks: string | null } | null>(null);
+  /** Set when BMS cancelled the invoice (a1174 Invoice Cancellation) or deleted
+   *  the uninvoiced S.O. (a1110 Delete -- Cancelled with invNo null). */
+  cancellation = signal<{ invNo: number | null; date: string | null; by: string | null; remarks: string | null } | null>(null);
 
   /** VSHDR/VSDET.STATUS codes from a1146F's Tag Delivered Invoices screen. */
   deliveryLabel(status?: string | null): string {
@@ -894,8 +895,8 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
     this.edd.set(order.edd ?? null);
     this.eda2.set(order.eda2 ?? null);
     this.rfcs.set(order.rfcs ?? []);
-    this.cancellation.set(order.cancelledInvNo
-      ? { invNo: order.cancelledInvNo, date: order.invCancelDate ?? null, by: order.invCancelledBy ?? null, remarks: order.invCancelRemarks ?? null }
+    this.cancellation.set(order.workflowStatus === 'Cancelled'
+      ? { invNo: order.cancelledInvNo ?? null, date: order.invCancelDate ?? null, by: order.invCancelledBy ?? null, remarks: order.invCancelRemarks ?? null }
       : null);
     this.originalPoNum = order.poNum;
 
@@ -948,6 +949,7 @@ export class SalesOrderPageComponent implements OnInit, OnDestroy {
 
     const soLabel = `SO# ${order.soNo ?? order.soId}`;
     const invLabel = order.cancelledInvNo ? ` | INV# ${order.cancelledInvNo} CANCELLED`
+      : order.workflowStatus === 'Cancelled' ? ' | CANCELLED (no invoice)'
       : order.workflowStatus === 'Full RFC' ? ` | INV# ${order.invNo} FULL RFC`
       : order.workflowStatus === 'Invoiced with RFC' ? ` | INV# ${order.invNo} w/ RFC`
       : order.invNo ? ` | INV# ${order.invNo}` : '';

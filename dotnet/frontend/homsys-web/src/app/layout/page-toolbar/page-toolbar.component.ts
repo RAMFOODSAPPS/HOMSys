@@ -144,7 +144,11 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
       align-items: center;
       padding: 0 0.75rem;
       background: var(--p-surface-card);
-      border-bottom: 1px solid var(--p-surface-border);
+      /* 1px grey rule + soft shadow onto the page; lives here so it disappears with the toolbar (e.g. Home) */
+      border-bottom: 1px solid #d1d5db;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+      position: relative;
+      z-index: 1;
       flex-shrink: 0;
       min-height: 36px;
       gap: 0.15rem;

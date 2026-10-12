@@ -74,7 +74,10 @@ public record CustomerBranchZoneDelta(
     int ServeWh, int DelWhse, int Salesman, string CsMan, int Term, int TermDays, string VatId,
     string Subd, bool Tpc, bool Offshore, bool ExBranch, int CCode, int OldCCode, DateOnly? IEffDate,
     bool BlockInv, string Tin, string AliasKey, string ConsoMax2, DateOnly? FirstOrder, bool Inactive,
-    string? CusName2 = null);  // null from a watcher built before CUSNAME2 was synced
+    string? CusName2 = null,  // null from a watcher built before CUSNAME2 was synced
+    // null from a watcher built before these were synced (2026-10-12)
+    string? NRegion = null, string? NSlGrp = null, string? NAccount = null,
+    string? Territory = null, string? NSlGrp1 = null);
 
 public record CustomerBranchZoneDeltaSection(List<CustomerBranchZoneDelta> Upserts, List<int> Deletes);
 

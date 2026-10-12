@@ -86,7 +86,7 @@ public static class AnalyticsCatalog
 
     /// <summary>Canonical customer row per CustKey — same rule as CustomerRepository.GetByCustKeyAsync plus an Id tiebreak. PFolder mirrors CustomerBranchResolver.CustomerBranchToPricingFolder.</summary>
     private const string CustomerApply = """
-        OUTER APPLY (SELECT TOP 1 c.Branch AS Folder, c.CZone,
+        OUTER APPLY (SELECT TOP 1 c.Branch AS Folder, c.CZone, c.WhseNo,
                             CASE WHEN c.Branch IN ('DAG','ISA','LEG','LUC','mxs','NAG') THEN 'hon' ELSE c.Branch END AS PFolder
                      FROM Customers c WHERE c.CustKey = so.CustKey
                      ORDER BY c.ImportedAt DESC, c.Id DESC) cu
@@ -94,16 +94,26 @@ public static class AnalyticsCatalog
 
     private static readonly Join[] SalesJoins =
     [
-        new("st", "OUTER APPLY (SELECT TOP 1 s.Name FROM Sites s WHERE s.Code = so.Branch ORDER BY s.Id) st"),
+        // Credited site: the Site whose Cuwhsenos holds the customer's WhseNo (a shared whse, e.g. 45,
+        // prefers the processing branch); no match -> the processing branch itself.
+        new("sw", """
+            OUTER APPLY (SELECT TOP 1 s.Code FROM Sites s
+                         WHERE ',' + REPLACE(s.Cuwhsenos, ' ', '') + ',' LIKE '%,' + CAST(cu.WhseNo AS varchar(10)) + ',%'
+                         ORDER BY CASE WHEN s.Code = COALESCE(so.ForBranch, so.Branch) THEN 0 ELSE 1 END, s.Id) sw
+            """, "cu"),
+        new("st", "OUTER APPLY (SELECT TOP 1 s.Name FROM Sites s WHERE s.Code = COALESCE(sw.Code, so.ForBranch, so.Branch) ORDER BY s.Id) st", "sw"),
         // Posted BMS RFCs against the order's invoice, pre-aggregated to one row per order.
         new("rf", "OUTER APPLY (SELECT SUM(rl.SpAmt + rl.Tax) AS Amt FROM SalesOrderRfcs r JOIN SalesOrderRfcLines rl ON rl.RfcId = r.Id WHERE r.SoId = so.SoId) rf"),
         new("cu", CustomerApply),
         new("zm", "OUTER APPLY (SELECT TOP 1 z.CDesc FROM ZoneMasts z WHERE z.Branch = cu.PFolder AND z.CZone = cu.CZone ORDER BY z.Id) zm", "cu"),
     ];
 
-    // OriginBranch too: an offshore order moves to its ForBranch on hand-off but
-    // stays visible to the branch that encoded it.
-    private const string SalesScope = "(so.Branch = @scSite OR so.OriginBranch = @scSite)";
+    // OriginBranch too (offshore orders stay visible to the encoder), and the branch credited via the customer's warehouse:
+    // the credited branch must see its own sales.
+    private const string SalesScope = """
+        (so.Branch = @scSite OR so.OriginBranch = @scSite OR EXISTS (SELECT 1 FROM Customers c2 JOIN Sites s2 ON s2.Code = @scSite
+            WHERE c2.CustKey = so.CustKey AND ',' + REPLACE(s2.Cuwhsenos, ' ', '') + ',' LIKE '%,' + CAST(c2.WhseNo AS varchar(10)) + ',%'))
+        """;
 
     private const string SalesAsOf =
         "SELECT MAX(v) FROM (VALUES ((SELECT MAX(CreatedAt) FROM SalesOrders)), ((SELECT MAX(UpdatedAt) FROM SalesOrders)), ((SELECT MAX(SyncedAt) FROM OosSyncLines))) t(v)";
@@ -120,8 +130,8 @@ public static class AnalyticsCatalog
         Dim("soId", "SO ID", "so.SoId", "int"),
         Dim("soNo", "SO #", "so.SoNo", "int", desc: "BMS sales order number, assigned by the bridge. NULL = not yet pushed to BMS."),
         Dim("invNo", "Invoice #", "so.InvNo", "int"),
-        Dim("branch", "Branch", "so.Branch", caption: "st.Name", joins: ["st"], drill: "custKey",
-            desc: "The branch whose BMS serves the order (Sites.Code): the encoding user's branch, or the For Branch once an offshore order is handed off. Blank = encoded by an HO/admin user."),
+        Dim("branch", "Branch", "COALESCE(sw.Code, so.ForBranch, so.Branch)", caption: "st.Name", joins: ["st"], drill: "custKey",
+            desc: "The branch credited with the sale (Sites.Code): the Site whose customer warehouses (Cuwhsenos) include the customer's WhseNo, so an offshore order encoded by HON/LKA-HO and processed by another branch is credited to the customer's branch. No matching Site = the processing branch (For Branch, else the encoding user's branch). Blank = encoded by an HO/admin user."),
         Dim("originBranch", "Encoding Branch", "so.OriginBranch",
             desc: "The encoding user's branch (Sites.Code). Never changes on an offshore hand-off."),
         Dim("forBranch", "For Branch", "so.ForBranch",

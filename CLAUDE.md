@@ -117,6 +117,7 @@ event goes through the offline outbox.
 | Screen | Action | What BMS does | HOMSys result |
 |---|---|---|---|
 | `a1174.SCX` Invoice Cancellation (`CmdCancel.Click`) | `CANCELINV` | logs `DOCCANCEL.DBF` (`canceld.prg`), then **deletes** `oowkhdr`/`oowkdet` (or `oocuhdr`/`oocudet`) | **Cancelled**, which is void and terminal |
+| `a1110.SCX` Data Entry of S.O. (`cmddelete.Click`, uninvoiced only) | `DELETESO` (`%5` = `appusername`) | **deletes** `oowkhdr`/`oowkdet`/`temphdr`/`appfccos`, logs `CANCELD.DBF` `DOCTYPE "SO"` | **Cancelled (no invoice)** |
 | `c1110k2.SCX` **toRFC** (`CmdToRfc.Click` → `updaterfc`): approved RSR (Request for Stock Returns) → RFC | `RFCPOST` (so# `0`, `"D"+DTOS(sysparam.transdate)`) | creates an **auto-posted** RFC per RSR (`POSTED = sysparam.transdate`, `REFNO1`=invoice, `REFTYPE3="CRSR"`/`REFNO3`=RSR#, `REMARKS2`=RSR remarks); the order record **stays** | **Full RFC** or **Invoiced with RFC** for every invoice with an RFC posted on/after that date |
 
 **Cancel (a1174).** `POST bridge/invoice-cancel?branch=` →
@@ -126,6 +127,16 @@ InvNo/CancelledInvNo. **The invoice details are kept**: `InvNo`/`InvDate`/`InvAm
 OOS lines and delivery fields, at the user's request (2026-09-28). Missing details
 are filled in from `DOCCANCEL` `DOCDATE`/`AMOUNT`. Analytics excludes Cancelled
 (`Live` const in `AnalyticsCatalog`). Delivery status shows `"C"` → "Cancelled".
+
+**S.O. delete (a1110).** Outbox `so_delete {deleted_by, delete_date}` (`sysparam.transdate`
+at event time) → `POST bridge/by-sono/{soNo}/so-delete?branch=` → `DeleteSoAsync`:
+`WorkflowStatus = "Cancelled"` with `CancelledInvNo` **null**; `InvCancelDate`/`InvCancelledBy`
+and `InvCancelRemarks = "S.O. deleted in BMS (no invoice)"` record the delete. It refuses an
+order HOMSys holds as invoiced (BMS can't delete one). The bridge re-checks that the SO# is
+really gone from `oowkhdr`/`oocuhdr` before posting. The reconcile heals missed deletes:
+SO# gone from both tables **and** a `canceld.dbf` row with `DOCTYPE "SO"`. `CANCELD.DBF`
+structure differs per branch, so nothing else is read from it. The UI keys the cancellation
+display on `WorkflowStatus`, not `CancelledInvNo`.
 
 **RFC.** Both RFC kinds stamp the **same header**: `REFTYPE1="INVOICE"`,
 `REFNO1`=inv, `REFTYPE2="RSR"`. So full vs partial is decided **by quantities**,
@@ -246,8 +257,9 @@ On 2026-09-29, SoId 2043 was downloaded twice, as 88265761 and 88265762. Its fir
 ### Offshore Encoder (HON / LKA-HO → For Branch)
 
 This automates the old UTIL18 TCODE 31 (`download7`) → emailed `B#######.ZIP` → UTIL19 `uploadoowk` flow.
-- **Encode.** Permission 15 `offshore-encode` is seeded with the **Offshore Encoder** role (8, 13, 15). Holders must pick **For Branch**. The options are Sites flagged `AcceptsOffshoreOrders` (the Sites page toggle), from `GET salesorders/offshore-branches`.
-- **Fields.** `SalesOrder.OriginBranch` is the encoder's branch and never changes. `ForBranch` is the target. `Branch` is still "which bridge owns it": it flips to `ForBranch` on upload. Because of that flip, every `(SoNo, Branch)` by-sono, reconcile and heartbeat path follows the order unchanged. The list, GetById and analytics `SalesScope` show an order to `Branch` **or** `OriginBranch`.
+- **Encode.** Permission 15 `offshore-encode` is seeded with the **Offshore Encoder** role (8, 13, 15). Holders must pick **For Branch**; the API rejects a blank one ("For Branch is required.", `SalesOrderService.ResolveForBranchAsync`). The options are Sites flagged `AcceptsOffshoreOrders` (the Sites page toggle), from `GET salesorders/offshore-branches`.
+- **Fields.** `SalesOrder.OriginBranch` is the encoder's branch and never changes. `ForBranch` is the target. `Branch` is still "which bridge owns it": it flips to `ForBranch` on upload. Because of that flip, every `(SoNo, Branch)` by-sono, reconcile and heartbeat path follows the order unchanged. The list and GetById show an order to `Branch` **or** `OriginBranch`.
+- **Sales credit (analytics).** The `branch` field credits the sale to the Site whose `Cuwhsenos` contains the customer's `Customers.WhseNo` (e.g. WhseNo 69 -> BUT-B), not the encoder or the processing warehouse. A shared whse (e.g. 45) prefers the processing branch (`COALESCE(ForBranch, Branch)`), and no matching Site falls back to it. `SalesScope` also shows an order to the credited branch's users. Example: HON encodes, CDC facilitates the delivery, Davao is credited.
 - **Origin.** `write_order` stages For-Branch orders with **`OFFSHORE=.T.`**, the same as a11102 forces at bcode 28/88. That flag skips allocation, keeps the order **out of the origin's Print Picklist** (`optn_init5` requires `.not. offshore`) and routes it to Confirm Clean Orders.
   - `offshore_scan` runs on every bulk run: invoice form **Init/Refresh** via `drunbridge(0)`, and the 5-minute drain as catch-up. It uploads an `offshore-awaiting` SO# once live oowkhdr meets `ready_for_handoff`: status 4/E/F with offshore. That is the `optn_init4` Confirm Clean Orders list plus F, meaning Process, FCCOS and verify are done, with `optn_init5`'s exclusions (For Allocation / DUS PROCESSED / BEYOND HARD LIMIT).
   - Each upload is queued as outbox `offshore_upload`, carrying the full text-type oowkhdr/oowkdet/oowkdis rows with `ORIGQTY = QTY`. The scan also stages `homsys_offshore_sent\<so#>\`.
@@ -255,7 +267,7 @@ This automates the old UTIL18 TCODE 31 (`download7`) → emailed `B#######.ZIP` 
 - **Server.** `offshore-upload` stores `OffshoreTransfer` (JSON rows), sets `Branch = ForBranch`, and sets status **Transferring**. It returns **409** if the target already has that SO#; the outbox parks the event and `OffshoreError` shows on the order.
 - **Target.**
   - `offshore_receive` stages `offshore-inbound` into `homsys_offshore_in\<so#>\`. The stage is built in `.tmp` and renamed into place.
-  - `pAppendOffshore` (UTIL19 rules) appends it as **5 "PickListed", PICKNO 0, `OFFSHORE=.F.`**, keeping the origin SO#. That puts it in the target's Print Picklist. It also writes the offwk* mirrors and an appfccos row. An SO# already in oowkhdr or appfccos is flagged `DUP` instead.
+  - `pAppendOffshore` (UTIL19 rules) appends it as **5 "PickListed", PICKNO 0, `OFFSHORE=.F.`**, keeping the origin SO#. That puts it in the target's Print Picklist. It also writes the offwk* mirrors and an appfccos row. Only an SO# already **live in oowkhdr** is flagged `DUP`. Old `appfccos` receipts are history and never block: the origin's SO# is authoritative and the order lands straight in the picklist (changed 2026-10-03; UTIL19 itself also blocked on appfccos). In test BMS copies the origin `docnum` counter can be stale and reissue numbers already received in prior months, so use fresh test numbers anyway.
   - The bridge queues `offshore_received` and the order becomes **Transferred**. It keeps a `REPORTED.txt` folder until HOMSys stops listing the order.
   - Reconcile skips offshore orders until they are received.
 - **Not carried:** oowkhdr's four T (datetime) columns (encode-speed stamps) and tparprod.

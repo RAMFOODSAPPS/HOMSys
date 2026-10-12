@@ -647,6 +647,36 @@ public class SalesOrderBridgeService(
         return (true, null);
     }
 
+    public const string SoDeletedRemarks = "S.O. deleted in BMS (no invoice)";
+
+    /// <summary>
+    /// Fired by a1110.scx's Delete button ("DELETESO" via run_bridge.bat), which
+    /// deletes a never-invoiced S.O. from oowkhdr/oowkdet outright. Marked
+    /// Cancelled with no invoice: CancelledInvNo stays null, the cancel date/by/
+    /// remarks columns record the delete. Terminal, same as CancelInvoiceAsync.
+    /// BMS refuses to delete an S.O. that has an invoice no., so an order HOMSys
+    /// already holds as invoiced is rejected rather than voided.
+    /// </summary>
+    public async Task<string?> DeleteSoAsync(int soId, BridgeSoDeleteDto dto)
+    {
+        var order = await orderRepo.GetForUpdateAsync(soId);
+        if (order is null)
+            return $"Sales order {soId} not found.";
+        if (order.WorkflowStatus == "Cancelled")
+            return null;
+        if (order.InvNo is not null)
+            return $"SO {order.SoNo} has INV# {order.InvNo} in HOMSys, but BMS only deletes uninvoiced S.O.s -- refusing to cancel it.";
+
+        order.InvCancelDate = dto.DeleteDate ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8));
+        order.InvCancelRemarks = SoDeletedRemarks;
+        order.InvCancelledBy = dto.DeletedBy;
+        order.IsLocked = true;
+        order.NeedsResync = false;
+        order.WorkflowStatus = "Cancelled";
+        await orderRepo.SaveChangesAsync();
+        return null;
+    }
+
     private static bool FillMissingInvoiceDetails(SalesOrder order, BridgeInvoiceCancelDto dto)
     {
         var changed = false;

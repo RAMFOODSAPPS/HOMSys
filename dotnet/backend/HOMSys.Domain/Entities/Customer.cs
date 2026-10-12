@@ -108,5 +108,23 @@ public class Customer
     /// pricing-search results.</summary>
     public bool Inactive { get; set; }
 
+    // --- Sales-reporting classification, added to cust4win 2026-10 (blank for
+    //     most rows; filled in for the key accounts). Not used by any logic yet. ---
+
+    /// <summary>cust4win.NREGION C(20) — e.g. "NKA", "North Luzon", "Visayas".</summary>
+    public string NRegion { get; set; } = string.Empty;
+
+    /// <summary>cust4win.NSLGRP C(5) — sales group: "GT", "MT", "LKA".</summary>
+    public string NSlGrp { get; set; } = string.Empty;
+
+    /// <summary>cust4win.NACCOUNT C(50) — the parent account, e.g. "ROBINSON - MAIN".</summary>
+    public string NAccount { get; set; } = string.Empty;
+
+    /// <summary>cust4win.TERRITORY C(10) — "Luzon", "Visayas", "Mindanao".</summary>
+    public string Territory { get; set; } = string.Empty;
+
+    /// <summary>cust4win.NSLGRP1 C(15) — channel: "Distributor", "RKA", "NKA", "Branch".</summary>
+    public string NSlGrp1 { get; set; } = string.Empty;
+
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
 }
