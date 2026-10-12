@@ -141,6 +141,11 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("CusName2")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("CustKey")
                         .IsRequired()
                         .HasMaxLength(7)

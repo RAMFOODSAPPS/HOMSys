@@ -247,6 +247,7 @@ def read_customer_branch_zones(branch_dir: str) -> dict:
                     "custKey": cust_key,
                     "cKey": r.get_string("CKEY"),
                     "cusName": r.get_string("CUSNAME"),
+                    "cusName2": r.get_string("CUSNAME2"),
                     "addrLn1": r.get_string("ADDRLN1"),
                     "addrLn2": r.get_string("ADDRLN2"),
                     "delAddrLn1": r.get_string("DELADDRLN1"),

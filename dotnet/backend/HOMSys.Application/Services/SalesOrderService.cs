@@ -119,7 +119,7 @@ public class SalesOrderService(
         return new CustomerLookupDto
         {
             CustKey = c.CustKey,
-            CusName = c.CusName,
+            CusName = c.InvoiceName,  // what the order will carry (see ApplyCustomerToHeader)
             CKey = c.CKey,
             WhseNo = c.WhseNo,
             CustWhse = c.CustWhse,
@@ -353,7 +353,9 @@ public class SalesOrderService(
                      !string.IsNullOrWhiteSpace(customer.DelAddrLn2);
 
         order.CustKey = customer.CustKey;
-        order.CusName = customer.CusName;
+        // Invoice name (CUSNAME2) when set, like a1110 -- this lands in oowkhdr.CUSNAME
+        // and so on the BMS invoice.
+        order.CusName = customer.InvoiceName;
         order.CKey = customer.CKey;
 
         order.CCode = ResolveCCode(customer, asOf);

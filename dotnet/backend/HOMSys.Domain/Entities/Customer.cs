@@ -33,6 +33,13 @@ public class Customer
 
     public string CusName { get; set; } = string.Empty;
 
+    /// <summary>cust4win.CUSNAME2 C(50) — the invoice name; blank for most customers.</summary>
+    public string CusName2 { get; set; } = string.Empty;
+
+    /// <summary>Name the S.O. (and so the BMS invoice) carries: CUSNAME2, else CUSNAME —
+    /// a1110's rule (jpalermo 03/25/2014). Not mapped (getter only).</summary>
+    public string InvoiceName => string.IsNullOrWhiteSpace(CusName2) ? CusName : CusName2;
+
     public string AddrLn1 { get; set; } = string.Empty;
     public string AddrLn2 { get; set; } = string.Empty;
 

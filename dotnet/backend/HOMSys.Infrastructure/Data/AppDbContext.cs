@@ -289,6 +289,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.CustKey).HasMaxLength(7).IsRequired();
             e.Property(x => x.CKey).HasMaxLength(5);
             e.Property(x => x.CusName).HasMaxLength(50);
+            e.Property(x => x.CusName2).HasMaxLength(50);
             e.Property(x => x.AddrLn1).HasMaxLength(75);
             e.Property(x => x.AddrLn2).HasMaxLength(75);
             e.Property(x => x.DelAddrLn1).HasMaxLength(75);
