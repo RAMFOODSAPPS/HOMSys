@@ -67,7 +67,7 @@ builder.Services.AddOpenApi(options =>
     {
         document.Info.Title = "HOMSys API";
         document.Info.Version = "v1";
-        document.Info.Description = "Head Office Monitoring System API";
+        document.Info.Description = "Head Office Management System API";
         return Task.CompletedTask;
     });
 });

@@ -25,7 +25,7 @@ The backend API runs separately at `http://localhost:5200/api` (configured in `s
 
 ## Architecture Overview
 
-**HOMSys** (Head Office Monitoring System) is an Angular 19 standalone-component SPA for Ram Foods. There are no NgModules — every component is standalone with its own `imports` array.
+**HOMSys** (Head Office Management System) is an Angular 19 standalone-component SPA for Ram Foods. There are no NgModules — every component is standalone with its own `imports` array.
 
 ### Layout Shell
 

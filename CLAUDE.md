@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this subsystem.
 
 ## Overview
 
-**HOMSys** (Head Office Monitoring System) is a web replacement for parts of the
+**HOMSys** (Head Office Management System) is a web replacement for parts of the
 VFP6 BMS. Unlike the rest of `C:\CLAUDE`, this is not a VFP/PowerShell automation
 workspace — it is a .NET + Angular application.
 

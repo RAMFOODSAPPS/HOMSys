@@ -18,7 +18,7 @@ import { AuthService } from '../../../core/services/auth.service';
         <ng-template pTemplate="header">
           <div class="login-header">
             <h1>HOMSys</h1>
-            <p>Head Office Monitoring System</p>
+            <p>Head Office Management System</p>
           </div>
         </ng-template>
 

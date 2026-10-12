@@ -5,7 +5,7 @@ import { Component } from '@angular/core';
   standalone: true,
   template: `
     <footer class="footer">
-      <span>Ram Food Products, Inc. &copy; {{ year }} &mdash; Head Office Monitoring System</span>
+      <span>Ram Food Products, Inc. &copy; {{ year }} &mdash; Head Office Management System</span>
       <span class="version">HOMSys v1.0</span>
     </footer>
   `,

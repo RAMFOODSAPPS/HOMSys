@@ -15,7 +15,15 @@ import { TabBarService } from '../../core/services/tab-bar.service';
         <button class="hamburger" (click)="layout.toggleSidebar()" aria-label="Toggle menu">
           <i class="pi pi-bars"></i>
         </button>
-        <span class="app-logo">HOMSys</span>
+        <!-- HO split through the middle by a band carrying "Management System" -->
+        <svg class="app-logo" viewBox="0 0 120 38" width="79" height="25" role="img" aria-label="Head Office Management System">
+          <title>Head Office Management System</title>
+          <text x="60" y="38" text-anchor="middle" textLength="120" lengthAdjust="spacingAndGlyphs"
+                font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="53" fill="#fff">HO</text>
+          <rect x="0" y="14" width="120" height="10" fill="#800000"/>
+          <text x="60" y="22.4" text-anchor="middle" textLength="116" lengthAdjust="spacingAndGlyphs"
+                font-family="Arial, sans-serif" font-weight="700" font-size="9.5" fill="#fff">MANAGEMENT SYSTEM</text>
+        </svg>
       </div>
 
       <!-- Main area — starts at the same left edge as the modulebar -->
@@ -67,11 +75,8 @@ import { TabBarService } from '../../core/services/tab-bar.service';
     }
 
     .app-logo {
-      font-weight: 700;
-      font-size: 1rem;
-      color: #fff;
-      letter-spacing: 0.04em;
-      white-space: nowrap;
+      display: block;
+      flex-shrink: 0;
     }
 
     .hamburger {
