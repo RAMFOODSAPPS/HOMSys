@@ -323,6 +323,33 @@ p-sorticon svg {
 .cdk-drag-placeholder { opacity: 0.35; }
 .cdk-drag-animating, .an-chip-list.cdk-drop-list-dragging .an-chip:not(.cdk-drag-placeholder) { transition: transform 200ms cubic-bezier(0, 0, 0.2, 1); }
 
+// Dropdowns with [focusOnHover]="false" (TASAF form): hovering only highlights. With focus-on-hover,
+// the option under the mouse got "focused" — the list jumped while wheel-scrolling, and Tab/Enter
+// picked whatever the pointer rested on.
+.p-select-option:not(.p-select-option-selected):not(.p-disabled):hover,
+.p-multiselect-option:not(.p-disabled):hover {
+  background: var(--p-select-option-focus-background, var(--p-highlight-background, #f3e6e6));
+}
+
+// Multi-select panel footer with a Done (close) button — TASAF Area / Cust Key / Branch.
+.ms-footer {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  padding: 0.5rem 0.75rem; border-top: 1px solid var(--p-content-border-color, #e5e7eb);
+  font-size: 0.8rem; color: var(--p-text-muted-color);
+}
+
+// ── Two-line dropdown options in a virtual-scroll list (TASAF Cust Key / SKU) ──
+// The virtual scroller needs every row at exactly virtualScrollItemSize (48px): fixed height,
+// one line each for title and detail, long text cut with "…".
+.opt2-panel {
+  // The theme's 2px gap between options breaks the virtual scroller's row math (it assumes rows
+  // are flush), so the list drifted and jumped while scrolling.
+  .p-multiselect-list, .p-select-list { gap: 0; }
+  .p-multiselect-option, .p-select-option { height: 48px; box-sizing: border-box; padding-top: 0.25rem; padding-bottom: 0.25rem; overflow: hidden; }
+  .cust-opt { flex: 1; min-width: 0; }
+  .cust-opt > * { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+
 // ── Resizable table columns (shared/resizable-columns.directive.ts) ──
 table.rc-table.rc-fixed { table-layout: fixed; }  // only once a column was resized
 table.rc-table th { position: relative; overflow: hidden; text-overflow: ellipsis; }

@@ -433,6 +433,11 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
 - **Form** (`Tasaf` + Branches/Products/Costs/Actions, `TasafService`, `/tasafs`).
   Branches = active Sites + "ALL BRANCHES/LUZON/VISAYAS/MINDANAO" (SiteId null).
   Area is MULTI-select (`TasafAreaLinks` child rows → `AreaIds`/`AreaNames`; migration `TasafMultipleAreas`).
+  Each area lists its branches (`TasafArea.BranchCodes`, Site codes, Setup › Areas; defaults by migration
+  `TasafAreaBranches`, Nationwide blank = all). The Cust Key dropdown (`GET tasafs/customer-options?chainId=&areaIds=`)
+  = active customers matching the chain keywords AND belonging to the picked areas' branches. A customer belongs to
+  a Site when its `WhseNo` is in the Site's `Cuwhsenos` (any folder); a Site with no Cuwhsenos (HON-B) owns its
+  folder's unclaimed WhseNos (hon 22 = GMA). Shared hon WhseNos (21/26/23/45) land in several sites. Max 8000.
   Cust Key is MULTI-select (`TasafCustomers` child rows, names re-read from cust4win on save, max 2000).
   Picking a Customer / Chain loads its stores into a multi-select (`GET tasafs/chain-customers/{id}`)
   — active `Customers` whose CusName matches any of the chain's `CustomerMatch` keywords (comma-separated

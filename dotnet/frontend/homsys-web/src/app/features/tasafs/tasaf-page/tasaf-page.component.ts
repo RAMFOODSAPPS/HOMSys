@@ -129,7 +129,7 @@ function blankProduct(): TasafProduct {
           }
           @case ('start') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
               <p-datepicker [(ngModel)]="startDate" dateFormat="M d, yy" placeholder="Select start date" [showIcon]="true"
                 [showButtonBar]="true" [maxDate]="endDate" appendTo="body" styleClass="w-full" inputStyleClass="w-full"
                 [disabled]="readonly()" />
@@ -137,7 +137,7 @@ function blankProduct(): TasafProduct {
           }
           @case ('end') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
               <p-datepicker [(ngModel)]="endDate" dateFormat="M d, yy" placeholder="Select end date" [showIcon]="true"
                 [showButtonBar]="true" [minDate]="startDate" appendTo="body" styleClass="w-full" inputStyleClass="w-full"
                 [disabled]="readonly()" />
@@ -145,48 +145,56 @@ function blankProduct(): TasafProduct {
           }
           @case ('duration') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
               <div class="duration" [class.muted]="!duration()">{{ duration() ?? 'Pick the start and end dates' }}</div>
             </div>
           }
           @case ('salesGroup') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
-              <p-select [ngModel]="m.salesGroupId" (ngModelChange)="onSalesGroup($event)" [options]="list('sales-groups')" optionLabel="name" optionValue="id"
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
+              <p-select [focusOnHover]="false" [ngModel]="m.salesGroupId" (ngModelChange)="onSalesGroup($event)" [options]="list('sales-groups')" optionLabel="name" optionValue="id"
                 [showClear]="true" placeholder="Select" styleClass="w-full" [disabled]="readonly()" />
             </div>
           }
           @case ('area') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
-              <p-multiSelect [(ngModel)]="m.areaIds" [options]="list('areas')" optionLabel="name" optionValue="id"
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
+              <p-multiSelect #areaMs [focusOnHover]="false" [ngModel]="m.areaIds" (ngModelChange)="onAreas($event)" [options]="list('areas')" optionLabel="name" optionValue="id"
                 [filter]="true" [showClear]="true" display="chip" [maxSelectedLabels]="100000"
-                placeholder="Select one or more areas" styleClass="w-full chips-wrap" appendTo="body" [disabled]="readonly()" />
+                placeholder="Select one or more areas" styleClass="w-full chips-wrap" appendTo="body" [disabled]="readonly()">
+                <ng-template pTemplate="footer">
+                  <div class="ms-footer"><span>{{ m.areaIds.length }} selected</span><p-button label="Done" size="small" (onClick)="areaMs.hide()" /></div>
+                </ng-template>
+              </p-multiSelect>
             </div>
           }
           @case ('chain') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
-              <p-select [ngModel]="m.chainId" (ngModelChange)="onChain($event)" [options]="chainOptions()" optionLabel="name" optionValue="id"
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
+              <p-select [focusOnHover]="false" [ngModel]="m.chainId" (ngModelChange)="onChain($event)" [options]="chainOptions()" optionLabel="name" optionValue="id"
                 [showClear]="true" [filter]="true" filterBy="name" placeholder="Select" styleClass="w-full" [disabled]="readonly()" />
             </div>
           }
           @case ('custKey') {
             <div class="field">
-              <label>{{ cap(it) }} <span class="opt">(customer master, optional)</span></label>
+              <label>{{ cap(it) }} <span class="req">*</span></label>
               @if (chainCustomers().length) {
                 <!-- The chain's stores (TASAF Setup › Customers / Chains › customer name keywords). -->
-                <p-multiSelect [ngModel]="custKeys()" (ngModelChange)="setCustKeys($event)"
+                <p-multiSelect #custMs [focusOnHover]="false" [ngModel]="custKeys()" (ngModelChange)="setCustKeys($event)"
                   [options]="chainCustomers()" optionValue="custKey" optionLabel="label" [filter]="true"
-                  filterBy="custKey,cusName,address,branch" [showClear]="true" [virtualScroll]="true" [virtualScrollItemSize]="44"
-                  [placeholder]="'Select from ' + chainCustomers().length + ' ' + chainName() + ' stores'" appendTo="body"
+                  filterBy="custKey,cusName,address,branch" [showClear]="true" [virtualScroll]="chainCustomers().length > 500" [virtualScrollItemSize]="48" scrollHeight="20rem"
+                  panelStyleClass="opt2-panel" [panelStyle]="{ width: '36rem', maxWidth: '95vw' }"
+                  [placeholder]="'Select from ' + chainCustomers().length + ' ' + scopeName() + ' stores'" appendTo="body"
                   display="chip" [maxSelectedLabels]="100000"
                   styleClass="w-full chips-wrap" [disabled]="readonly()" [loading]="chainLoading()">
                   <ng-template let-c pTemplate="item">
-                    <div class="cust-opt">
+                    <div class="cust-opt" [title]="c.custKey + ' — ' + c.cusName + (c.address ? ' · ' + c.address : '')">
                       <span><strong>{{ c.custKey }}</strong> — {{ c.cusName }}</span>
                       <small class="muted">{{ c.branch }}@if (c.address) { · {{ c.address }} }</small>
                     </div>
+                  </ng-template>
+                  <ng-template pTemplate="footer">
+                    <div class="ms-footer"><span>{{ customers().length }} selected</span><p-button label="Done" size="small" (onClick)="custMs.hide()" /></div>
                   </ng-template>
                 </p-multiSelect>
               } @else {
@@ -198,7 +206,7 @@ function blankProduct(): TasafProduct {
                   <ng-template let-c pTemplate="item">{{ c.custKey }} — {{ c.cusName }}</ng-template>
                   <ng-template let-c pTemplate="selecteditem"><span [pTooltip]="c.cusName" tooltipPosition="top">{{ c.custKey }}</span></ng-template>
                 </p-autoComplete>
-                @if (chainNoMatch()) { <small class="muted">No stores match {{ chainName() }}'s keywords — search all customers.</small> }
+                @if (chainNoMatch()) { <small class="muted">No {{ scopeName() }} stores found — search all customers.</small> }
               }
               @if (customers().length) {
                 <small class="muted">{{ customers().length }} store{{ customers().length === 1 ? '' : 's' }} selected</small>
@@ -207,23 +215,27 @@ function blankProduct(): TasafProduct {
           }
           @case ('branches') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
-              <p-multiSelect [(ngModel)]="branchSel" [options]="options()?.branches ?? []" optionLabel="name" dataKey="name"
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
+              <p-multiSelect #branchMs [focusOnHover]="false" [(ngModel)]="branchSel" [options]="options()?.branches ?? []" optionLabel="name" dataKey="name"
                 [filter]="true" display="chip" [maxSelectedLabels]="100000" placeholder="Select one or more branches" styleClass="w-full chips-wrap"
-                appendTo="body" [disabled]="readonly()" />
+                appendTo="body" [disabled]="readonly()">
+                <ng-template pTemplate="footer">
+                  <div class="ms-footer"><span>{{ branchSel.length }} selected</span><p-button label="Done" size="small" (onClick)="branchMs.hide()" /></div>
+                </ng-template>
+              </p-multiSelect>
             </div>
           }
           @case ('programType') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
-              <p-select [(ngModel)]="m.programTypeId" [options]="list('program-types')" optionLabel="name" optionValue="id"
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
+              <p-select [focusOnHover]="false" [(ngModel)]="m.programTypeId" [options]="list('program-types')" optionLabel="name" optionValue="id"
                 [showClear]="true" placeholder="Choose the type of trade activity" styleClass="w-full" [disabled]="readonly()" />
             </div>
           }
           @case ('programTypeOther') {
             <div class="field">
               @if (isOthers('program-types', m.programTypeId)) {
-                <label>{{ cap(it) }}</label>
+                <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
                 <input pInputText [(ngModel)]="m.programTypeOther" maxlength="200" class="w-full" />
               } @else if (approvalTypeName()) {
                 <label>Approval Matrix</label>
@@ -233,45 +245,45 @@ function blankProduct(): TasafProduct {
           }
           @case ('objective') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
-              <p-select [(ngModel)]="m.objectiveId" [options]="list('objectives')" optionLabel="name" optionValue="id"
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
+              <p-select [focusOnHover]="false" [(ngModel)]="m.objectiveId" [options]="list('objectives')" optionLabel="name" optionValue="id"
                 [showClear]="true" placeholder="What do you want to achieve?" styleClass="w-full" [disabled]="readonly()" />
             </div>
           }
           @case ('objectiveOther') {
             <div class="field">
               @if (isOthers('objectives', m.objectiveId)) {
-                <label>{{ cap(it) }}</label>
+                <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
                 <input pInputText [(ngModel)]="m.objectiveOther" maxlength="200" class="w-full" />
               }
             </div>
           }
           @case ('targetMarket') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
-              <p-select [(ngModel)]="m.targetMarketId" [options]="list('target-markets')" optionLabel="name" optionValue="id"
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
+              <p-select [focusOnHover]="false" [(ngModel)]="m.targetMarketId" [options]="list('target-markets')" optionLabel="name" optionValue="id"
                 [showClear]="true" placeholder="Who is the target audience?" styleClass="w-full" [disabled]="readonly()" />
             </div>
           }
           @case ('targetMarketOther') {
             <div class="field">
               @if (isOthers('target-markets', m.targetMarketId)) {
-                <label>{{ cap(it) }}</label>
+                <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
                 <input pInputText [(ngModel)]="m.targetMarketOther" maxlength="200" class="w-full" />
               }
             </div>
           }
           @case ('channel') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
-              <p-select [(ngModel)]="m.channelId" [options]="list('channels')" optionLabel="name" optionValue="id"
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
+              <p-select [focusOnHover]="false" [(ngModel)]="m.channelId" [options]="list('channels')" optionLabel="name" optionValue="id"
                 [showClear]="true" placeholder="Where will it be implemented?" styleClass="w-full" [disabled]="readonly()" />
             </div>
           }
           @case ('productGroup') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
-              <p-select [ngModel]="m.productGroupId" (ngModelChange)="m.productGroupId = $event; loadProductOptions()" [options]="list('product-groups')" optionLabel="name" optionValue="id"
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
+              <p-select [focusOnHover]="false" [ngModel]="m.productGroupId" (ngModelChange)="m.productGroupId = $event; loadProductOptions()" [options]="list('product-groups')" optionLabel="name" optionValue="id"
                 [showClear]="true" placeholder="Primary product group" styleClass="w-full" [filter]="true" filterBy="code,name" [disabled]="readonly()">
                 <ng-template let-o pTemplate="item">{{ codeName(o) }}</ng-template>
                 <ng-template let-o pTemplate="selectedItem">{{ codeName(o) }}</ng-template>
@@ -281,7 +293,7 @@ function blankProduct(): TasafProduct {
           @case ('productGroup2') {
             <div class="field">
               <label>{{ cap(it) }} <span class="opt">(optional)</span></label>
-              <p-select [ngModel]="m.productGroup2Id" (ngModelChange)="m.productGroup2Id = $event; loadProductOptions()" [options]="list('product-groups')" optionLabel="name" optionValue="id"
+              <p-select [focusOnHover]="false" [ngModel]="m.productGroup2Id" (ngModelChange)="m.productGroup2Id = $event; loadProductOptions()" [options]="list('product-groups')" optionLabel="name" optionValue="id"
                 [showClear]="true" placeholder="Other product group" styleClass="w-full" [filter]="true" filterBy="code,name" [disabled]="readonly()">
                 <ng-template let-o pTemplate="item">{{ codeName(o) }}</ng-template>
                 <ng-template let-o pTemplate="selectedItem">{{ codeName(o) }}</ng-template>
@@ -290,8 +302,8 @@ function blankProduct(): TasafProduct {
           }
           @case ('category') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
-              <p-select [ngModel]="m.categoryId" (ngModelChange)="m.categoryId = $event; loadProductOptions()" [options]="categoryOptions(m.productGroupId)" optionLabel="name" optionValue="id"
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
+              <p-select [focusOnHover]="false" [ngModel]="m.categoryId" (ngModelChange)="m.categoryId = $event; loadProductOptions()" [options]="categoryOptions(m.productGroupId)" optionLabel="name" optionValue="id"
                 [showClear]="true" placeholder="Category to activate" styleClass="w-full" [filter]="true" filterBy="code,name" [disabled]="readonly()">
                 <ng-template let-o pTemplate="item">{{ codeName(o) }}</ng-template>
                 <ng-template let-o pTemplate="selectedItem">{{ codeName(o) }}</ng-template>
@@ -301,7 +313,7 @@ function blankProduct(): TasafProduct {
           @case ('category2') {
             <div class="field">
               <label>{{ cap(it) }} <span class="opt">(optional)</span></label>
-              <p-select [ngModel]="m.category2Id" (ngModelChange)="m.category2Id = $event; loadProductOptions()" [options]="categoryOptions(m.productGroup2Id)" optionLabel="name" optionValue="id"
+              <p-select [focusOnHover]="false" [ngModel]="m.category2Id" (ngModelChange)="m.category2Id = $event; loadProductOptions()" [options]="categoryOptions(m.productGroup2Id)" optionLabel="name" optionValue="id"
                 [showClear]="true" placeholder="Other category" styleClass="w-full" [filter]="true" filterBy="code,name" [disabled]="readonly()">
                 <ng-template let-o pTemplate="item">{{ codeName(o) }}</ng-template>
                 <ng-template let-o pTemplate="selectedItem">{{ codeName(o) }}</ng-template>
@@ -313,21 +325,21 @@ function blankProduct(): TasafProduct {
           }
           @case ('background') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
               <textarea pTextarea [(ngModel)]="m.background" [rows]="it.h * 2" [autoResize]="true" class="w-full"
                 placeholder="Why this activity? What opportunity in the category, channel or account does it address? Give figures if possible."></textarea>
             </div>
           }
           @case ('concessions') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
               <textarea pTextarea [(ngModel)]="m.concessions" [rows]="it.h * 2" [autoResize]="true" class="w-full"
                 placeholder="What do we get in return — extra facings, displays, free posting on the account's social media page, ..."></textarea>
             </div>
           }
           @case ('mechanics') {
             <div class="field">
-              <label>{{ cap(it) }}</label>
+              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
               <textarea pTextarea [(ngModel)]="m.mechanics" [rows]="it.h * 2" [autoResize]="true" class="w-full"
                 placeholder="How will the program be executed? Describe the promo scheme."></textarea>
             </div>
@@ -352,13 +364,13 @@ function blankProduct(): TasafProduct {
                     <tr>
                       <td>
                         <!-- SKUs of the picked Product Group / Category (active only). -->
-                        <p-select [ngModel]="p.cProdNo || null" (ngModelChange)="pickProduct(p, $event)"
+                        <p-select [focusOnHover]="false" [ngModel]="p.cProdNo || null" (ngModelChange)="pickProduct(p, $event)"
                           [options]="productOptions()" optionValue="cProdNo" optionLabel="label" [filter]="true"
-                          filterBy="cProdNo,prodDesc,packSize,categoryName" [virtualScroll]="true" [virtualScrollItemSize]="44"
+                          filterBy="cProdNo,prodDesc,packSize,categoryName" [virtualScroll]="productOptions().length > 500" [virtualScrollItemSize]="48" scrollHeight="20rem" panelStyleClass="opt2-panel"
                           [placeholder]="productOptions().length ? 'Select' : 'No SKUs'" appendTo="body" styleClass="w-full"
                           [panelStyle]="{ minWidth: '30rem' }" [loading]="productLoading()" [disabled]="readonly()">
                           <ng-template let-s pTemplate="item">
-                            <div class="cust-opt">
+                            <div class="cust-opt" [title]="s.cProdNo + ' — ' + s.prodDesc + ' ' + s.packSize">
                               <span><strong>{{ s.cProdNo }}</strong> — {{ s.prodDesc }} {{ s.packSize }}</span>
                               <small class="muted">{{ s.category }}@if (s.categoryName) { · {{ s.categoryName }} }</small>
                             </div>
@@ -392,7 +404,7 @@ function blankProduct(): TasafProduct {
                 @for (c of m.costs; track $index; let i = $index) {
                   <tr>
                     <td>
-                      <p-select [(ngModel)]="c.costTypeId" [options]="list('cost-types')" optionLabel="name" optionValue="id"
+                      <p-select [focusOnHover]="false" [(ngModel)]="c.costTypeId" [options]="list('cost-types')" optionLabel="name" optionValue="id"
                         [filter]="true" filterBy="name" [showClear]="true" placeholder="Select" styleClass="w-full" appendTo="body" [disabled]="readonly()" />
                     </td>
                     <td><p-inputNumber [(ngModel)]="c.amount" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /></td>
@@ -786,7 +798,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     this.customers.set((src.customers ?? []).map(c => ({ custKey: c.custKey, cusName: c.cusName })));
     this.startDate = parseIsoDate(src.startDate);
     this.endDate = parseIsoDate(src.endDate);
-    this.loadChainCustomers(this.m.chainId, false);
+    this.loadCustomerOptions(false);
     this.loadProductOptions();
     this.snapshot = JSON.stringify(this.payload());
   }
@@ -896,6 +908,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   /** Caption: the designer's custom label, else the field's default. */
   cap(it: FormLayoutItem) { return it.label || this.fieldDefs.get(it.key)?.label || ''; }
   isBlock(key: string)    { return this.fieldDefs.get(key)?.kind === 'block'; }
+  /** Required on submit (TASAF_FIELDS.required) — label gets a red *. */
+  isReq(it: FormLayoutItem) { return !!this.fieldDefs.get(it.key)?.required; }
 
   // ── Lookups ────────────────────────────────────────────────
   /** "01 — Tom Sauce/Paste" for dropdowns whose entries have a code. */
@@ -948,7 +962,13 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     // A chain belongs to one sales group (TASAF Setup › Customers / Chains) — fill it in.
     const sg = this.list('chains').find(o => o.id === chainId)?.parentId;
     if (sg && !this.m.salesGroupId) this.m.salesGroupId = sg;
-    this.loadChainCustomers(chainId, true);
+    this.loadCustomerOptions(true);
+  }
+
+  /** Areas changed: the Cust Key list narrows to the areas' branches (TASAF Setup › Areas). */
+  onAreas(areaIds: number[] | null) {
+    this.m.areaIds = areaIds ?? [];
+    this.loadCustomerOptions(true);
   }
 
   /** Sales group changed: a chain of another group no longer applies. */
@@ -957,22 +977,22 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     if (this.m.chainId && !this.chainOptions().some(c => c.id === this.m.chainId)) this.onChain(null);
   }
 
-  private loadChainCustomers(chainId: number | null, clearIfNotInList: boolean) {
+  private loadCustomerOptions(clearIfNotInList: boolean) {
     const req = ++this.chainReq;
     this.chainCustomers.set([]);
     this.chainNoMatch.set(false);
-    if (!chainId) return;
+    if (!this.m.chainId && !this.m.areaIds.length) return;
     this.chainLoading.set(true);
-    this.api.chainCustomers(chainId).subscribe({
+    this.api.customerOptions(this.m.chainId, this.m.areaIds).subscribe({
       next: res => {
-        if (req !== this.chainReq) return; // a newer chain was picked meanwhile
+        if (req !== this.chainReq) return; // a newer chain / area was picked meanwhile
         this.chainLoading.set(false);
         let list = res.data?.customers ?? [];
         const inList = new Set(list.map(c => c.custKey));
         const outside = this.customers().filter(c => !inList.has(c.custKey));
         if (list.length && outside.length) {
           if (clearIfNotInList) {
-            // New chain picked: keep only stores that belong to it.
+            // Chain / area changed: keep only stores that belong to it.
             this.customers.update(cs => cs.filter(c => inList.has(c.custKey)));
           } else {
             // Saved stores that no longer match the keywords still show as selected.
@@ -987,6 +1007,12 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   }
 
   chainName() { return this.list('chains').find(o => o.id === this.m.chainId)?.name ?? ''; }
+
+  /** "Puregold · South Luzon, Bicol" — what the Cust Key list is narrowed to. */
+  scopeName() {
+    const areas = this.list('areas').filter(a => this.m.areaIds.includes(a.id)).map(a => a.name).join(', ');
+    return [this.chainName(), areas].filter(s => s).join(' · ');
+  }
 
   // ── Participating SKUs ─────────────────────────────────────
   /**

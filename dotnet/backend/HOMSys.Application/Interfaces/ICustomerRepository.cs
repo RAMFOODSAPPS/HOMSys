@@ -9,6 +9,13 @@ public record CustomerGroupingInfo(string CustKey, string CusName, DateOnly? Fir
 /// <summary>A store picked by name keywords (TASAF Cust Key dropdown for a chain).</summary>
 public record CustomerMatchInfo(string CustKey, string CusName, string Branch, string Address);
 
+/// <summary>
+/// Customers of a set of branches (Sites): WhseNo in <see cref="WhseNos"/> (the sites'
+/// Cuwhsenos), or — for a site with no Cuwhsenos, e.g. HON-B — in one of <see cref="Folders"/>
+/// with a WhseNo no site claims (<see cref="ClaimedWhseNos"/>).
+/// </summary>
+public record CustomerBranchScope(IReadOnlyList<int> WhseNos, IReadOnlyList<string> Folders, IReadOnlyList<int> ClaimedWhseNos);
+
 public interface ICustomerRepository
 {
     Task<Customer?> GetByCustKeyAsync(string custKey);
@@ -23,18 +30,19 @@ public interface ICustomerRepository
     Task<Dictionary<string, (string RepresentativeName, int Count)>> GetZoneCustomerSummariesAsync(
         string branch, IReadOnlyCollection<int>? whseNos);
     /// <summary>
+    /// Active customers, one row per CustKey, by name — the TASAF Cust Key dropdown. Narrowed to
+    /// names containing ANY of the fragments (SQL LIKE pieces, so %/_ work) when given, and to the
+    /// branches in <paramref name="scope"/> when given (null = every branch).
+    /// </summary>
+    Task<List<CustomerMatchInfo>> MatchAsync(IReadOnlyList<string> fragments, CustomerBranchScope? scope, int take);
+
+    /// <summary>
     /// If <paramref name="pricingFolder"/> is given, results are restricted to
     /// customers whose own Branch matches that folder (optionally narrowed
     /// further to <paramref name="whseNos"/> — cuwhsenos — when a shared folder
     /// like "hon" covers more than one real branch), and Inactive customers
     /// are excluded.
     /// </summary>
-    /// <summary>
-    /// Active customers whose name contains ANY of the fragments (SQL LIKE pieces, so %/_ work),
-    /// one row per CustKey, by name. Used to list a TASAF chain's stores.
-    /// </summary>
-    Task<List<CustomerMatchInfo>> MatchByNameAsync(IReadOnlyList<string> fragments, int take);
-
     Task<IEnumerable<CustomerSuggestionDto>> SearchAsync(
         string term, int take = 50, string? pricingFolder = null, IReadOnlyCollection<int>? whseNos = null);
 }

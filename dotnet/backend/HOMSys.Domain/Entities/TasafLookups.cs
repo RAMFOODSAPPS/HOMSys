@@ -41,7 +41,16 @@ public class TasafChain : TasafLookup, ITasafParentLookup, ITasafTextLookup
     string ITasafTextLookup.Text { get => CustomerMatch; set => CustomerMatch = value; }
 }
 
-public class TasafArea : TasafLookup { }
+/// <summary>Area covered (GMA / NCR, West Visayas, ...).</summary>
+public class TasafArea : TasafLookup, ITasafTextLookup
+{
+    /// <summary>
+    /// Branch (Site) codes in this area, comma-separated (e.g. "DAG-B, ISA-B, MEX-B"). Picks the
+    /// area's stores for the TASAF Cust Key dropdown. Empty = no filter (all customers).
+    /// </summary>
+    public string BranchCodes { get; set; } = string.Empty;
+    string ITasafTextLookup.Text { get => BranchCodes; set => BranchCodes = value; }
+}
 
 public class TasafProgramType : TasafLookup, ITasafParentLookup, ITasafAmountLookup
 {

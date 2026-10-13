@@ -19,7 +19,7 @@ public class TasafService(
     public const string NotFound = "TASAF not found.";
     public const string Forbidden = "You can only open your own TASAFs.";
     /// <summary>Most participating stores (Cust Keys) one TASAF can list.</summary>
-    private const int MaxCustomers = 2000;
+    private const int MaxCustomers = 8000;
 
     /// <summary>Branch scopes offered after the Sites (TASAF Template DATA sheet).</summary>
     public static readonly string[] BranchScopes = ["ALL BRANCHES", "ALL LUZON", "ALL VISAYAS", "ALL MINDANAO"];
@@ -97,20 +97,54 @@ public class TasafService(
     }
 
     /// <summary>
-    /// A chain's stores from the customer master, by its customer-name keywords (TASAF Setup ›
-    /// Customers / Chains). filtered = false when the chain has no keywords (search everything).
+    /// Cust Key dropdown: active stores of the picked chain (its customer-name keywords, TASAF
+    /// Setup › Customers / Chains) AND of the picked areas (their branch codes, TASAF Setup ›
+    /// Areas). filtered = false when neither narrows anything (the form searches everything).
     /// </summary>
-    public async Task<(List<CustomerMatchInfo> customers, bool filtered)> GetChainCustomersAsync(int chainId)
+    public async Task<(List<CustomerMatchInfo> customers, bool filtered)> GetCustomerOptionsAsync(
+        int? chainId, IReadOnlyList<int> areaIds)
     {
-        if (await lookups.GetByIdAsync(typeof(TasafChain), chainId) is not TasafChain chain) return ([], false);
-        var fragments = chain.CustomerMatch
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(f => f.Length >= 2)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        if (fragments.Count == 0) return ([], false);
-        return (await customers.MatchByNameAsync(fragments, take: 2000), true);
+        var fragments = new List<string>();
+        if (chainId is int cid && await lookups.GetByIdAsync(typeof(TasafChain), cid) is TasafChain chain)
+            fragments = SplitList(chain.CustomerMatch).Where(f => f.Length >= 2).ToList();
+
+        var scope = await AreaScopeAsync(areaIds);
+        if (fragments.Count == 0 && scope is null) return ([], false);
+        return (await customers.MatchAsync(fragments, scope, take: MaxCustomers), true);
     }
+
+    /// <summary>
+    /// The picked areas' branches as a customer filter; null = no filter (no area picked, or one
+    /// with no branch codes, e.g. Nationwide). A customer belongs to a Site when its WhseNo is in
+    /// the Site's Cuwhsenos; a Site with none (HON-B) owns its folder's unclaimed WhseNos.
+    /// </summary>
+    private async Task<CustomerBranchScope?> AreaScopeAsync(IReadOnlyList<int> areaIds)
+    {
+        var codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var id in areaIds.Distinct())
+        {
+            if (await lookups.GetByIdAsync(typeof(TasafArea), id) is not TasafArea area) continue;
+            var list = SplitList(area.BranchCodes);
+            if (list.Count == 0) return null;
+            codes.UnionWith(list);
+        }
+        if (codes.Count == 0) return null;
+
+        var allSites = (await sites.GetAllAsync()).ToList();
+        var claimed = allSites.SelectMany(s => ParseWhseNos(s.Cuwhsenos)).Distinct().ToList();
+        var picked = allSites.Where(s => codes.Contains(s.Code) || codes.Contains(s.Name)).ToList();
+        var whse = picked.SelectMany(s => ParseWhseNos(s.Cuwhsenos)).Distinct().ToList();
+        var folders = picked.Where(s => ParseWhseNos(s.Cuwhsenos).Count == 0)
+            .Select(s => s.Code.Split('-')[0].ToLowerInvariant()).Distinct().ToList();
+        return new CustomerBranchScope(whse, folders, claimed);
+    }
+
+    private static List<string> SplitList(string s) =>
+        s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    private static List<int> ParseWhseNos(string cuwhsenos) =>
+        SplitList(cuwhsenos).Select(x => int.TryParse(x, out var n) ? n : -1).Where(n => n >= 0).ToList();
 
     /// <summary>
     /// Participating SKU dropdown: active products (not Delisted / Phased Out) of the TASAF's
@@ -501,6 +535,7 @@ public class TasafService(
         if (t.SalesGroupId is null) m.Add("Sales Group");
         if (t.Areas.Count == 0) m.Add("Area");
         if (t.ChainId is null) m.Add("Customer / Chain");
+        if (t.Customers.Count == 0) m.Add("Cust Key");
         if (t.Branches.Count == 0) m.Add("Branch");
         if (t.ProgramTypeId is null) m.Add("Program Type");
         else if (IsOthers(t.ProgramType) && t.ProgramTypeOther.Length == 0) m.Add("Program Type (Others, indicate)");
@@ -512,6 +547,7 @@ public class TasafService(
         if (t.ProductGroupId is null) m.Add("Product Group");
         if (t.CategoryId is null) m.Add("Category");
         if (t.Background.Length == 0) m.Add("Background");
+        if (t.Concessions.Length == 0) m.Add("Concessions");
         if (t.Mechanics.Length == 0) m.Add("Program Mechanics");
         if (t.Costs.Count == 0 || t.TotalCost <= 0) m.Add("Cost Details");
         else if (t.Costs.Any(c => c.CostTypeId is null)) m.Add("a description on every cost line");

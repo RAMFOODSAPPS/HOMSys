@@ -41,8 +41,11 @@ export class TasafService {
   cancel(id: number, comment: string) { return this.http.post<ApiResponse<TasafDto>>(`${this.base}/${id}/cancel`, { comment }); }
 
   /** filtered = false when the chain has no keywords (use the free search instead). */
-  chainCustomers(chainId: number) {
-    return this.http.get<ApiResponse<{ filtered: boolean; customers: TasafChainCustomer[] }>>(`${this.base}/chain-customers/${chainId}`);
+  /** Cust Key dropdown: stores of the chain (name keywords) and areas (branches). filtered = false → search all. */
+  customerOptions(chainId: number | null, areaIds: number[]) {
+    const params: Record<string, string | string[]> = { areaIds: areaIds.map(String) };
+    if (chainId) params['chainId'] = String(chainId);
+    return this.http.get<ApiResponse<{ filtered: boolean; customers: TasafChainCustomer[] }>>(`${this.base}/customer-options`, { params });
   }
   getOptions() { return this.http.get<ApiResponse<TasafFormOptions>>(`${this.base}/options`); }
   searchCustomers(term: string) {

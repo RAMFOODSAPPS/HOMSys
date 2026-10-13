@@ -9,27 +9,36 @@ namespace HOMSys.Infrastructure.Repositories;
 
 public class CustomerRepository(AppDbContext db) : ICustomerRepository
 {
-    public async Task<List<CustomerMatchInfo>> MatchByNameAsync(IReadOnlyList<string> fragments, int take)
+    public async Task<List<CustomerMatchInfo>> MatchAsync(IReadOnlyList<string> fragments, CustomerBranchScope? scope, int take)
     {
-        if (fragments.Count == 0) return [];
+        var q = db.Customers.AsNoTracking().Where(x => !x.Inactive);
 
-        // CusName LIKE '%f1%' OR CusName LIKE '%f2%' ... built as an expression so EF
-        // translates it to one parameterised WHERE (fragments are values, never SQL text).
-        var c = Expression.Parameter(typeof(Customer), "c");
-        var name = Expression.Property(c, nameof(Customer.CusName));
-        var like = typeof(DbFunctionsExtensions).GetMethod(nameof(DbFunctionsExtensions.Like),
-            [typeof(DbFunctions), typeof(string), typeof(string)])!;
-        Expression? any = null;
-        foreach (var f in fragments)
+        if (fragments.Count > 0)
         {
-            var call = Expression.Call(like, Expression.Constant(EF.Functions), name, Expression.Constant($"%{f}%"));
-            any = any is null ? call : Expression.OrElse(any, call);
+            // CusName LIKE '%f1%' OR CusName LIKE '%f2%' ... built as an expression so EF
+            // translates it to one parameterised WHERE (fragments are values, never SQL text).
+            var c = Expression.Parameter(typeof(Customer), "c");
+            var name = Expression.Property(c, nameof(Customer.CusName));
+            var like = typeof(DbFunctionsExtensions).GetMethod(nameof(DbFunctionsExtensions.Like),
+                [typeof(DbFunctions), typeof(string), typeof(string)])!;
+            Expression? any = null;
+            foreach (var f in fragments)
+            {
+                var call = Expression.Call(like, Expression.Constant(EF.Functions), name, Expression.Constant($"%{f}%"));
+                any = any is null ? call : Expression.OrElse(any, call);
+            }
+            q = q.Where(Expression.Lambda<Func<Customer, bool>>(any!, c));
         }
-        var predicate = Expression.Lambda<Func<Customer, bool>>(any!, c);
 
-        var rows = await db.Customers.AsNoTracking()
-            .Where(x => !x.Inactive)
-            .Where(predicate)
+        if (scope is not null)
+        {
+            var whse = scope.WhseNos.ToList();
+            var folders = scope.Folders.ToList();
+            var claimed = scope.ClaimedWhseNos.ToList();
+            q = q.Where(x => whse.Contains(x.WhseNo) || (folders.Contains(x.Branch) && !claimed.Contains(x.WhseNo)));
+        }
+
+        var rows = await q
             .OrderBy(x => x.CusName)
             .Select(x => new { x.CustKey, x.CusName, x.Branch, x.AddrLn1, x.AddrLn2, x.Id })
             .Take(take * 2) // a CustKey can sit in more than one branch file — dedupe below

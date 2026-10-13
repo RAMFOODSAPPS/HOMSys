@@ -2978,6 +2978,11 @@ namespace HOMSys.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("BranchCodes")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -3029,6 +3034,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 1,
+                            BranchCodes = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3040,6 +3046,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 2,
+                            BranchCodes = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3051,6 +3058,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 3,
+                            BranchCodes = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3062,6 +3070,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 4,
+                            BranchCodes = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3073,6 +3082,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 5,
+                            BranchCodes = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3084,6 +3094,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 6,
+                            BranchCodes = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3095,6 +3106,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 7,
+                            BranchCodes = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3106,6 +3118,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 8,
+                            BranchCodes = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3117,6 +3130,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 9,
+                            BranchCodes = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3128,6 +3142,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 10,
+                            BranchCodes = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3139,6 +3154,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 11,
+                            BranchCodes = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3150,6 +3166,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 12,
+                            BranchCodes = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3161,6 +3178,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 13,
+                            BranchCodes = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",

@@ -24,11 +24,11 @@ public class TasafsController(TasafService service, SalesOrderService salesOrder
     public async Task<IActionResult> SearchCustomers([FromQuery] string? term) =>
         Ok(new { success = true, data = await salesOrderService.SearchCustomersAsync(term ?? "", take: 50) });
 
-    /// <summary>The chain's stores (by its customer-name keywords) for the Cust Key dropdown.</summary>
-    [HttpGet("chain-customers/{chainId:int}")]
-    public async Task<IActionResult> ChainCustomers(int chainId)
+    /// <summary>Cust Key dropdown: stores of the picked chain (name keywords) and areas (branches).</summary>
+    [HttpGet("customer-options")]
+    public async Task<IActionResult> CustomerOptions([FromQuery] int? chainId, [FromQuery] int[]? areaIds)
     {
-        var (customers, filtered) = await service.GetChainCustomersAsync(chainId);
+        var (customers, filtered) = await service.GetCustomerOptionsAsync(chainId, areaIds ?? []);
         return Ok(new { success = true, data = new { filtered, customers } });
     }
 
