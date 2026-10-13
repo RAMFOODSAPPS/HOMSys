@@ -364,7 +364,7 @@ function blankProduct(): TasafProduct {
                     <tr>
                       <td>
                         <!-- SKUs of the picked Product Group / Category (active only). -->
-                        <p-select [focusOnHover]="false" [ngModel]="p.cProdNo || null" (ngModelChange)="pickProduct(p, $event)"
+                        <p-select [focusOnHover]="false" [autofocusFilter]="false" [ngModel]="p.cProdNo || null" (ngModelChange)="pickProduct(p, $event)"
                           [options]="productOptions()" optionValue="cProdNo" optionLabel="label" [filter]="true"
                           filterBy="cProdNo,prodDesc,packSize,categoryName" [virtualScroll]="productOptions().length > 500" [virtualScrollItemSize]="48" scrollHeight="20rem" panelStyleClass="opt2-panel"
                           [placeholder]="productOptions().length ? 'Select' : 'No SKUs'" appendTo="body" styleClass="w-full"
@@ -404,7 +404,7 @@ function blankProduct(): TasafProduct {
                 @for (c of m.costs; track $index; let i = $index) {
                   <tr>
                     <td>
-                      <p-select [focusOnHover]="false" [(ngModel)]="c.costTypeId" [options]="list('cost-types')" optionLabel="name" optionValue="id"
+                      <p-select [focusOnHover]="false" [autofocusFilter]="false" [(ngModel)]="c.costTypeId" [options]="list('cost-types')" optionLabel="name" optionValue="id"
                         [filter]="true" filterBy="name" [showClear]="true" placeholder="Select" styleClass="w-full" appendTo="body" [disabled]="readonly()" />
                     </td>
                     <td><p-inputNumber [(ngModel)]="c.amount" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /></td>
@@ -419,35 +419,37 @@ function blankProduct(): TasafProduct {
           @case ('computation') {
             <h3>{{ cap(it) }}</h3>
             <table class="lines calc">
-              <thead><tr><th>Description</th><th class="num">Amount</th><th class="num">vs Pre-Promo</th></tr></thead>
+              <colgroup><col /><col style="width: 15rem" /><col style="width: 10rem" /></colgroup>
+              <thead><tr><th>Description</th><th class="num">Amount (₱)</th>
+                <th class="num" pTooltip="Amount ÷ Pre-Promo Monthly Avg Sales" tooltipPosition="top">vs Pre-Promo <i class="pi pi-info-circle muted"></i></th></tr></thead>
               <tbody>
                 <tr><td>TOTAL COST / BUDGET</td><td class="num">{{ totalCost() | number:'1.2-2' }}</td><td></td></tr>
                 <tr>
                   <td>Promoted Value @if (m.products.length) { <span class="muted">(from products)</span> }</td>
                   <td class="num">
                     @if (m.products.length) { {{ promotedValue() | number:'1.2-2' }} }
-                    @else { <p-inputNumber [(ngModel)]="m.promotedValue" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /> }
+                    @else { <p-inputNumber [(ngModel)]="m.promotedValue" placeholder="0.00" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /> }
                   </td>
-                  <td class="num">{{ ratio(promotedValue(), m.prePromoSales) | percent:'1.0-2' }}</td>
+                  <td class="num">{{ (ratio(promotedValue(), m.prePromoSales) | percent:'1.0-2') ?? '—' }}</td>
                 </tr>
                 <tr>
                   <td pTooltip="Can use the past 3 months average, but if the SKU is seasonal use SPLY (actual sales of last year, same promo duration)">
                     Pre-Promo Monthly Avg Sales (Pesos) <i class="pi pi-info-circle muted"></i>
                   </td>
-                  <td class="num"><p-inputNumber [(ngModel)]="m.prePromoSales" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /></td>
+                  <td class="num"><p-inputNumber [(ngModel)]="m.prePromoSales" placeholder="0.00" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /></td>
                   <td></td>
                 </tr>
                 <tr>
                   <td>Incremental Sales @if (m.products.length) { <span class="muted">(from products)</span> }</td>
                   <td class="num">
                     @if (m.products.length) { {{ incrementalSales() | number:'1.2-2' }} }
-                    @else { <p-inputNumber [(ngModel)]="m.incrementalSales" [minFractionDigits]="2" [maxFractionDigits]="2" inputStyleClass="numin" [disabled]="readonly()" /> }
+                    @else { <p-inputNumber [(ngModel)]="m.incrementalSales" placeholder="0.00" [minFractionDigits]="2" [maxFractionDigits]="2" inputStyleClass="numin" [disabled]="readonly()" /> }
                   </td>
-                  <td class="num">{{ ratio(incrementalSales(), m.prePromoSales) | percent:'1.0-2' }}</td>
+                  <td class="num">{{ (ratio(incrementalSales(), m.prePromoSales) | percent:'1.0-2') ?? '—' }}</td>
                 </tr>
                 <tr class="hl">
                   <td>CTS (Promoted Value) @if (ctsLimit() != null) { <span class="muted">— must be within {{ ctsLimit() }}%</span> }</td>
-                  <td class="num">{{ ratio(totalCost(), promotedValue()) | percent:'1.2-2' }}</td><td></td>
+                  <td class="num">{{ (ratio(totalCost(), promotedValue()) | percent:'1.2-2') ?? '—' }}</td><td></td>
                 </tr>
               </tbody>
             </table>
@@ -459,6 +461,7 @@ function blankProduct(): TasafProduct {
           @case ('payment') {
             <h3>{{ cap(it) }}</h3>
             <table class="lines pay">
+              <colgroup><col /><col style="width: 15rem" /><col style="width: 15rem" /><col style="width: 10rem" /></colgroup>
               <thead><tr><th>Payment Type</th><th class="num">AP / Collection</th><th class="num">Salesman</th><th class="num">Total</th></tr></thead>
               <tbody>
                 @for (r of payRows; track r.label) {
@@ -599,7 +602,9 @@ function blankProduct(): TasafProduct {
     table.lines th { text-align: left; font-weight: 600; padding: 0.35rem; border-bottom: 1px solid var(--p-surface-border); }
     table.lines td { padding: 0.25rem 0.35rem; vertical-align: middle; }
     table.lines tfoot td { border-top: 1px solid var(--p-surface-border); padding-top: 0.45rem; }
-    .num { text-align: right; }
+    .num, table.lines th.num { text-align: right; }
+    /* Number boxes fill their cell, so the right-aligned totals below line up with them. */
+    :host ::ng-deep table.lines p-inputnumber, :host ::ng-deep table.lines .p-inputnumber { display: flex; width: 100%; }
     :host ::ng-deep .numin { width: 100%; text-align: right; }
     /* Long text: grow to fit (autoResize), easy to read, and not faded when read-only. */
     textarea { line-height: 1.5; resize: none; overflow-wrap: anywhere; }
