@@ -568,6 +568,14 @@ public class TasafService(
         return m;
     }
 
+    /// <summary>ACCOUNT SUPPORT- (Anniversary / Opening / Sponsorship) and Convention program types.</summary>
+    public static bool IsSupportProgram(string programTypeName)
+    {
+        var n = programTypeName.Trim();
+        return n.StartsWith("ACCOUNT SUPPORT", StringComparison.OrdinalIgnoreCase)
+            || n.Equals("Convention", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool IsOthers(TasafLookup? l) => l?.Name.StartsWith("Others", StringComparison.OrdinalIgnoreCase) ?? false;
 
     private static decimal PaymentTotal(Tasaf t) =>
@@ -635,6 +643,16 @@ public class TasafService(
         foreach (var (lookupId, key, label) in checks)
             if (lookupId is int lid && !await LookupExistsAsync(key, lid))
                 return $"{label} not found.";
+
+        // Account Support & Convention: no products, no pre-promo / incremental sales
+        // (Promoted Value is entered as the Annual Projected Sales).
+        if (dto.ProgramTypeId is int ptId && await lookups.GetByIdAsync(typeof(TasafProgramType), ptId) is TasafLookup pt
+            && IsSupportProgram(pt.Name))
+        {
+            dto.Products = [];
+            dto.PrePromoSales = null;
+            dto.IncrementalSales = null;
+        }
 
         var areaIds = (dto.AreaIds ?? []).Distinct().ToList();
         foreach (var aid in areaIds)

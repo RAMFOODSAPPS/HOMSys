@@ -460,6 +460,10 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   by migration `TasafChainSalesGroups` from `Book1.xlsx` MODERN TRADE: NKA = SVI/Puregold/Robinson/Waltermart/
   Landmark, the rest RKA; LKA Others → LKA, RDP Others → GT). The form lists only the picked group's chains,
   picking a chain fills an empty Sales Group, and switching group clears a chain from another group. Program duration = `StartDate`/`EndDate` (date pickers).
+  **Account Support & Convention** program types (name starts "ACCOUNT SUPPORT" or is "Convention";
+  `TasafService.IsSupportProgram` + the form's `isSupport()`): Participating Products hidden and not saved,
+  no Pre-Promo / Incremental Sales, Promoted Value relabelled "Annual Projected Sales", section titled
+  "Account Support & Convention Computation". Listing Fee is NOT included (same approval matrix, but not this rule).
   Server recomputes TotalCost, product PromotedValue (vol × LSP), and promoted /
   incremental sales and PrePromoSales (Σ P3Mo Avg cs × LSP, SPLY when P3M is blank) from products when any
   are listed (a row counts once it has a SKU — blank rows are dropped).

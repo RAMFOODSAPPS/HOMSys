@@ -117,7 +117,7 @@ function blankProduct(): TasafProduct {
       <fieldset [disabled]="readonly()">
       <!-- Field arrangement comes from the Form Designer layout (defaults in tasaf-layout.ts). -->
       <div class="card fl-grid">
-      @for (it of shown(); track it.key) {
+      @for (it of visibleItems(); track it.key) {
         <div class="fl-cell" [class.blk]="isBlock(it.key)" [style]="cellStyle(it)">
         @switch (it.key) {
           @case ('title') {
@@ -228,7 +228,7 @@ function blankProduct(): TasafProduct {
           @case ('programType') {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
-              <p-select [focusOnHover]="false" [(ngModel)]="m.programTypeId" [options]="list('program-types')" optionLabel="name" optionValue="id"
+              <p-select [focusOnHover]="false" [ngModel]="m.programTypeId" (ngModelChange)="onProgramType($event)" [options]="list('program-types')" optionLabel="name" optionValue="id"
                 [showClear]="true" placeholder="Choose the type of trade activity" styleClass="w-full" [disabled]="readonly()" />
             </div>
           }
@@ -410,7 +410,7 @@ function blankProduct(): TasafProduct {
                 @for (c of m.costs; track $index; let i = $index) {
                   <tr>
                     <td>
-                      <p-select [focusOnHover]="false" [autofocusFilter]="false" [(ngModel)]="c.costTypeId" [options]="list('cost-types')" optionLabel="name" optionValue="id"
+                      <p-select [focusOnHover]="false" [autofocusFilter]="false" [(ngModel)]="c.costTypeId" [options]="costTypeOptions(c.costTypeId)" optionLabel="name" optionValue="id"
                         [filter]="true" filterBy="name" [showClear]="true" placeholder="Select" styleClass="w-full" appendTo="body" [disabled]="readonly()" />
                     </td>
                     <td><p-inputNumber [(ngModel)]="c.amount" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /></td>
@@ -423,21 +423,24 @@ function blankProduct(): TasafProduct {
             </table>
           }
           @case ('computation') {
-            <h3>{{ cap(it) }}</h3>
+            <!-- Account Support & Convention: no products, no pre-promo / incremental; Promoted Value = Annual Projected Sales. -->
+            @let sup = isSupport();
+            <h3>{{ sup ? 'Account Support & Convention Computation' : cap(it) }}</h3>
             <table class="lines calc">
-              <colgroup><col /><col style="width: 15rem" /><col style="width: 10rem" /></colgroup>
+              <colgroup><col /><col style="width: 15rem" />@if (!sup) { <col style="width: 10rem" /> }</colgroup>
               <thead><tr><th>Description</th><th class="num">Amount (₱)</th>
-                <th class="num" pTooltip="Amount ÷ Pre-Promo Monthly Avg Sales" tooltipPosition="top">vs Pre-Promo <i class="pi pi-info-circle muted"></i></th></tr></thead>
+                @if (!sup) { <th class="num" pTooltip="Amount ÷ Pre-Promo Monthly Avg Sales" tooltipPosition="top">vs Pre-Promo <i class="pi pi-info-circle muted"></i></th> }</tr></thead>
               <tbody>
-                <tr><td>TOTAL COST / BUDGET</td><td class="num">{{ totalCost() | number:'1.2-2' }}</td><td></td></tr>
+                <tr><td>TOTAL COST / BUDGET</td><td class="num">{{ totalCost() | number:'1.2-2' }}</td>@if (!sup) { <td></td> }</tr>
                 <tr>
-                  <td>Promoted Value @if (hasProducts()) { <span class="muted">(from products)</span> }</td>
+                  <td>{{ sup ? 'Annual Projected Sales' : 'Promoted Value' }} @if (hasProducts()) { <span class="muted">(from products)</span> }</td>
                   <td class="num">
                     @if (hasProducts()) { {{ promotedValue() | number:'1.2-2' }} }
                     @else { <p-inputNumber [(ngModel)]="m.promotedValue" placeholder="0.00" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /> }
                   </td>
-                  <td class="num">{{ (ratio(promotedValue(), prePromoSales()) | percent:'1.0-2') ?? '—' }}</td>
+                  @if (!sup) { <td class="num">{{ (ratio(promotedValue(), prePromoSales()) | percent:'1.0-2') ?? '—' }}</td> }
                 </tr>
+                @if (!sup) {
                 <tr>
                   <td pTooltip="Can use the past 3 months average, but if the SKU is seasonal use SPLY (actual sales of last year, same promo duration)">
                     Pre-Promo Monthly Avg Sales (Pesos) <i class="pi pi-info-circle muted"></i>
@@ -457,12 +460,13 @@ function blankProduct(): TasafProduct {
                   </td>
                   <td class="num">{{ (ratio(incrementalSales(), prePromoSales()) | percent:'1.0-2') ?? '—' }}</td>
                 </tr>
+                }
                 <tr class="hl">
-                  <td>CTS (Promoted Value) @if (ctsLimit() != null) { <span class="muted">— must be within {{ ctsLimit() }}%</span> }</td>
+                  <td>CTS ({{ sup ? 'Annual Projected Sales' : 'Promoted Value' }}) @if (ctsLimit() != null) { <span class="muted">— must be within {{ ctsLimit() }}%</span> }</td>
                   <!-- Green = within the program type's CTS limit, red = over it. -->
                   <td class="num" [style.color]="ctsLimit() != null && ratio(totalCost(), promotedValue()) != null
                       ? (ctsOver() ? 'var(--p-red-600, #dc2626)' : 'var(--p-green-600, #16a34a)') : null">
-                    {{ (ratio(totalCost(), promotedValue()) | percent:'1.2-2') ?? '—' }}</td><td></td>
+                    {{ (ratio(totalCost(), promotedValue()) | percent:'1.2-2') ?? '—' }}</td>@if (!sup) { <td></td> }
                 </tr>
               </tbody>
             </table>
@@ -659,6 +663,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   private readonly fieldDefs   = new Map(TASAF_FIELDS.map(d => [d.key, d]));
   protected layout    = signal<FormLayoutItem[]>(defaultItems(TASAF_FIELDS));
   protected shown     = computed(() => this.layout().filter(i => !i.hidden));
+  /** Layout items to render: Participating Products is hidden for Account Support & Convention. */
+  visibleItems() { return this.isSupport() ? this.shown().filter(i => i.key !== 'products') : this.shown(); }
   protected designing = signal(false);
 
   private currentTabKey = TAB;
@@ -824,8 +830,11 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   }
 
   private payload(): SaveTasafDto {
+    // Account Support & Convention: no products / pre-promo / incremental are saved.
+    const sup = this.isSupport();
     return {
       ...this.m,
+      ...(sup ? { products: [], prePromoSales: null, incrementalSales: null } : {}),
       ...this.payFields(),
       startDate: toIsoDate(this.startDate),
       endDate: toIsoDate(this.endDate),
@@ -1081,7 +1090,56 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   // ── Computation (mirrors the sheet; the server recomputes on save) ──
   totalCost()        { return this.m.costs.reduce((s, c) => s + (c.amount || 0), 0); }
   /** A product row counts once it has a SKU (blank rows are dropped on save, like the server does). */
-  hasProducts()      { return this.m.products.some(p => !!(p.cProdNo?.trim() || p.sku?.trim())); }
+  /**
+   * Account Support & Convention program types (ACCOUNT SUPPORT- Anniversary / Opening / Sponsorship,
+   * Convention): no Participating Products, no pre-promo / incremental sales, and Promoted Value is the
+   * Annual Projected Sales. Same rule as TasafService.IsSupportProgram.
+   */
+  isSupport() {
+    const n = (this.list('program-types').find(o => o.id === this.m.programTypeId)?.name ?? '').trim().toUpperCase();
+    return n.startsWith('ACCOUNT SUPPORT') || n === 'CONVENTION';
+  }
+  // ── Cost Details descriptions per program type ─────────────
+  /**
+   * The cost-description group of the picked program type — cost types are named "<Group> - <Item>":
+   * "ACCOUNT SUPPORT- Anniversary Support" → "Anniversary Support", "PROMO- …" → "Promotions",
+   * "Convention" → "Convention", etc. Null = no program type (all descriptions).
+   */
+  private costGroup(): string | null {
+    const n = (this.list('program-types').find(o => o.id === this.m.programTypeId)?.name ?? '').trim();
+    if (!n) return null;
+    if (/^PROMO-/i.test(n)) return 'Promotions';
+    if (/^ACCOUNT SUPPORT-/i.test(n)) return n.replace(/^ACCOUNT SUPPORT-\s*/i, '');
+    return n;
+  }
+  /**
+   * Cost-description groups reserved for their own program type: Anniversary Support shows only
+   * "Anniversary Support - …", Convention only "Convention - …"; every other program type shows all
+   * descriptions EXCEPT these groups. Keeps the line's current pick so it never shows blank.
+   */
+  private static readonly RESERVED_COST_GROUPS = ['anniversary support', 'convention'];
+  costTypeOptions(currentId: number | null): TasafOption[] {
+    const all = this.list('cost-types');
+    const groupOf = (c: TasafOption) => c.name.split(' - ')[0].trim().toLowerCase();
+    const reserved = TasafPageComponent.RESERVED_COST_GROUPS;
+    const g = this.costGroup()?.toLowerCase();
+    let opts = g && reserved.includes(g)
+      ? all.filter(c => groupOf(c) === g)
+      : all.filter(c => !reserved.includes(groupOf(c)));
+    if (!opts.length) opts = all;
+    return currentId && !opts.some(c => c.id === currentId) ? [...opts, ...all.filter(c => c.id === currentId)] : opts;
+  }
+  /** Program type changed: clear cost descriptions that don't belong to its group. */
+  onProgramType(id: number | null) {
+    this.m.programTypeId = id;
+    const allowed = new Set(this.costTypeOptions(null).map(c => c.id));
+    let cleared = 0;
+    for (const c of this.m.costs) if (c.costTypeId && !allowed.has(c.costTypeId)) { c.costTypeId = null; cleared++; }
+    if (cleared) this.messageSvc.add({ severity: 'info', summary: 'Cost Details',
+      detail: `${cleared} cost description${cleared === 1 ? '' : 's'} cleared — not used by this program type.` });
+  }
+
+  hasProducts()      { return !this.isSupport() && this.m.products.some(p => !!(p.cProdNo?.trim() || p.sku?.trim())); }
   promotedValue()    { return this.hasProducts() ? this.m.products.reduce((s, p) => s + (p.promotedVolCs || 0) * (p.lspPerCase || 0), 0) : (this.m.promotedValue ?? 0); }
   /** Σ P3Mo Avg (cs) × LSP — SPLY when a (seasonal) SKU has no P3M — else as entered. Same as the server. */
   prePromoSales()    { return this.hasProducts() ? this.m.products.reduce((s, p) => s + (p.p3MoAvgCs ?? p.splyCs ?? 0) * (p.lspPerCase || 0), 0) : (this.m.prePromoSales ?? 0); }
@@ -1138,6 +1196,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   /** Participating Products rows missing a required column (same rule as the server), e.g. "row 2: SPLY". */
   productRowsMissing(): string[] {
     const out: string[] = [];
+    if (this.isSupport()) return out; // no products for Account Support & Convention
     this.m.products.forEach((p, i) => {
       if (!p.cProdNo?.trim() && !p.sku?.trim()) return; // blank row — dropped on save
       const miss = [
