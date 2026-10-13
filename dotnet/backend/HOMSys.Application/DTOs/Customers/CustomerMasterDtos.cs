@@ -3,7 +3,7 @@ namespace HOMSys.Application.DTOs.Customers;
 /// <summary>Customers page query — server-side search, filter, sort and paging (236k rows).</summary>
 public class CustomerQuery
 {
-    /// <summary>Whitespace-separated words, each matched anywhere in key / name / address / zone / TIN.</summary>
+    /// <summary>Whitespace-separated words, each matched anywhere in key / name / address / zone / TIN / sales group / region.</summary>
     public string? Term { get; set; }
     public string? Branch { get; set; }
     /// <summary>active (default) | inactive | all.</summary>
@@ -41,6 +41,10 @@ public class CustomerMasterDto
     public int Term { get; set; }
     public int TermDays { get; set; }
     public string CZone { get; set; } = string.Empty;
+    /// <summary>cust4win.NSLGRP — sales group (GT / MT / LKA).</summary>
+    public string NSlGrp { get; set; } = string.Empty;
+    /// <summary>cust4win.NREGION — region.</summary>
+    public string NRegion { get; set; } = string.Empty;
     public string Tin { get; set; } = string.Empty;
     public string VatId { get; set; } = string.Empty;
     public string Subd { get; set; } = string.Empty;

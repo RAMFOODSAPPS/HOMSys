@@ -21,6 +21,10 @@ export interface CustomerMaster {
   term: number;
   termDays: number;
   cZone: string;
+  /** cust4win.NSLGRP — sales group (GT / MT / LKA). */
+  nSlGrp: string;
+  /** cust4win.NREGION — region. */
+  nRegion: string;
   tin: string;
   vatId: string;
   subd: string;

@@ -27,6 +27,8 @@ const EXPORT_COLS: ExportColumn[] = [
   { header: 'Name',        field: 'cusName' },
   { header: 'Address 1',   field: 'addrLn1' },
   { header: 'Address 2',   field: 'addrLn2' },
+  { header: 'Sales Group', field: 'nSlGrp' },
+  { header: 'Region',      field: 'nRegion' },
   { header: 'Zone',        field: 'cZone' },
   { header: 'Term Days',   field: 'termDays' },
   { header: 'Salesman',    field: 'salesman' },
@@ -63,6 +65,8 @@ const EXPORT_COLS: ExportColumn[] = [
           <th pSortableColumn="custKey" style="width:7rem">Cust Key <p-sortIcon field="custKey" /></th>
           <th pSortableColumn="cusName">Name <p-sortIcon field="cusName" /></th>
           <th>Address</th>
+          <th pSortableColumn="nSlGrp">Sales Group <p-sortIcon field="nSlGrp" /></th>
+          <th pSortableColumn="nRegion">Region <p-sortIcon field="nRegion" /></th>
           <th pSortableColumn="cZone">Zone <p-sortIcon field="cZone" /></th>
           <th pSortableColumn="termDays" class="num">Terms <p-sortIcon field="termDays" /></th>
           <th pSortableColumn="firstOrder">First Order <p-sortIcon field="firstOrder" /></th>
@@ -75,6 +79,8 @@ const EXPORT_COLS: ExportColumn[] = [
           <td>{{ c.custKey }}</td>
           <td>{{ c.cusName }}</td>
           <td class="addr">{{ c.addrLn1 }}@if (c.addrLn2) { <span class="sub">{{ c.addrLn2 }}</span> }</td>
+          <td>{{ c.nSlGrp || '—' }}</td>
+          <td>{{ c.nRegion || '—' }}</td>
           <td>{{ c.cZone || '—' }}</td>
           <td class="num">{{ c.term === 0 ? 'Cash' : c.termDays + ' days' }}</td>
           <td>{{ (c.firstOrder | date:'MM/dd/yyyy') || '—' }}</td>
@@ -85,7 +91,7 @@ const EXPORT_COLS: ExportColumn[] = [
         </tr>
       </ng-template>
       <ng-template pTemplate="emptymessage">
-        <tr><td colspan="8" class="text-center">No customers match.</td></tr>
+        <tr><td colspan="10" class="text-center">No customers match.</td></tr>
       </ng-template>
     </p-table>
 
@@ -102,6 +108,8 @@ const EXPORT_COLS: ExportColumn[] = [
           <dt>Address</dt><dd>{{ c.addrLn1 }}<br />{{ c.addrLn2 }}</dd>
           <dt>Delivery Address</dt><dd>@if (c.delAddrLn1 || c.delAddrLn2) { {{ c.delAddrLn1 }}<br />{{ c.delAddrLn2 }} } @else { Same as address }</dd>
           <dt>Delivery Area</dt><dd>{{ c.delArea || '—' }}</dd>
+          <dt>Sales Group (NSLGRP)</dt><dd>{{ c.nSlGrp || '—' }}</dd>
+          <dt>Region (NREGION)</dt><dd>{{ c.nRegion || '—' }}</dd>
           <dt>Zone (CZone)</dt><dd>{{ c.cZone || '—' }}</dd>
           <dt>Terms</dt><dd>{{ c.term === 0 ? 'Cash' : c.termDays + ' days' }}</dd>
           <dt>Salesman</dt><dd>{{ c.salesman || '—' }} @if (c.csMan) { <span class="sub">({{ c.csMan }})</span> }</dd>

@@ -89,7 +89,7 @@ function blankProduct(): TasafProduct {
             <strong class="ref-preview" pTooltip="YEAR - Sales Group - Proponent Initials - Proposal No. The proposal number is one continuous series across all TASAFs, assigned when you submit.">{{ refPreview() }}</strong>
           }
           @else { <strong class="ref-preview">assigned on submit</strong> }
-          <span>Date</span><strong>{{ current() ? (utc(current()!.createdAt) | date:'dd MMM yyyy') : 'today' }}</strong>
+          <span>Date</span><strong>{{ current() ? (utc(current()!.createdAt) | date:'dd MMM yyyy h:mm a') : 'today' }}</strong>
           <span>Status</span><p-tag [value]="current()?.status ?? 'New'" [severity]="severity()" />
         </div>
       </div>

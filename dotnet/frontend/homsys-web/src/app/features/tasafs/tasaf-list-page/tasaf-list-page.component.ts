@@ -13,6 +13,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { FormsModule } from '@angular/forms';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { formatPeriod, TASAF_STATUS_SEVERITY, TasafListItem } from '../../../core/models/tasaf.model';
+import { utc } from '../../../core/utils/utc-date';
 
 type View = 'action' | 'mine' | 'all';
 const VIEW_KEY = 'homsys_tasaf_list_view';
@@ -30,6 +31,8 @@ const EXPORT_COLS: ExportColumn[] = [
   { header: 'Proponent',    field: 'proponentName' },
   { header: 'Waiting On',   field: 'currentApproverName' },
   { header: 'Role',         field: 'currentRoleCode' },
+  { header: 'Submitted',    field: 'submittedText' },
+  { header: 'Created',      field: 'createdText' },
 ];
 
 @Component({
@@ -61,6 +64,7 @@ const EXPORT_COLS: ExportColumn[] = [
           <th pSortableColumn="totalCost" class="num">Total Cost <p-sortIcon field="totalCost" /></th>
           <th pSortableColumn="proponentName">Proponent <p-sortIcon field="proponentName" /></th>
           <th>With</th>
+          <th pSortableColumn="submittedAt">Submitted <p-sortIcon field="submittedAt" /></th>
           <th pSortableColumn="createdAt">Created <p-sortIcon field="createdAt" /></th>
         </tr>
       </ng-template>
@@ -79,17 +83,19 @@ const EXPORT_COLS: ExportColumn[] = [
           <td class="num">{{ t.totalCost | number:'1.2-2' }}</td>
           <td>{{ t.proponentName }}</td>
           <td>{{ withWhom(t) }}</td>
-          <td>{{ t.createdAt | date:'MM/dd/yyyy' }}</td>
+          <td class="dt">{{ (utc(t.submittedAt) | date:'MM/dd/yyyy h:mm a') ?? '—' }}</td>
+          <td class="dt">{{ utc(t.createdAt) | date:'MM/dd/yyyy h:mm a' }}</td>
         </tr>
       </ng-template>
       <ng-template pTemplate="emptymessage">
-        <tr><td colspan="11" class="text-center">{{ view() === 'action' ? 'Nothing is waiting for your action.' : 'No TASAFs yet.' }}</td></tr>
+        <tr><td colspan="12" class="text-center">{{ view() === 'action' ? 'Nothing is waiting for your action.' : 'No TASAFs yet.' }}</td></tr>
       </ng-template>
     </p-table>
   `,
   styles: [`
     :host { display: block; }
     .num { text-align: right; }
+    .dt { white-space: nowrap; }
     .sub { font-size: 0.75rem; color: var(--p-text-muted-color); }
     .sub.mine { color: #800000; font-weight: 600; }
     .views { margin-bottom: 0.6rem; }
@@ -101,6 +107,8 @@ export class TasafListPageComponent implements OnInit, OnDestroy {
   private router     = inject(Router);
   private toolbar    = inject(GlobalToolbarService);
   private exportSvc  = inject(ExportService);
+  private datePipe   = new DatePipe('en-US');
+  protected readonly utc = utc;
   private confirmSvc = inject(ConfirmationService);
   private messageSvc = inject(MessageService);
   private auth       = inject(AuthService);
@@ -220,7 +228,8 @@ export class TasafListPageComponent implements OnInit, OnDestroy {
   }
 
   private export(kind: 'pdf' | 'excel' | 'csv') {
-    const rows = this.filtered().map(t => ({ ...t, duration: this.duration(t) })) as unknown as Record<string, unknown>[];
+    const dt = (s: string | null | undefined) => this.datePipe.transform(utc(s), 'MM/dd/yyyy h:mm a') ?? '';
+    const rows = this.filtered().map(t => ({ ...t, duration: this.duration(t), submittedText: dt(t.submittedAt), createdText: dt(t.createdAt) })) as unknown as Record<string, unknown>[];
     if (kind === 'pdf') this.exportSvc.exportPdf('TASAF List', EXPORT_COLS, rows);
     else if (kind === 'excel') this.exportSvc.exportExcel('TASAF List', EXPORT_COLS, rows);
     else this.exportSvc.exportCsv('TASAF List', EXPORT_COLS, rows);

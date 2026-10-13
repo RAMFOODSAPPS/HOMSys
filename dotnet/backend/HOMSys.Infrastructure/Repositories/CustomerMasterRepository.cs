@@ -25,7 +25,8 @@ public class CustomerMasterRepository(AppDbContext db) : ICustomerMasterReposito
         // Every word must match somewhere — same pattern as CustomerRepository.SearchAsync.
         foreach (var token in (query.Term ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
             q = q.Where(c => c.CustKey.Contains(token) || c.CusName.Contains(token) || c.AddrLn1.Contains(token)
-                          || c.AddrLn2.Contains(token) || c.CZone.Contains(token) || c.Tin.Contains(token));
+                          || c.AddrLn2.Contains(token) || c.CZone.Contains(token) || c.Tin.Contains(token)
+                          || c.NSlGrp.Contains(token) || c.NRegion.Contains(token));
 
         var total = await q.CountAsync();
 
@@ -37,6 +38,10 @@ public class CustomerMasterRepository(AppDbContext db) : ICustomerMasterReposito
             ("branch", true)    => q.OrderByDescending(c => c.Branch).ThenBy(c => c.CustKey),
             ("cZone", false)    => q.OrderBy(c => c.CZone).ThenBy(c => c.CustKey),
             ("cZone", true)     => q.OrderByDescending(c => c.CZone).ThenBy(c => c.CustKey),
+            ("nRegion", false)  => q.OrderBy(c => c.NRegion).ThenBy(c => c.CustKey),
+            ("nRegion", true)   => q.OrderByDescending(c => c.NRegion).ThenBy(c => c.CustKey),
+            ("nSlGrp", false)   => q.OrderBy(c => c.NSlGrp).ThenBy(c => c.CustKey),
+            ("nSlGrp", true)    => q.OrderByDescending(c => c.NSlGrp).ThenBy(c => c.CustKey),
             ("termDays", false) => q.OrderBy(c => c.TermDays).ThenBy(c => c.CustKey),
             ("termDays", true)  => q.OrderByDescending(c => c.TermDays).ThenBy(c => c.CustKey),
             ("firstOrder", false) => q.OrderBy(c => c.FirstOrder).ThenBy(c => c.CustKey),
@@ -53,7 +58,7 @@ public class CustomerMasterRepository(AppDbContext db) : ICustomerMasterReposito
                 Id = c.Id, Branch = c.Branch, CustKey = c.CustKey, CusName = c.CusName,
                 AddrLn1 = c.AddrLn1, AddrLn2 = c.AddrLn2, DelAddrLn1 = c.DelAddrLn1, DelAddrLn2 = c.DelAddrLn2,
                 DelArea = c.DelArea, WhseNo = c.WhseNo, ServeWh = c.ServeWh, DelWhse = c.DelWhse,
-                Salesman = c.Salesman, CsMan = c.CsMan, Term = c.Term, TermDays = c.TermDays, CZone = c.CZone,
+                Salesman = c.Salesman, CsMan = c.CsMan, Term = c.Term, TermDays = c.TermDays, CZone = c.CZone, NSlGrp = c.NSlGrp, NRegion = c.NRegion,
                 Tin = c.Tin, VatId = c.VatId, Subd = c.Subd, Tpc = c.Tpc, Offshore = c.Offshore,
                 ExBranch = c.ExBranch, BlockInv = c.BlockInv, Inactive = c.Inactive,
                 FirstOrder = c.FirstOrder, ImportedAt = c.ImportedAt
