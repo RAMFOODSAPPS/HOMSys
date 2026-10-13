@@ -86,8 +86,6 @@ internal static class TasafModel
             e.HasIndex(x => x.Status);
             e.HasIndex(x => x.ProponentUserId);
             e.Property(x => x.Title).HasMaxLength(200).IsRequired();
-            e.Property(x => x.CustKey).HasMaxLength(20);
-            e.Property(x => x.CustomerName).HasMaxLength(150);
             e.Property(x => x.ProgramTypeOther).HasMaxLength(200);
             e.Property(x => x.ObjectiveOther).HasMaxLength(200);
             e.Property(x => x.TargetMarketOther).HasMaxLength(200);
@@ -115,6 +113,7 @@ internal static class TasafModel
             e.HasOne(x => x.ProponentUser).WithMany().HasForeignKey(x => x.ProponentUserId).OnDelete(DeleteBehavior.Restrict);
 
             e.HasMany(x => x.Branches).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Customers).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Products).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Costs).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Actions).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
@@ -153,6 +152,13 @@ internal static class TasafModel
             e.Property(x => x.Message).HasMaxLength(500);
             e.Property(x => x.Link).HasMaxLength(200);
             e.Property(x => x.EntityType).HasMaxLength(50);
+        });
+
+        mb.Entity<TasafCustomer>(e =>
+        {
+            e.Property(x => x.CustKey).HasMaxLength(20);
+            e.Property(x => x.CusName).HasMaxLength(150);
+            e.HasIndex(x => x.CustKey);
         });
 
         mb.Entity<TasafBranch>(e =>

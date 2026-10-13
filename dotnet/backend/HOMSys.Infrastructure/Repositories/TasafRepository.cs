@@ -27,6 +27,7 @@ public class TasafRepository(AppDbContext db) : ITasafRepository
             .Include(t => t.Chain)
             .Include(t => t.ProgramType)
             .Include(t => t.Steps)
+            .Include(t => t.Customers.OrderBy(c => c.LineNo))
             .AsSplitQuery()
             .AsQueryable();
         if (visibleToUserId is int uid)
@@ -38,6 +39,7 @@ public class TasafRepository(AppDbContext db) : ITasafRepository
     public async Task<Tasaf?> GetByIdAsync(int id) =>
         await WithLookups(db.Tasafs)
             .Include(t => t.Branches.OrderBy(b => b.LineNo))
+            .Include(t => t.Customers.OrderBy(c => c.LineNo))
             .Include(t => t.Products.OrderBy(p => p.LineNo))
             .Include(t => t.Costs.OrderBy(c => c.LineNo)).ThenInclude(c => c.CostType)
             .Include(t => t.Actions.OrderBy(a => a.Id))

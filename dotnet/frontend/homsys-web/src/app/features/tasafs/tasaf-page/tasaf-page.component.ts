@@ -19,7 +19,7 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { GlobalToolbarService } from '../../../core/services/global-toolbar.service';
 import { TabBarService } from '../../../core/services/tab-bar.service';
-import { TasafChainCustomer, TasafCustomerSuggestion, TasafProductSuggestion, TasafService } from '../../../core/services/tasaf.service';
+import { TasafChainCustomer, TasafCustomerSuggestion, TasafProductOption, TasafService } from '../../../core/services/tasaf.service';
 import { DialogModule } from 'primeng/dialog';
 import { DatePickerModule } from 'primeng/datepicker';
 import { AuthService } from '../../../core/services/auth.service';
@@ -28,7 +28,7 @@ import { FormLayoutItem, cellStyle, defaultItems, mergeLayout } from '../../../c
 import { FormDesignerComponent } from '../../../shared/form-designer/form-designer.component';
 import { TASAF_FIELDS, TASAF_FORM_KEY } from './tasaf-layout';
 import {
-  SaveTasafDto, TASAF_STATUS_SEVERITY, utc, parseIsoDate, programDuration, toIsoDate, TasafBranch, TasafDialogAction, TasafDto, TasafFormOptions, TasafOption, TasafProduct
+  SaveTasafDto, TASAF_STATUS_SEVERITY, utc, parseIsoDate, programDuration, toIsoDate, TasafBranch, TasafDialogAction, TasafDto, TasafFormOptions, TasafCustomerRef, TasafOption, TasafProduct
 } from '../../../core/models/tasaf.model';
 
 type PayKey = 'payInvDeductionAp' | 'payInvDeductionSalesman' | 'payCheckAp' | 'payCheckSalesman'
@@ -46,7 +46,7 @@ const TAB = '/tasafs';
 function blankModel(): SaveTasafDto {
   return {
     title: '', startDate: null, endDate: null,
-    salesGroupId: null, areaId: null, chainId: null, custKey: null,
+    salesGroupId: null, areaId: null, chainId: null,
     programTypeId: null, programTypeOther: '', objectiveId: null, objectiveOther: '',
     targetMarketId: null, targetMarketOther: '', channelId: null,
     productGroupId: null, productGroup2Id: null, categoryId: null, category2Id: null,
@@ -54,7 +54,7 @@ function blankModel(): SaveTasafDto {
     promotedValue: null, prePromoSales: null, incrementalSales: null,
     payInvDeductionAp: 0, payInvDeductionSalesman: 0, payCheckAp: 0, payCheckSalesman: 0,
     payFreeGoodsAp: 0, payFreeGoodsSalesman: 0, payOffInvoiceAp: 0, payOffInvoiceSalesman: 0,
-    branches: [], products: [], costs: [{ costTypeId: null, amount: 0, remarks: '' }]
+    branches: [], customers: [], products: [], costs: [{ costTypeId: null, amount: 0, remarks: '' }]
   };
 }
 
@@ -174,36 +174,40 @@ function blankProduct(): TasafProduct {
               <label>{{ cap(it) }} <span class="opt">(customer master, optional)</span></label>
               @if (chainCustomers().length) {
                 <!-- The chain's stores (TASAF Setup › Customers / Chains › customer name keywords). -->
-                <p-select [ngModel]="customer?.custKey ?? null" (ngModelChange)="pickChainCustomer($event)"
-                  [options]="chainCustomers()" optionValue="custKey" optionLabel="cusName" [filter]="true"
+                <p-multiSelect [ngModel]="custKeys()" (ngModelChange)="setCustKeys($event)"
+                  [options]="chainCustomers()" optionValue="custKey" optionLabel="label" [filter]="true"
                   filterBy="custKey,cusName,address,branch" [showClear]="true" [virtualScroll]="true" [virtualScrollItemSize]="44"
                   [placeholder]="'Select from ' + chainCustomers().length + ' ' + chainName() + ' stores'" appendTo="body"
-                  styleClass="w-full" [disabled]="readonly()" [loading]="chainLoading()">
+                  display="chip" [maxSelectedLabels]="100000"
+                  styleClass="w-full chips-wrap" [disabled]="readonly()" [loading]="chainLoading()">
                   <ng-template let-c pTemplate="item">
                     <div class="cust-opt">
                       <span><strong>{{ c.custKey }}</strong> — {{ c.cusName }}</span>
                       <small class="muted">{{ c.branch }}@if (c.address) { · {{ c.address }} }</small>
                     </div>
                   </ng-template>
-                  <ng-template let-c pTemplate="selectedItem">{{ c.custKey }} — {{ c.cusName }}</ng-template>
-                </p-select>
+                </p-multiSelect>
               } @else {
-                <p-autoComplete [(ngModel)]="customer" [suggestions]="customerHits()" optionLabel="cusName" [forceSelection]="true"
-                  [minLength]="2" [delay]="600" (completeMethod)="searchCustomer($event.query)" (onSelect)="onCustomer()"
-                  (onClear)="onCustomer()" [showClear]="true" appendTo="body" styleClass="w-full" [inputStyle]="{ width: '100%' }"
-                  placeholder="Type cust key or name" [disabled]="readonly()">
+                <p-autoComplete [ngModel]="customers()" (ngModelChange)="setCustomers($event)" [multiple]="true"
+                  [suggestions]="customerHits()" optionLabel="cusName" [forceSelection]="true" dataKey="custKey"
+                  [minLength]="2" [delay]="600" (completeMethod)="searchCustomer($event.query)"
+                  appendTo="body" styleClass="w-full" [inputStyle]="{ width: '100%' }"
+                  placeholder="Type cust key or name — pick as many as needed" [disabled]="readonly()">
                   <ng-template let-c pTemplate="item">{{ c.custKey }} — {{ c.cusName }}</ng-template>
+                  <ng-template let-c pTemplate="selecteditem"><span [pTooltip]="c.cusName" tooltipPosition="top">{{ c.custKey }}</span></ng-template>
                 </p-autoComplete>
                 @if (chainNoMatch()) { <small class="muted">No stores match {{ chainName() }}'s keywords — search all customers.</small> }
               }
-              @if (m.custKey) { <small class="muted">Cust Key {{ m.custKey }}</small> }
+              @if (customers().length) {
+                <small class="muted">{{ customers().length }} store{{ customers().length === 1 ? '' : 's' }} selected</small>
+              }
             </div>
           }
           @case ('branches') {
             <div class="field">
               <label>{{ cap(it) }}</label>
               <p-multiSelect [(ngModel)]="branchSel" [options]="options()?.branches ?? []" optionLabel="name" dataKey="name"
-                [filter]="true" display="chip" placeholder="Select one or more branches" styleClass="w-full"
+                [filter]="true" display="chip" [maxSelectedLabels]="100000" placeholder="Select one or more branches" styleClass="w-full chips-wrap"
                 appendTo="body" [disabled]="readonly()" />
             </div>
           }
@@ -265,29 +269,41 @@ function blankProduct(): TasafProduct {
           @case ('productGroup') {
             <div class="field">
               <label>{{ cap(it) }}</label>
-              <p-select [(ngModel)]="m.productGroupId" [options]="list('product-groups')" optionLabel="name" optionValue="id"
-                [showClear]="true" placeholder="Primary product group" styleClass="w-full" [disabled]="readonly()" />
+              <p-select [ngModel]="m.productGroupId" (ngModelChange)="m.productGroupId = $event; loadProductOptions()" [options]="list('product-groups')" optionLabel="name" optionValue="id"
+                [showClear]="true" placeholder="Primary product group" styleClass="w-full" [filter]="true" filterBy="code,name" [disabled]="readonly()">
+                <ng-template let-o pTemplate="item">{{ codeName(o) }}</ng-template>
+                <ng-template let-o pTemplate="selectedItem">{{ codeName(o) }}</ng-template>
+              </p-select>
             </div>
           }
           @case ('productGroup2') {
             <div class="field">
               <label>{{ cap(it) }} <span class="opt">(optional)</span></label>
-              <p-select [(ngModel)]="m.productGroup2Id" [options]="list('product-groups')" optionLabel="name" optionValue="id"
-                [showClear]="true" placeholder="Other product group" styleClass="w-full" [disabled]="readonly()" />
+              <p-select [ngModel]="m.productGroup2Id" (ngModelChange)="m.productGroup2Id = $event; loadProductOptions()" [options]="list('product-groups')" optionLabel="name" optionValue="id"
+                [showClear]="true" placeholder="Other product group" styleClass="w-full" [filter]="true" filterBy="code,name" [disabled]="readonly()">
+                <ng-template let-o pTemplate="item">{{ codeName(o) }}</ng-template>
+                <ng-template let-o pTemplate="selectedItem">{{ codeName(o) }}</ng-template>
+              </p-select>
             </div>
           }
           @case ('category') {
             <div class="field">
               <label>{{ cap(it) }}</label>
-              <p-select [(ngModel)]="m.categoryId" [options]="categoryOptions(m.productGroupId)" optionLabel="name" optionValue="id"
-                [showClear]="true" placeholder="Category to activate" styleClass="w-full" [disabled]="readonly()" />
+              <p-select [ngModel]="m.categoryId" (ngModelChange)="m.categoryId = $event; loadProductOptions()" [options]="categoryOptions(m.productGroupId)" optionLabel="name" optionValue="id"
+                [showClear]="true" placeholder="Category to activate" styleClass="w-full" [filter]="true" filterBy="code,name" [disabled]="readonly()">
+                <ng-template let-o pTemplate="item">{{ codeName(o) }}</ng-template>
+                <ng-template let-o pTemplate="selectedItem">{{ codeName(o) }}</ng-template>
+              </p-select>
             </div>
           }
           @case ('category2') {
             <div class="field">
               <label>{{ cap(it) }} <span class="opt">(optional)</span></label>
-              <p-select [(ngModel)]="m.category2Id" [options]="categoryOptions(m.productGroup2Id)" optionLabel="name" optionValue="id"
-                [showClear]="true" placeholder="Other category" styleClass="w-full" [disabled]="readonly()" />
+              <p-select [ngModel]="m.category2Id" (ngModelChange)="m.category2Id = $event; loadProductOptions()" [options]="categoryOptions(m.productGroup2Id)" optionLabel="name" optionValue="id"
+                [showClear]="true" placeholder="Other category" styleClass="w-full" [filter]="true" filterBy="code,name" [disabled]="readonly()">
+                <ng-template let-o pTemplate="item">{{ codeName(o) }}</ng-template>
+                <ng-template let-o pTemplate="selectedItem">{{ codeName(o) }}</ng-template>
+              </p-select>
             </div>
           }
           @case ('categoryNote') {
@@ -296,21 +312,21 @@ function blankProduct(): TasafProduct {
           @case ('background') {
             <div class="field">
               <label>{{ cap(it) }}</label>
-              <textarea pTextarea [(ngModel)]="m.background" [rows]="it.h * 2" class="w-full"
+              <textarea pTextarea [(ngModel)]="m.background" [rows]="it.h * 2" [autoResize]="true" class="w-full"
                 placeholder="Why this activity? What opportunity in the category, channel or account does it address? Give figures if possible."></textarea>
             </div>
           }
           @case ('concessions') {
             <div class="field">
               <label>{{ cap(it) }}</label>
-              <textarea pTextarea [(ngModel)]="m.concessions" [rows]="it.h * 2" class="w-full"
+              <textarea pTextarea [(ngModel)]="m.concessions" [rows]="it.h * 2" [autoResize]="true" class="w-full"
                 placeholder="What do we get in return — extra facings, displays, free posting on the account's social media page, ..."></textarea>
             </div>
           }
           @case ('mechanics') {
             <div class="field">
               <label>{{ cap(it) }}</label>
-              <textarea pTextarea [(ngModel)]="m.mechanics" [rows]="it.h * 2" class="w-full"
+              <textarea pTextarea [(ngModel)]="m.mechanics" [rows]="it.h * 2" [autoResize]="true" class="w-full"
                 placeholder="How will the program be executed? Describe the promo scheme."></textarea>
             </div>
           }
@@ -323,7 +339,7 @@ function blankProduct(): TasafProduct {
             @if (m.products.length) {
               <table class="lines">
                 <thead><tr>
-                  <th style="width:7rem">ProdNo</th><th>SKU</th>
+                  <th style="width:9rem">ProdNo</th><th>SKU</th>
                   <th class="num">P3 Mo Avg (Cs)</th>
                   <th class="num" pTooltip="Sales of the SKU in the same period last year, for the planned promo duration">SPLY (Cs)</th>
                   <th class="num">Promoted Vol (Cs)</th><th class="num">Incr Vol (Cs)</th>
@@ -333,11 +349,20 @@ function blankProduct(): TasafProduct {
                   @for (p of m.products; track $index; let i = $index) {
                     <tr>
                       <td>
-                        <p-autoComplete [(ngModel)]="p.cProdNo" [suggestions]="productHits()" optionLabel="cProdNo" [minLength]="1" [delay]="500"
-                          (completeMethod)="searchProduct($event.query)" (onSelect)="onProduct(p, $event.value)"
-                          (onBlur)="lookupProduct(p)" appendTo="body" [inputStyle]="{ width: '100%' }" [disabled]="readonly()">
-                          <ng-template let-s pTemplate="item">{{ s.cProdNo }} — {{ s.prodDesc }}</ng-template>
-                        </p-autoComplete>
+                        <!-- SKUs of the picked Product Group / Category (active only). -->
+                        <p-select [ngModel]="p.cProdNo || null" (ngModelChange)="pickProduct(p, $event)"
+                          [options]="productOptions()" optionValue="cProdNo" optionLabel="label" [filter]="true"
+                          filterBy="cProdNo,prodDesc,packSize,categoryName" [virtualScroll]="true" [virtualScrollItemSize]="44"
+                          [placeholder]="productOptions().length ? 'Select' : 'No SKUs'" appendTo="body" styleClass="w-full"
+                          [panelStyle]="{ minWidth: '30rem' }" [loading]="productLoading()" [disabled]="readonly()">
+                          <ng-template let-s pTemplate="item">
+                            <div class="cust-opt">
+                              <span><strong>{{ s.cProdNo }}</strong> — {{ s.prodDesc }} {{ s.packSize }}</span>
+                              <small class="muted">{{ s.category }}@if (s.categoryName) { · {{ s.categoryName }} }</small>
+                            </div>
+                          </ng-template>
+                          <ng-template let-s pTemplate="selectedItem">{{ s.cProdNo }}</ng-template>
+                        </p-select>
                       </td>
                       <td><input pInputText [(ngModel)]="p.sku" class="w-full" maxlength="100" /></td>
                       <td><p-inputNumber [(ngModel)]="p.p3MoAvgCs" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /></td>
@@ -510,7 +535,7 @@ function blankProduct(): TasafProduct {
       <div class="field full">
         <label>{{ decision() === 'approve' ? 'Comment' : 'Reason' }}
           @if (decision() !== 'approve') { <span class="req">*</span> } @else { <span class="opt">(optional)</span> }</label>
-        <textarea pTextarea [(ngModel)]="decisionComment" rows="4" class="w-full" maxlength="1000"
+        <textarea pTextarea [(ngModel)]="decisionComment" rows="4" [autoResize]="true" class="w-full" maxlength="1000"
           [placeholder]="decisionPlaceholder()"></textarea>
       </div>
       <div class="dlg-actions">
@@ -541,6 +566,9 @@ function blankProduct(): TasafProduct {
       background: rgba(128, 0, 0, 0.05); color: #800000; font-weight: 600; font-size: 0.875rem; }
     .duration.muted { color: var(--p-text-muted-color); font-weight: 400; }
     .cust-opt { display: flex; flex-direction: column; line-height: 1.25; }
+    /* Cust Key / Branch chips: all shown (never "N selected"), wrapping onto more lines. */
+    :host ::ng-deep .chips-wrap .p-multiselect-label { display: flex; flex-wrap: wrap; gap: 0.25rem; white-space: normal; overflow: visible; }
+    :host ::ng-deep .chips-wrap .p-multiselect-chip { margin: 0; }
     .req { color: var(--p-red-500, #ef4444); }
     .opt, .muted { font-weight: 400; font-size: 0.75rem; color: var(--p-text-muted-color); }
     fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
@@ -550,6 +578,9 @@ function blankProduct(): TasafProduct {
     table.lines tfoot td { border-top: 1px solid var(--p-surface-border); padding-top: 0.45rem; }
     .num { text-align: right; }
     :host ::ng-deep .numin { width: 100%; text-align: right; }
+    /* Long text: grow to fit (autoResize), easy to read, and not faded when read-only. */
+    textarea { line-height: 1.5; resize: none; overflow-wrap: anywhere; }
+    textarea:disabled { opacity: 1; color: var(--p-text-color); background: var(--p-surface-50, #fafafa); }
     tr.hl td { font-weight: 700; color: #800000; }
     .sign { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 0.75rem; }
     .signer { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.5rem 0.6rem; border-radius: 6px;
@@ -603,7 +634,10 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   protected refreshing   = signal(false);
   protected apiError     = signal<string | null>(null);
   protected customerHits = signal<TasafCustomerSuggestion[]>([]);
-  protected productHits  = signal<TasafProductSuggestion[]>([]);
+  /** Participating SKU dropdown (see loadProductOptions). */
+  protected productOptions = signal<TasafProductOption[]>([]);
+  protected productLoading = signal(false);
+  private productReq = 0;
   protected readonly     = computed(() => !!this.current() && !this.current()!.canEdit);
   protected cannotDelete = computed(() => !this.current()?.canDelete);
   protected severity     = computed(() => this.sev(this.current()?.status ?? 'Draft'));
@@ -639,7 +673,9 @@ export class TasafPageComponent implements OnInit, OnDestroy {
 
   // Editable model (ngModel). Totals below are plain methods so they follow every keystroke.
   protected m: SaveTasafDto = blankModel();
-  protected customer: TasafCustomerSuggestion | null = null;
+  /** Participating stores (Cust Keys). */
+  protected customers = signal<TasafCustomerRef[]>([]);
+  protected custKeys  = computed(() => this.customers().map(c => c.custKey));
   protected branchSel: TasafBranch[] = [];
   /** Stores of the selected chain (empty = use the free customer search). */
   protected chainCustomers = signal<TasafChainCustomer[]>([]);
@@ -658,6 +694,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       error: () => {} // keep the default layout
     });
     this.handleNavState();
+    if (!this.productReq) this.loadProductOptions(); // new TASAF: every active SKU until a scope is picked
     this.navSub = this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => this.handleNavState());
     this.syncToolbar();
     this.tabBar.registerDirtyChecker(TAB, () => this.isDirty());
@@ -688,7 +725,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     } else {
       if (this.current()) this.resetFormOnly();
       if (draftForm) {
-        this.setModel(draftForm, null);
+        this.setModel(draftForm);
         this.snapshot = '';
         this.tabBar.updateTabState(TAB, undefined);
       }
@@ -699,7 +736,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     this.tabBar.unregisterDirtyChecker(this.currentTabKey);
     this.current.set(null);
     this.apiError.set(null);
-    this.setModel(blankModel(), null);
+    this.setModel(blankModel());
     this.currentTabKey = TAB;
     this.tabBar.updateTabState(TAB, undefined);
     this.tabBar.registerDirtyChecker(TAB, () => this.isDirty());
@@ -709,7 +746,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   private loadTasaf(t: TasafDto) {
     this.current.set(t);
     this.apiError.set(null);
-    this.setModel(t, t.custKey ? { custKey: t.custKey, cusName: t.customerName ?? t.custKey } : null);
+    this.setModel(t);
     this.tabBar.unregisterDirtyChecker(this.currentTabKey);
     this.currentTabKey = `${TAB}#${t.id}`;
     this.tabBar.openTab({
@@ -723,20 +760,22 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     this.syncToolbar();
   }
 
-  private setModel(src: SaveTasafDto, customer: TasafCustomerSuggestion | null) {
+  private setModel(src: SaveTasafDto) {
     const b = blankModel();
     this.m = {
       ...b,
       ...Object.fromEntries(Object.keys(b).map(k => [k, (src as unknown as Record<string, unknown>)[k] ?? (b as unknown as Record<string, unknown>)[k]])),
-      branches: [], // held in branchSel
+      branches: [],  // held in branchSel
+      customers: [], // held in customers()
       products: (src.products ?? []).map(p => ({ ...p })),
       costs: (src.costs ?? []).length ? src.costs.map(c => ({ ...c })) : b.costs,
     } as SaveTasafDto;
     this.branchSel = (src.branches ?? []).map(x => ({ ...x }));
-    this.customer = customer;
+    this.customers.set((src.customers ?? []).map(c => ({ custKey: c.custKey, cusName: c.cusName })));
     this.startDate = parseIsoDate(src.startDate);
     this.endDate = parseIsoDate(src.endDate);
     this.loadChainCustomers(this.m.chainId, false);
+    this.loadProductOptions();
     this.snapshot = JSON.stringify(this.payload());
   }
 
@@ -745,7 +784,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       ...this.m,
       startDate: toIsoDate(this.startDate),
       endDate: toIsoDate(this.endDate),
-      custKey: this.customer?.custKey ?? null,
+      customers: this.customers().map(c => ({ custKey: c.custKey, cusName: c.cusName })),
       branches: this.branchSel.map(b => ({ siteId: b.siteId ?? null, name: b.name })),
     };
   }
@@ -753,7 +792,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   private isDirty() {
     if (this.readonly()) return false;
     const now = JSON.stringify(this.payload());
-    return this.current() ? now !== this.snapshot : now !== JSON.stringify({ ...blankModel(), custKey: null, branches: [] });
+    return this.current() ? now !== this.snapshot : now !== JSON.stringify(blankModel());
   }
 
   private syncToolbar() {
@@ -831,6 +870,12 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   isBlock(key: string)    { return this.fieldDefs.get(key)?.kind === 'block'; }
 
   // ── Lookups ────────────────────────────────────────────────
+  /** "01 — Tom Sauce/Paste" for dropdowns whose entries have a code. */
+  codeName(o: TasafOption | null | undefined) {
+    if (!o) return '';
+    return o.code && o.code !== o.name ? `${o.code} — ${o.name}` : o.name;
+  }
+
   list(key: string): TasafOption[] { return this.options()?.lists[key] ?? []; }
 
   chainOptions(): TasafOption[] {
@@ -853,12 +898,23 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     this.api.searchCustomers(term).subscribe(res => this.customerHits.set(res.data ?? []));
   }
 
-  onCustomer() {
-    this.m.custKey = this.customer?.custKey ?? null;
+  /** Free-search mode (autocomplete, multiple). */
+  setCustomers(list: TasafCustomerRef[] | null) {
+    const seen = new Set<string>();
+    this.customers.set((list ?? [])
+      .filter(c => c?.custKey && !seen.has(c.custKey) && !!seen.add(c.custKey))
+      .map(c => ({ custKey: c.custKey, cusName: c.cusName })));
+  }
+
+  /** Chain mode (multi-select of the chain's stores). */
+  setCustKeys(keys: string[] | null) {
+    const byKey = new Map<string, TasafCustomerRef>(this.customers().map(c => [c.custKey, c]));
+    for (const c of this.chainCustomers()) byKey.set(c.custKey, { custKey: c.custKey, cusName: c.cusName });
+    this.customers.set((keys ?? []).map(k => byKey.get(k)).filter((c): c is TasafCustomerRef => !!c));
   }
 
   // ── Cust Key per chain ─────────────────────────────────────
-  /** User picked a chain: load its stores; drop a Cust Key that isn't one of them. */
+  /** User picked a chain: load its stores; drop picked stores that aren't one of them. */
   onChain(chainId: number | null) {
     this.m.chainId = chainId;
     this.loadChainCustomers(chainId, true);
@@ -875,52 +931,59 @@ export class TasafPageComponent implements OnInit, OnDestroy {
         if (req !== this.chainReq) return; // a newer chain was picked meanwhile
         this.chainLoading.set(false);
         let list = res.data?.customers ?? [];
-        // A saved Cust Key that no longer matches the keywords still shows as selected.
-        const cur = this.customer;
-        if (!clearIfNotInList && cur && list.length && !list.some(c => c.custKey === cur.custKey))
-          list = [{ custKey: cur.custKey, cusName: cur.cusName, branch: '', address: '' }, ...list];
-        this.chainCustomers.set(list);
-        this.chainNoMatch.set(!!res.data?.filtered && list.length === 0);
-        if (clearIfNotInList && list.length && this.customer && !list.some(c => c.custKey === this.customer!.custKey)) {
-          this.customer = null;
-          this.onCustomer();
+        const inList = new Set(list.map(c => c.custKey));
+        const outside = this.customers().filter(c => !inList.has(c.custKey));
+        if (list.length && outside.length) {
+          if (clearIfNotInList) {
+            // New chain picked: keep only stores that belong to it.
+            this.customers.update(cs => cs.filter(c => inList.has(c.custKey)));
+          } else {
+            // Saved stores that no longer match the keywords still show as selected.
+            list = [...outside.map(c => ({ custKey: c.custKey, cusName: c.cusName, branch: '', address: '' })), ...list];
+          }
         }
+        this.chainCustomers.set(list.map(c => ({ ...c, label: c.custKey }))); // chips show the code only
+        this.chainNoMatch.set(!!res.data?.filtered && list.length === 0);
       },
       error: () => { if (req === this.chainReq) this.chainLoading.set(false); }
     });
   }
 
-  pickChainCustomer(custKey: string | null) {
-    const c = custKey ? this.chainCustomers().find(x => x.custKey === custKey) : null;
-    this.customer = c ? { custKey: c.custKey, cusName: c.cusName } : null;
-    this.onCustomer();
-  }
-
   chainName() { return this.list('chains').find(o => o.id === this.m.chainId)?.name ?? ''; }
 
-  searchProduct(term: string) {
-    this.api.searchProducts(term).subscribe(res => this.productHits.set(res.data ?? []));
-  }
-
-  onProduct(p: TasafProduct, picked: TasafProductSuggestion | string) {
-    p.cProdNo = typeof picked === 'string' ? picked : picked.cProdNo;
-    this.lookupProduct(p, true);
-  }
-
-  /** Fill SKU + LSP from the product master. Typed codes only fill blanks; a picked suggestion overwrites. */
-  lookupProduct(p: TasafProduct, overwrite = false) {
-    const code = (p.cProdNo ?? '').toString().trim();
-    if (!code || this.readonly()) return;
-    this.api.lookupProduct(code).subscribe({
+  // ── Participating SKUs ─────────────────────────────────────
+  /**
+   * SKU dropdown = active products of the picked Product Group / Category (and the secondary
+   * pair). Products already on the TASAF stay listed even if they fall outside the scope.
+   */
+  loadProductOptions() {
+    const req = ++this.productReq;
+    this.productLoading.set(true);
+    this.api.productOptions({
+      productGroupId: this.m.productGroupId, categoryId: this.m.categoryId,
+      productGroup2Id: this.m.productGroup2Id, category2Id: this.m.category2Id
+    }).subscribe({
       next: res => {
-        const d = res.data;
-        if (!d) return;
-        p.cProdNo = d.cProdNo;
-        if (overwrite || !p.sku) p.sku = d.packSize ? `${d.prodDesc} ${d.packSize}`.trim() : d.prodDesc;
-        if ((overwrite || !p.lspPerCase) && d.lspPerCase != null) p.lspPerCase = d.lspPerCase;
+        if (req !== this.productReq) return; // a newer scope was picked meanwhile
+        this.productLoading.set(false);
+        const list = res.data ?? [];
+        const have = new Set(list.map(o => o.cProdNo));
+        const extra = this.m.products
+          .filter(p => p.cProdNo && !have.has(p.cProdNo))
+          .map(p => ({ cProdNo: p.cProdNo, prodDesc: p.sku, packSize: '', category: '', categoryName: 'not in the selected category', lspPerCase: p.lspPerCase }));
+        this.productOptions.set([...extra, ...list].map(o => ({ ...o, label: `${o.cProdNo} — ${o.prodDesc} ${o.packSize}`.trim() })));
       },
-      error: () => this.messageSvc.add({ severity: 'warn', summary: 'Not found', detail: `Product ${code} is not in the product master.` })
+      error: () => { if (req === this.productReq) this.productLoading.set(false); }
     });
+  }
+
+  /** Picking a SKU fills SKU name and LSP / Case (current list price, ex-VAT — editable). */
+  pickProduct(p: TasafProduct, cProdNo: string | null) {
+    const o = this.productOptions().find(x => x.cProdNo === cProdNo);
+    p.cProdNo = cProdNo ?? '';
+    if (!o) return;
+    p.sku = `${o.prodDesc} ${o.packSize}`.trim();
+    if (o.lspPerCase != null) p.lspPerCase = o.lspPerCase;
   }
 
   addProduct() { this.m.products.push(blankProduct()); }

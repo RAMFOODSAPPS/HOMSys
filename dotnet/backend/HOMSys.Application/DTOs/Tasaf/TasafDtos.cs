@@ -6,6 +6,12 @@ public class TasafBranchDto
     public string Name { get; set; } = string.Empty;
 }
 
+public class TasafCustomerDto
+{
+    public string CustKey { get; set; } = string.Empty;
+    public string CusName { get; set; } = string.Empty;
+}
+
 public class TasafProductDto
 {
     public string CProdNo { get; set; } = string.Empty;
@@ -35,7 +41,6 @@ public class SaveTasafDto
     public int? SalesGroupId { get; set; }
     public int? AreaId { get; set; }
     public int? ChainId { get; set; }
-    public string? CustKey { get; set; }
     public int? ProgramTypeId { get; set; }
     public string ProgramTypeOther { get; set; } = string.Empty;
     public int? ObjectiveId { get; set; }
@@ -62,6 +67,8 @@ public class SaveTasafDto
     public decimal PayOffInvoiceAp { get; set; }
     public decimal PayOffInvoiceSalesman { get; set; }
     public List<TasafBranchDto> Branches { get; set; } = [];
+    /// <summary>Participating stores (Cust Keys). Names are re-read from the customer master on save.</summary>
+    public List<TasafCustomerDto> Customers { get; set; } = [];
     public List<TasafProductDto> Products { get; set; } = [];
     public List<TasafCostDto> Costs { get; set; } = [];
 }
@@ -71,7 +78,6 @@ public class TasafDto : SaveTasafDto
     public int Id { get; set; }
     public string? RefNo { get; set; }
     public string Status { get; set; } = string.Empty;
-    public string? CustomerName { get; set; }
 
     // Display names of the picked lookups.
     public string? SalesGroupName { get; set; }
@@ -169,6 +175,7 @@ public class TasafListItemDto
     public string Title { get; set; } = string.Empty;
     public string? SalesGroupName { get; set; }
     public string? ChainName { get; set; }
+    /// <summary>First store name, "+N more" when several (list display).</summary>
     public string? CustomerName { get; set; }
     public string? ProgramTypeName { get; set; }
     public DateOnly? StartDate { get; set; }
@@ -214,5 +221,18 @@ public class TasafProductLookupDto
     public string PackSize { get; set; } = string.Empty;
     public int Pieces { get; set; }
     /// <summary>prod4win.NEWPRICE (ex-VAT) — prefilled as LSP/Case, editable.</summary>
+    public decimal? LspPerCase { get; set; }
+}
+
+/// <summary>Participating SKU dropdown option (active products of the picked group/category).</summary>
+public class TasafProductOptionDto
+{
+    public string CProdNo { get; set; } = string.Empty;
+    public string ProdDesc { get; set; } = string.Empty;
+    public string PackSize { get; set; } = string.Empty;
+    /// <summary>Product category code (e.g. "1a") and its name.</summary>
+    public string Category { get; set; } = string.Empty;
+    public string? CategoryName { get; set; }
+    /// <summary>prod4win.NEWPRICE (ex-VAT) — prefilled as LSP/Case.</summary>
     public decimal? LspPerCase { get; set; }
 }

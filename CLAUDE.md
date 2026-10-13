@@ -432,7 +432,8 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   deleted (FK Restrict) — deactivate instead.
 - **Form** (`Tasaf` + Branches/Products/Costs/Actions, `TasafService`, `/tasafs`).
   Branches = active Sites + "ALL BRANCHES/LUZON/VISAYAS/MINDANAO" (SiteId null).
-  Cust Key: picking a Customer / Chain loads its stores into a dropdown (`GET tasafs/chain-customers/{id}`)
+  Cust Key is MULTI-select (`TasafCustomers` child rows, names re-read from cust4win on save, max 2000).
+  Picking a Customer / Chain loads its stores into a multi-select (`GET tasafs/chain-customers/{id}`)
   — active `Customers` whose CusName matches any of the chain's `CustomerMatch` keywords (comma-separated
   LIKE fragments, edited in Setup › Customers / Chains; defaults seeded by migration
   `TasafChainCustomerMatch`). cust4win has no chain column, so the name is the only link. No keywords

@@ -18,6 +18,8 @@ public class TasafService(
 {
     public const string NotFound = "TASAF not found.";
     public const string Forbidden = "You can only open your own TASAFs.";
+    /// <summary>Most participating stores (Cust Keys) one TASAF can list.</summary>
+    private const int MaxCustomers = 2000;
 
     /// <summary>Branch scopes offered after the Sites (TASAF Template DATA sheet).</summary>
     public static readonly string[] BranchScopes = ["ALL BRANCHES", "ALL LUZON", "ALL VISAYAS", "ALL MINDANAO"];
@@ -70,7 +72,12 @@ public class TasafService(
                 Title           = t.Title,
                 SalesGroupName  = t.SalesGroup?.Name,
                 ChainName       = t.Chain?.Name,
-                CustomerName    = t.CustomerName,
+                CustomerName    = t.Customers.Count switch
+                {
+                    0 => null,
+                    1 => t.Customers[0].CusName,
+                    var n => $"{t.Customers.OrderBy(c => c.LineNo).First().CusName} +{n - 1} more"
+                },
                 ProgramTypeName = t.ProgramType?.Name,
                 StartDate       = t.StartDate,
                 EndDate         = t.EndDate,
@@ -103,6 +110,52 @@ public class TasafService(
             .ToList();
         if (fragments.Count == 0) return ([], false);
         return (await customers.MatchByNameAsync(fragments, take: 2000), true);
+    }
+
+    /// <summary>
+    /// Participating SKU dropdown: active products (not Delisted / Phased Out) of the TASAF's
+    /// product scope. Each (group, category) pair contributes its category's SKUs when a
+    /// category is picked, else the whole group's. TASAF codes map to the product master:
+    /// category "1A" = ProductCategory "1a", group / whole-group category "07" = GroupNo 7.
+    /// A non-numeric group code (CORP — Total RAM) or no scope at all = every active product.
+    /// </summary>
+    public async Task<List<TasafProductOptionDto>> GetProductOptionsAsync(
+        int? productGroupId, int? categoryId, int? productGroup2Id, int? category2Id)
+    {
+        var catalog = (await products.GetCatalogAsync())
+            .Where(p => !string.Equals(p.GroupDesc?.Trim(), ProductCatalogService.Delisted, StringComparison.OrdinalIgnoreCase)
+                        && !p.PhOut)
+            .ToList();
+
+        var codes = new List<string>();
+        foreach (var (groupId, catId) in new[] { (productGroupId, categoryId), (productGroup2Id, category2Id) })
+        {
+            var cat = catId is int c ? await lookups.GetByIdAsync(typeof(TasafCategory), c) : null;
+            var grp = groupId is int g ? await lookups.GetByIdAsync(typeof(TasafProductGroup), g) : null;
+            var code = (cat ?? grp)?.Code.Trim();
+            if (!string.IsNullOrEmpty(code)) codes.Add(code);
+        }
+
+        IEnumerable<HOMSys.Application.DTOs.Products.ProductCatalogDto> picked = catalog;
+        if (codes.Count > 0 && !codes.Any(c => !char.IsDigit(c[0])))  // any CORP-like code = all products
+        {
+            var categoryCodes = codes.Where(c => c.Any(char.IsLetter)).Select(c => c.ToLowerInvariant()).ToHashSet();
+            var groupNos = codes.Where(c => c.All(char.IsDigit)).Select(int.Parse).ToHashSet();
+            picked = catalog.Where(p => categoryCodes.Contains(p.Category.Trim().ToLowerInvariant()) || groupNos.Contains(p.GroupNo));
+        }
+
+        return picked
+            .OrderBy(p => p.GroupNo).ThenBy(p => p.SeqNo).ThenBy(p => p.CProdNo)
+            .Select(p => new TasafProductOptionDto
+            {
+                CProdNo      = p.CProdNo.Trim(),
+                ProdDesc     = p.ProdDesc.Trim(),
+                PackSize     = p.PackSize.Trim(),
+                Category     = p.Category.Trim(),
+                CategoryName = p.GroupDesc?.Trim(),
+                LspPerCase   = p.NewPrice
+            })
+            .ToList();
     }
 
     public async Task<TasafProductLookupDto?> LookupProductAsync(string cProdNo)
@@ -537,14 +590,15 @@ public class TasafService(
         foreach (var ct in costTypeIds)
             if (!await LookupExistsAsync("cost-types", ct)) return "Cost description not found.";
 
-        string? customerName = null;
-        var custKey = string.IsNullOrWhiteSpace(dto.CustKey) ? null : dto.CustKey.Trim();
-        if (custKey is not null)
-        {
-            var c = await customers.GetByCustKeyAsync(custKey);
-            if (c is null) return $"Customer {custKey} not found.";
-            customerName = c.CusName.Trim();
-        }
+        // Participating stores: every Cust Key must exist; names come from the customer master.
+        var custKeys = dto.Customers.Select(c => (c.CustKey ?? "").Trim()).Where(k => k.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (custKeys.Count > MaxCustomers) return $"Pick at most {MaxCustomers} stores.";
+        var found = (await customers.GetByCustKeysAsync(custKeys)).Values
+            .GroupBy(c => c.CustKey.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        var missing = custKeys.Where(k => !found.ContainsKey(k)).ToList();
+        if (missing.Count > 0) return $"Customer {string.Join(", ", missing.Take(5))} not found.";
 
         var amounts = new[] { dto.PromotedValue, dto.PrePromoSales, dto.IncrementalSales,
             dto.PayInvDeductionAp, dto.PayInvDeductionSalesman, dto.PayCheckAp, dto.PayCheckSalesman,
@@ -561,8 +615,6 @@ public class TasafService(
         t.SalesGroupId      = dto.SalesGroupId;
         t.AreaId            = dto.AreaId;
         t.ChainId           = dto.ChainId;
-        t.CustKey           = custKey;
-        t.CustomerName      = customerName;
         t.ProgramTypeId     = dto.ProgramTypeId;
         t.ProgramTypeOther  = dto.ProgramTypeOther.Trim();
         t.ObjectiveId       = dto.ObjectiveId;
@@ -594,6 +646,14 @@ public class TasafService(
         foreach (var b in dto.Branches.Where(b => b.SiteId is not null || !string.IsNullOrWhiteSpace(b.Name))
                      .DistinctBy(b => (b.SiteId, b.Name.Trim())))
             t.Branches.Add(new TasafBranch { LineNo = ++line, SiteId = b.SiteId, Name = b.Name.Trim() });
+
+        t.Customers.Clear();
+        line = 0;
+        foreach (var k in custKeys)
+        {
+            var c = found[k];
+            t.Customers.Add(new TasafCustomer { LineNo = ++line, CustKey = c.CustKey.Trim(), CusName = c.CusName.Trim() is var n && n.Length > 150 ? n[..150] : n });
+        }
 
         t.Products.Clear();
         line = 0;
@@ -658,8 +718,6 @@ public class TasafService(
             AreaName          = t.Area?.Name,
             ChainId           = t.ChainId,
             ChainName         = t.Chain?.Name,
-            CustKey           = t.CustKey,
-            CustomerName      = t.CustomerName,
             ProgramTypeId     = t.ProgramTypeId,
             ProgramTypeName   = t.ProgramType?.Name,
             ProgramTypeOther  = t.ProgramTypeOther,
@@ -700,6 +758,7 @@ public class TasafService(
             PaymentTotal      = payTotal,
             PaymentVariance   = t.TotalCost - payTotal,
             Branches = t.Branches.OrderBy(b => b.LineNo).Select(b => new TasafBranchDto { SiteId = b.SiteId, Name = b.Name }).ToList(),
+            Customers = t.Customers.OrderBy(c => c.LineNo).Select(c => new TasafCustomerDto { CustKey = c.CustKey, CusName = c.CusName }).ToList(),
             Products = t.Products.OrderBy(p => p.LineNo).Select(p => new TasafProductDto
             {
                 CProdNo = p.CProdNo, Sku = p.Sku, P3MoAvgCs = p.P3MoAvgCs, SplyCs = p.SplyCs,

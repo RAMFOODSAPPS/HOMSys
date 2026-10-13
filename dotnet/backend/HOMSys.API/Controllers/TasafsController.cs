@@ -32,6 +32,12 @@ public class TasafsController(TasafService service, SalesOrderService salesOrder
         return Ok(new { success = true, data = new { filtered, customers } });
     }
 
+    /// <summary>Participating SKU dropdown for the TASAF's product group(s) / category(ies).</summary>
+    [HttpGet("product-options")]
+    public async Task<IActionResult> ProductOptions([FromQuery] int? productGroupId, [FromQuery] int? categoryId,
+        [FromQuery] int? productGroup2Id, [FromQuery] int? category2Id) =>
+        Ok(new { success = true, data = await service.GetProductOptionsAsync(productGroupId, categoryId, productGroup2Id, category2Id) });
+
     [HttpGet("search/product")]
     public async Task<IActionResult> SearchProducts([FromQuery] string? term) =>
         Ok(new { success = true, data = await salesOrderService.SearchProductsAsync(term ?? "") });

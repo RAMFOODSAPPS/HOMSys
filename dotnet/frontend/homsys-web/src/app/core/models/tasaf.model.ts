@@ -1,3 +1,9 @@
+/** A participating store from the customer master. */
+export interface TasafCustomerRef {
+  custKey: string;
+  cusName: string;
+}
+
 export interface TasafBranch {
   siteId?: number | null;
   name: string;
@@ -30,7 +36,8 @@ export interface SaveTasafDto {
   salesGroupId: number | null;
   areaId: number | null;
   chainId: number | null;
-  custKey: string | null;
+  /** Participating stores (Cust Keys) — any number. */
+  customers: TasafCustomerRef[];
   programTypeId: number | null;
   programTypeOther: string;
   objectiveId: number | null;
@@ -65,7 +72,6 @@ export interface TasafDto extends SaveTasafDto {
   id: number;
   refNo: string | null;
   status: string;
-  customerName: string | null;
   salesGroupName?: string | null;
   chainName?: string | null;
   totalCost: number;

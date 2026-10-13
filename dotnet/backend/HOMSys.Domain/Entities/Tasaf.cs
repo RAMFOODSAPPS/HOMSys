@@ -28,10 +28,6 @@ public class Tasaf
     public int? ChainId { get; set; }
     public TasafChain? Chain { get; set; }
 
-    /// <summary>Optional specific account from the customer master (cust4win). Name copied at save.</summary>
-    public string? CustKey { get; set; }
-    public string? CustomerName { get; set; }
-
     public int? ProgramTypeId { get; set; }
     public TasafProgramType? ProgramType { get; set; }
     public string ProgramTypeOther { get; set; } = string.Empty;
@@ -101,6 +97,8 @@ public class Tasaf
     public string? UpdatedBy { get; set; }
 
     public List<TasafBranch> Branches { get; set; } = [];
+    /// <summary>Participating stores (Cust Keys) from the customer master — any number.</summary>
+    public List<TasafCustomer> Customers { get; set; } = [];
     public List<TasafProduct> Products { get; set; } = [];
     public List<TasafCost> Costs { get; set; } = [];
 }
@@ -172,6 +170,16 @@ public class TasafBranch
     public int? SiteId { get; set; }
     public Site? Site { get; set; }
     public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>A participating store (cust4win CustKey + name at the time it was picked).</summary>
+public class TasafCustomer
+{
+    public int Id { get; set; }
+    public int TasafId { get; set; }
+    public int LineNo { get; set; }
+    public string CustKey { get; set; } = string.Empty;
+    public string CusName { get; set; } = string.Empty;
 }
 
 /// <summary>Participating Products row. Volumes in cases.</summary>

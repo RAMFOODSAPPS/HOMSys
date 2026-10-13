@@ -87,6 +87,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Tasaf> Tasafs => Set<Tasaf>();
     public DbSet<TasafNumbering> TasafNumberings => Set<TasafNumbering>();
     public DbSet<TasafBranch> TasafBranches => Set<TasafBranch>();
+    public DbSet<TasafCustomer> TasafCustomers => Set<TasafCustomer>();
     public DbSet<TasafProduct> TasafProducts => Set<TasafProduct>();
     public DbSet<TasafCost> TasafCosts => Set<TasafCost>();
     public DbSet<TasafAction> TasafActions => Set<TasafAction>();
