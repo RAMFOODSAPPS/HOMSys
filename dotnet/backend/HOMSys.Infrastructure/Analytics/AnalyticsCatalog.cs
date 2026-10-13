@@ -94,6 +94,8 @@ public static class AnalyticsCatalog
 
     private static readonly Join[] SalesJoins =
     [
+        // cu first: sw / zm read cu's columns (AnalyticsSqlBuilder also emits dependencies first).
+        new("cu", CustomerApply),
         // Credited site: the Site whose Cuwhsenos holds the customer's WhseNo (a shared whse, e.g. 45,
         // prefers the processing branch); no match -> the processing branch itself.
         new("sw", """
@@ -104,7 +106,6 @@ public static class AnalyticsCatalog
         new("st", "OUTER APPLY (SELECT TOP 1 s.Name FROM Sites s WHERE s.Code = COALESCE(sw.Code, so.ForBranch, so.Branch) ORDER BY s.Id) st", "sw"),
         // Posted BMS RFCs against the order's invoice, pre-aggregated to one row per order.
         new("rf", "OUTER APPLY (SELECT SUM(rl.SpAmt + rl.Tax) AS Amt FROM SalesOrderRfcs r JOIN SalesOrderRfcLines rl ON rl.RfcId = r.Id WHERE r.SoId = so.SoId) rf"),
-        new("cu", CustomerApply),
         new("zm", "OUTER APPLY (SELECT TOP 1 z.CDesc FROM ZoneMasts z WHERE z.Branch = cu.PFolder AND z.CZone = cu.CZone ORDER BY z.Id) zm", "cu"),
     ];
 
