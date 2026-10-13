@@ -186,7 +186,7 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
               </td>
             }
             <td><p-tag [severity]="statusSeverity(o.workflowStatus)" [value]="o.workflowStatus || 'Entered'"
-                       [pTooltip]="o.cancelledInvNo ? cancelTooltip(o) : undefined" /></td>
+                       [pTooltip]="o.workflowStatus === 'Cancelled' ? cancelTooltip(o) : undefined" /></td>
             <td>
               @if (o.deliveryStatus) {
                 <p-tag [severity]="deliverySeverity(o.deliveryStatus)" [value]="deliveryLabel(o.deliveryStatus)"
@@ -227,7 +227,7 @@ const PO_BY_NAME_EXPECTED_HEADERS = [
               <p-button icon="pi pi-eye" [text]="true" (onClick)="view(o)" pTooltip="View" tooltipPosition="left" />
               <p-button icon="pi pi-pencil" [text]="true" [disabled]="!!o.invNo || !!o.isLocked" (onClick)="edit(o)"
                         [class.edit-disabled]="!!o.invNo || !!o.isLocked" tooltipPosition="left"
-                        [pTooltip]="o.cancelledInvNo ? 'Invoice cancelled in BMS — cannot edit' : o.invNo ? 'Already invoiced — cannot edit' : (o.isLocked ? (o.needsResync ? 'Locked — syncing edit to BMS' : 'Locked — pushed to BMS') : 'Edit')" />
+                        [pTooltip]="o.cancelledInvNo ? 'Invoice cancelled in BMS — cannot edit' : o.workflowStatus === 'Cancelled' ? 'S.O. deleted in BMS — cannot edit' : o.invNo ? 'Already invoiced — cannot edit' : (o.isLocked ? (o.needsResync ? 'Locked — syncing edit to BMS' : 'Locked — pushed to BMS') : 'Edit')" />
             </td>
           </tr>
         </ng-template>
@@ -775,6 +775,7 @@ export class SalesOrderListPageComponent implements OnInit, OnDestroy {
     const on = o.invCancelDate ? ` on ${new Date(o.invCancelDate).toLocaleDateString('en-US')}` : '';
     const by = o.invCancelledBy ? ` by ${o.invCancelledBy}` : '';
     const rem = o.invCancelRemarks ? ` — ${o.invCancelRemarks}` : '';
+    if (!o.cancelledInvNo) return `S.O. deleted in BMS (no invoice)${on}${by}`;
     return `INV# ${o.cancelledInvNo} cancelled in BMS${on}${by}${rem}`;
   }
 

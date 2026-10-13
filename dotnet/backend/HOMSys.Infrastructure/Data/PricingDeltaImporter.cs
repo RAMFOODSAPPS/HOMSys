@@ -414,6 +414,12 @@ public class PricingDeltaImporter(AppDbContext db)
         c.ExBranch = u.ExBranch; c.CCode = u.CCode; c.OldCCode = u.OldCCode; c.IEffDate = u.IEffDate;
         c.BlockInv = u.BlockInv; c.Tin = u.Tin; c.AliasKey = u.AliasKey; c.ConsoMax2 = u.ConsoMax2;
         c.FirstOrder = u.FirstOrder; c.Inactive = u.Inactive;
+        if (u.CusName2 is not null) c.CusName2 = u.CusName2;
+        if (u.NRegion is not null) c.NRegion = u.NRegion;
+        if (u.NSlGrp is not null) c.NSlGrp = u.NSlGrp;
+        if (u.NAccount is not null) c.NAccount = u.NAccount;
+        if (u.Territory is not null) c.Territory = u.Territory;
+        if (u.NSlGrp1 is not null) c.NSlGrp1 = u.NSlGrp1;
     }
 
     private async Task<int> ApplyCustomerBranchZonesAsync(string branch, CustomerBranchZoneDeltaSection section, Action<string> log)

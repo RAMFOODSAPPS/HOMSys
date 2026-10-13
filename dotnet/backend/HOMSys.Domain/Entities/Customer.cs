@@ -33,6 +33,13 @@ public class Customer
 
     public string CusName { get; set; } = string.Empty;
 
+    /// <summary>cust4win.CUSNAME2 C(50) — the invoice name; blank for most customers.</summary>
+    public string CusName2 { get; set; } = string.Empty;
+
+    /// <summary>Name the S.O. (and so the BMS invoice) carries: CUSNAME2, else CUSNAME —
+    /// a1110's rule (jpalermo 03/25/2014). Not mapped (getter only).</summary>
+    public string InvoiceName => string.IsNullOrWhiteSpace(CusName2) ? CusName : CusName2;
+
     public string AddrLn1 { get; set; } = string.Empty;
     public string AddrLn2 { get; set; } = string.Empty;
 
@@ -100,6 +107,24 @@ public class Customer
     /// live 2026-09-09); INACTIVE is the one that should exclude a customer from
     /// pricing-search results.</summary>
     public bool Inactive { get; set; }
+
+    // --- Sales-reporting classification, added to cust4win 2026-10 (blank for
+    //     most rows; filled in for the key accounts). Not used by any logic yet. ---
+
+    /// <summary>cust4win.NREGION C(20) — e.g. "NKA", "North Luzon", "Visayas".</summary>
+    public string NRegion { get; set; } = string.Empty;
+
+    /// <summary>cust4win.NSLGRP C(5) — sales group: "GT", "MT", "LKA".</summary>
+    public string NSlGrp { get; set; } = string.Empty;
+
+    /// <summary>cust4win.NACCOUNT C(50) — the parent account, e.g. "ROBINSON - MAIN".</summary>
+    public string NAccount { get; set; } = string.Empty;
+
+    /// <summary>cust4win.TERRITORY C(10) — "Luzon", "Visayas", "Mindanao".</summary>
+    public string Territory { get; set; } = string.Empty;
+
+    /// <summary>cust4win.NSLGRP1 C(15) — channel: "Distributor", "RKA", "NKA", "Branch".</summary>
+    public string NSlGrp1 { get; set; } = string.Empty;
 
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
 }

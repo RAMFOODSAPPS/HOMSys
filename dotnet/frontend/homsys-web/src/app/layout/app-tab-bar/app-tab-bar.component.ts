@@ -32,7 +32,8 @@ import { AppTab, TabBarService } from '../../core/services/tab-bar.service';
       display: flex;
       align-items: stretch;
       background: #f3e6e6;
-      border-bottom: 1px solid #e2cccc;
+      /* bottom rule as an inset shadow, so the active tab's underline lands on the same row instead of stacking */
+      box-shadow: inset 0 -1px 0 #e2cccc;
       height: 34px;
       overflow-x: auto;
       overflow-y: hidden;

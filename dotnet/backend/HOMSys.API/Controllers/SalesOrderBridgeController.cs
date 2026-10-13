@@ -191,6 +191,12 @@ public class SalesOrderBridgeController(
         [FromHeader(Name = "X-Api-Key")] string? apiKey) =>
         BySoNo(soNo, branch, apiKey, soId => bridgeService.SyncOosStatusAsync(soId, dto));
 
+    /// <summary>a1110.scx Delete (uninvoiced S.O. removed from BMS) — see SalesOrderBridgeService.DeleteSoAsync.</summary>
+    [HttpPost("by-sono/{soNo:int}/so-delete")]
+    public Task<IActionResult> SoDeleteBySoNo(int soNo, [FromQuery] string branch, [FromBody] BridgeSoDeleteDto dto,
+        [FromHeader(Name = "X-Api-Key")] string? apiKey) =>
+        BySoNo(soNo, branch, apiKey, soId => bridgeService.DeleteSoAsync(soId, dto));
+
     private async Task<IActionResult> BySoNo(int soNo, string branch, string? apiKey, Func<int, Task<string?>> action)
     {
         if (!IsAuthorized(apiKey))

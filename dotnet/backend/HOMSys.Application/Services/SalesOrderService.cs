@@ -49,12 +49,12 @@ public class SalesOrderService(
             .Select(s => new OffshoreBranchOptionDto { Value = s.Code, Label = s.Name })
             .ToList();
 
-    /// <summary>Normalises and validates a requested ForBranch. Null = normal order.</summary>
+    /// <summary>Normalises and validates a requested ForBranch. Null = normal order; offshore encoders (HON / LKA-HO) must always name one.</summary>
     private async Task<(string? forBranch, string? error)> ResolveForBranchAsync(string? requested)
     {
         var code = (requested ?? string.Empty).Trim();
         if (code.Length == 0)
-            return (null, null);
+            return CanEncodeOffshore ? (null, "For Branch is required.") : (null, null);
         if (!CanEncodeOffshore)
             return (null, "Your role cannot encode orders For another branch.");
         if (code == CurrentBranch)
@@ -119,7 +119,7 @@ public class SalesOrderService(
         return new CustomerLookupDto
         {
             CustKey = c.CustKey,
-            CusName = c.CusName,
+            CusName = c.InvoiceName,  // what the order will carry (see ApplyCustomerToHeader)
             CKey = c.CKey,
             WhseNo = c.WhseNo,
             CustWhse = c.CustWhse,
@@ -353,7 +353,9 @@ public class SalesOrderService(
                      !string.IsNullOrWhiteSpace(customer.DelAddrLn2);
 
         order.CustKey = customer.CustKey;
-        order.CusName = customer.CusName;
+        // Invoice name (CUSNAME2) when set, like a1110 -- this lands in oowkhdr.CUSNAME
+        // and so on the BMS invoice.
+        order.CusName = customer.InvoiceName;
         order.CKey = customer.CKey;
 
         order.CCode = ResolveCCode(customer, asOf);
@@ -559,7 +561,9 @@ public class SalesOrderService(
             return (null, $"Sales order {soId} is being downloaded into BMS by {order.BridgeClaimedBy} and cannot be edited now.");
 
         if (order.WorkflowStatus == "Cancelled")
-            return (null, $"Sales order {soId}'s invoice (INV# {order.CancelledInvNo}) was cancelled in BMS. It cannot be edited — encode a new order instead.");
+            return (null, order.CancelledInvNo is null
+                ? $"Sales order {soId} (SO# {order.SoNo}) was deleted in BMS. It cannot be edited — encode a new order instead."
+                : $"Sales order {soId}'s invoice (INV# {order.CancelledInvNo}) was cancelled in BMS. It cannot be edited — encode a new order instead.");
 
         if (order.InvNo is not null)
             return (null, $"Sales order {soId} has already been invoiced (INV# {order.InvNo}) and cannot be edited.");

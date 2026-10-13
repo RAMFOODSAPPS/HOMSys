@@ -21,9 +21,8 @@ import { LayoutService } from '../../core/services/layout.service';
         <div class="main-area">
           <app-modulebar />
           <div class="bar-separator"></div>
-          <app-page-toolbar />
-          <div class="bar-separator bar-separator--thin"></div>
           <app-tab-bar />
+          <app-page-toolbar />
           <div class="layout-content">
             <router-outlet />
           </div>
@@ -65,9 +64,6 @@ import { LayoutService } from '../../core/services/layout.service';
       flex-shrink: 0;
     }
 
-    .bar-separator--thin {
-      height: 0.5px;
-    }
 
     .layout-content {
       flex: 1;

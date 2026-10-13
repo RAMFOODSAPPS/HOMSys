@@ -42,6 +42,10 @@ const ROUTE_META: Record<string, { label: string; icon: string }> = {
 
 const TABS_STORAGE_KEY   = 'homsys_tabs';
 const ACTIVE_STORAGE_KEY = 'homsys_active_tab';
+/** '1' = keep the tabs left open from the last session at the next login (modulebar toggle); default is a fresh start. */
+const PRESERVE_STORAGE_KEY = 'homsys_preserve_tabs';
+/** Whose tabs are saved, so another user logging in on this browser never inherits them. */
+const OWNER_STORAGE_KEY = 'homsys_tabs_owner';
 
 @Injectable({ providedIn: 'root' })
 export class TabBarService {
@@ -49,10 +53,12 @@ export class TabBarService {
 
   tabs      = signal<AppTab[]>(this.loadTabs());
   activeKey = signal<string>(localStorage.getItem(ACTIVE_STORAGE_KEY) ?? '');
+  preserveTabs = signal(localStorage.getItem(PRESERVE_STORAGE_KEY) === '1');
 
   constructor() {
     effect(() => localStorage.setItem(TABS_STORAGE_KEY,   JSON.stringify(this.tabs())));
     effect(() => localStorage.setItem(ACTIVE_STORAGE_KEY, this.activeKey()));
+    effect(() => localStorage.setItem(PRESERVE_STORAGE_KEY, this.preserveTabs() ? '1' : '0'));
 
     this.router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd)
@@ -71,6 +77,16 @@ export class TabBarService {
         this.tabs.update(tabs => [...tabs, { key, label: meta.label, route: url, icon: meta.icon }]);
       }
     });
+  }
+
+  /** On login: start with no tabs, unless "Preserve left tabs" is on and they're this same user's tabs. */
+  startSession(username: string) {
+    const owner = localStorage.getItem(OWNER_STORAGE_KEY);
+    if (!this.preserveTabs() || owner?.toLowerCase() !== username.toLowerCase()) {
+      this.tabs.set([]);
+      this.activeKey.set('');
+    }
+    localStorage.setItem(OWNER_STORAGE_KEY, username);
   }
 
   /** Persist arbitrary state onto an existing tab (e.g. draft form values). */

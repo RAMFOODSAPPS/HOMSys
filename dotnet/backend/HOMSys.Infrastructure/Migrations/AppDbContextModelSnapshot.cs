@@ -141,6 +141,11 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("CusName2")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("CustKey")
                         .IsRequired()
                         .HasMaxLength(7)
@@ -182,6 +187,26 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<bool>("Inactive")
                         .HasColumnType("bit");
 
+                    b.Property<string>("NAccount")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("NRegion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("NSlGrp")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("nvarchar(5)");
+
+                    b.Property<string>("NSlGrp1")
+                        .IsRequired()
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)");
+
                     b.Property<bool>("Offshore")
                         .HasColumnType("bit");
 
@@ -207,6 +232,11 @@ namespace HOMSys.Infrastructure.Migrations
 
                     b.Property<int>("TermDays")
                         .HasColumnType("int");
+
+                    b.Property<string>("Territory")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
 
                     b.Property<string>("Tin")
                         .IsRequired()

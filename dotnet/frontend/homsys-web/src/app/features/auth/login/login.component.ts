@@ -7,6 +7,7 @@ import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { MessageModule } from 'primeng/message';
 import { AuthService } from '../../../core/services/auth.service';
+import { TabBarService } from '../../../core/services/tab-bar.service';
 
 @Component({
   selector: 'app-login',
@@ -74,6 +75,7 @@ import { AuthService } from '../../../core/services/auth.service';
 export class LoginComponent {
   private auth = inject(AuthService);
   private router = inject(Router);
+  private tabBar = inject(TabBarService);
   private fb = inject(FormBuilder);
 
   protected form = this.fb.group({
@@ -93,6 +95,7 @@ export class LoginComponent {
     this.auth.login({ username: username!, password: password! }).subscribe({
       next: () => {
         this.loading.set(false);
+        this.tabBar.startSession(username!);
         const target = this.auth.user()?.mustChangePassword ? '/change-password' : '/';
         this.router.navigate([target]);
       },

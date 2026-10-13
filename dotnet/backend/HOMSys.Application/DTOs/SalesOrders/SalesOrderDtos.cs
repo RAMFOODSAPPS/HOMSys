@@ -531,6 +531,17 @@ public class BridgeInvoiceCancelDto
     public decimal? InvAmt { get; set; }
 }
 
+/// <summary>Body of POST /api/salesorders/bridge/by-sono/{soNo}/so-delete —
+/// a1110.scx's Delete button removed this (never invoiced) S.O. from BMS.
+/// DeleteDate is the branch's sysparam.transdate when it happened, DeletedBy
+/// the BMS user (appusername). CANCELD.DBF varies by branch, so nothing else
+/// is read from BMS.</summary>
+public class BridgeSoDeleteDto
+{
+    public DateOnly? DeleteDate { get; set; }
+    public string? DeletedBy { get; set; }
+}
+
 /// <summary>Body of POST /api/salesorders/bridge/by-sono/{soNo}/delivery.
 /// Mirrors VSHDR's own DELIVERED/STATUS fields plus every matching VSDET line,
 /// pushed by a1146F's delivery-status maintenance screen.</summary>

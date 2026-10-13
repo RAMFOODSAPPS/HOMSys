@@ -3,7 +3,11 @@ import { Router } from '@angular/router';
 import { MenuModule } from 'primeng/menu';
 import { ButtonModule } from 'primeng/button';
 import { MenuItem } from 'primeng/api';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { TooltipModule } from 'primeng/tooltip';
+import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
+import { TabBarService } from '../../core/services/tab-bar.service';
 
 interface ModuleGroup {
   label: string;
@@ -15,7 +19,7 @@ interface ModuleGroup {
 @Component({
   selector: 'app-modulebar',
   standalone: true,
-  imports: [MenuModule, ButtonModule],
+  imports: [MenuModule, ButtonModule, ToggleSwitchModule, TooltipModule, FormsModule],
   template: `
     <div class="modulebar">
       @for (mod of visibleModules(); track mod.label) {
@@ -29,6 +33,10 @@ interface ModuleGroup {
           {{ assignRef(mod, modMenu) }}
         </div>
       }
+      <label class="preserve-tabs" pTooltip="On: the tabs you leave open are restored at your next login. Off: every login starts fresh." tooltipPosition="left">
+        <span>Preserve left tabs</span>
+        <p-toggleswitch [ngModel]="tabBar.preserveTabs()" (ngModelChange)="tabBar.preserveTabs.set($event)" />
+      </label>
     </div>
   `,
   styles: [`
@@ -45,6 +53,18 @@ interface ModuleGroup {
     }
 
     .module-item { position: relative; }
+
+    .preserve-tabs {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.72rem;
+      color: var(--p-text-muted-color);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .preserve-tabs ::ng-deep .p-toggleswitch { transform: scale(0.75); }
 
     .module-btn {
       display: flex;
@@ -84,6 +104,7 @@ interface ModuleGroup {
 export class ModulebarComponent {
   private router = inject(Router);
   protected auth = inject(AuthService);
+  protected tabBar = inject(TabBarService);
 
   modules: ModuleGroup[] = [
     {
