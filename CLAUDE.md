@@ -433,6 +433,7 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
 - **Form** (`Tasaf` + Branches/Products/Costs/Actions, `TasafService`, `/tasafs`).
   Branches = active Sites + "ALL BRANCHES/LUZON/VISAYAS/MINDANAO" (SiteId null).
   Area is MULTI-select (`TasafAreaLinks` child rows → `AreaIds`/`AreaNames`; migration `TasafMultipleAreas`).
+  Channel likewise (`TasafChannelLinks` → `ChannelIds`/`ChannelNames`; migration `TasafMultipleChannels`).
   Each area lists its branches (`TasafArea.BranchCodes`, Site codes, Setup › Areas; defaults by migration
   `TasafAreaBranches`, Nationwide blank = all). The Cust Key dropdown (`GET tasafs/customer-options?chainId=&areaIds=`)
   = active customers matching the chain keywords AND belonging to the picked areas' branches. A customer belongs to
@@ -461,7 +462,9 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   order = role `SortOrder`. The person per role is per sales group in `TasafApprover`
   (setup › Approval Matrix); a vacant cell = step `Skipped`.
   Any approver can Return (→ Returned, editable; resubmit rebuilds the chain) or
-  Reject; both need a comment. Submit requires payment grid total = TotalCost and
+  Reject; both need a comment. Mode of Payment = ONE payment type per TASAF (dropdown), carrying the whole
+  TotalCost (saved into that type's `PayXxxAp` field; the Salesman fields are no longer used → 0). Submit
+  requires exactly one payment type, payment total = TotalCost and
   CTS ≤ the program type's `MaxCtsPercent` (8% on PROMO- types) — or, when over it, a `CtsJustification`
   (textarea under Computation, shown to approvers; migration `TasafCtsJustification`).
   RefNo `YEAR-SG-INITIALS-NN` (workbook GUIDE sheet, e.g. `2025-RKA-ER-03`) assigned on first

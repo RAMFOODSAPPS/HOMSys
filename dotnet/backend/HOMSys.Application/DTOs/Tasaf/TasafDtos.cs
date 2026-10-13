@@ -48,7 +48,8 @@ public class SaveTasafDto
     public string ObjectiveOther { get; set; } = string.Empty;
     public int? TargetMarketId { get; set; }
     public string TargetMarketOther { get; set; } = string.Empty;
-    public int? ChannelId { get; set; }
+    /// <summary>Channels (multi-select).</summary>
+    public List<int> ChannelIds { get; set; } = [];
     public int? ProductGroupId { get; set; }
     public int? ProductGroup2Id { get; set; }
     public int? CategoryId { get; set; }
@@ -90,7 +91,8 @@ public class TasafDto : SaveTasafDto
     public string? ProgramTypeName { get; set; }
     public string? ObjectiveName { get; set; }
     public string? TargetMarketName { get; set; }
-    public string? ChannelName { get; set; }
+    /// <summary>Picked channel names, comma-separated.</summary>
+    public string? ChannelNames { get; set; }
     public string? ProductGroupName { get; set; }
     public string? ProductGroup2Name { get; set; }
     public string? CategoryName { get; set; }

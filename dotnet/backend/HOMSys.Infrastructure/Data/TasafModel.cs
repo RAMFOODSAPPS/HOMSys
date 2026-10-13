@@ -106,7 +106,6 @@ internal static class TasafModel
             e.HasOne(x => x.ProgramType).WithMany().HasForeignKey(x => x.ProgramTypeId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Objective).WithMany().HasForeignKey(x => x.ObjectiveId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.TargetMarket).WithMany().HasForeignKey(x => x.TargetMarketId).OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(x => x.Channel).WithMany().HasForeignKey(x => x.ChannelId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.ProductGroup).WithMany().HasForeignKey(x => x.ProductGroupId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.ProductGroup2).WithMany().HasForeignKey(x => x.ProductGroup2Id).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Category).WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);
@@ -114,6 +113,7 @@ internal static class TasafModel
             e.HasOne(x => x.ProponentUser).WithMany().HasForeignKey(x => x.ProponentUserId).OnDelete(DeleteBehavior.Restrict);
 
             e.HasMany(x => x.Areas).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Channels).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Branches).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Customers).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Products).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
@@ -161,6 +161,12 @@ internal static class TasafModel
             e.Property(x => x.CustKey).HasMaxLength(20);
             e.Property(x => x.CusName).HasMaxLength(150);
             e.HasIndex(x => x.CustKey);
+        });
+
+        mb.Entity<TasafChannelLink>(e =>
+        {
+            e.ToTable("TasafChannelLinks");
+            e.HasOne(x => x.Channel).WithMany().HasForeignKey(x => x.ChannelId).OnDelete(DeleteBehavior.Restrict);
         });
 
         mb.Entity<TasafAreaLink>(e =>

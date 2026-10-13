@@ -2340,9 +2340,6 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<int?>("ChainId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("ChannelId")
-                        .HasColumnType("int");
-
                     b.Property<string>("Concessions")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -2502,8 +2499,6 @@ namespace HOMSys.Infrastructure.Migrations
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("ChainId");
-
-                    b.HasIndex("ChannelId");
 
                     b.HasIndex("CurrentApproverUserId");
 
@@ -3946,6 +3941,32 @@ namespace HOMSys.Infrastructure.Migrations
                             Name = "ALL CHANNELS",
                             SortOrder = 8
                         });
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafChannelLink", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ChannelId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TasafId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChannelId");
+
+                    b.HasIndex("TasafId");
+
+                    b.ToTable("TasafChannelLinks", (string)null);
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafCost", b =>
@@ -5575,11 +5596,6 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasForeignKey("ChainId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("HOMSys.Domain.Entities.TasafChannel", "Channel")
-                        .WithMany()
-                        .HasForeignKey("ChannelId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("HOMSys.Domain.Entities.TasafObjective", "Objective")
                         .WithMany()
                         .HasForeignKey("ObjectiveId")
@@ -5621,8 +5637,6 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("Category2");
 
                     b.Navigation("Chain");
-
-                    b.Navigation("Channel");
 
                     b.Navigation("Objective");
 
@@ -5755,6 +5769,23 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("SalesGroup");
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafChannelLink", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.TasafChannel", "Channel")
+                        .WithMany()
+                        .HasForeignKey("ChannelId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HOMSys.Domain.Entities.Tasaf", null)
+                        .WithMany("Channels")
+                        .HasForeignKey("TasafId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Channel");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafCost", b =>
                 {
                     b.HasOne("HOMSys.Domain.Entities.TasafCostType", "CostType")
@@ -5874,6 +5905,8 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("Areas");
 
                     b.Navigation("Branches");
+
+                    b.Navigation("Channels");
 
                     b.Navigation("Costs");
 

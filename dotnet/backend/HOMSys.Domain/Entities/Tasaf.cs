@@ -35,8 +35,6 @@ public class Tasaf
     public int? TargetMarketId { get; set; }
     public TasafTargetMarket? TargetMarket { get; set; }
     public string TargetMarketOther { get; set; } = string.Empty;
-    public int? ChannelId { get; set; }
-    public TasafChannel? Channel { get; set; }
 
     public int? ProductGroupId { get; set; }
     public TasafProductGroup? ProductGroup { get; set; }
@@ -98,6 +96,8 @@ public class Tasaf
 
     /// <summary>Areas covered (multi-select).</summary>
     public List<TasafAreaLink> Areas { get; set; } = [];
+    /// <summary>Channels (multi-select).</summary>
+    public List<TasafChannelLink> Channels { get; set; } = [];
     public List<TasafBranch> Branches { get; set; } = [];
     /// <summary>Participating stores (Cust Keys) from the customer master — any number.</summary>
     public List<TasafCustomer> Customers { get; set; } = [];
@@ -171,6 +171,16 @@ public class TasafAreaLink
     public int LineNo { get; set; }
     public int AreaId { get; set; }
     public TasafArea? Area { get; set; }
+}
+
+/// <summary>A channel the TASAF targets (TasafChannel master row).</summary>
+public class TasafChannelLink
+{
+    public int Id { get; set; }
+    public int TasafId { get; set; }
+    public int LineNo { get; set; }
+    public int ChannelId { get; set; }
+    public TasafChannel? Channel { get; set; }
 }
 
 /// <summary>A participating branch: a Site, or a scope such as "ALL LUZON" (SiteId null).</summary>

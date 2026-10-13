@@ -42,8 +42,6 @@ const PAY_ROWS: { label: string; ap: PayKey; sm: PayKey }[] = [
   { label: 'Off-Invoice',       ap: 'payOffInvoiceAp',   sm: 'payOffInvoiceSalesman' },
 ];
 
-interface PayLine { type: PayKey | null; amount: number; }
-
 const TAB = '/tasafs';
 
 function blankModel(): SaveTasafDto {
@@ -51,7 +49,7 @@ function blankModel(): SaveTasafDto {
     title: '', startDate: null, endDate: null,
     salesGroupId: null, areaIds: [], chainId: null,
     programTypeId: null, programTypeOther: '', objectiveId: null, objectiveOther: '',
-    targetMarketId: null, targetMarketOther: '', channelId: null,
+    targetMarketId: null, targetMarketOther: '', channelIds: [],
     productGroupId: null, productGroup2Id: null, categoryId: null, category2Id: null,
     background: '', concessions: '', mechanics: '', ctsJustification: '',
     promotedValue: null, prePromoSales: null, incrementalSales: null,
@@ -278,8 +276,13 @@ function blankProduct(): TasafProduct {
           @case ('channel') {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
-              <p-select [focusOnHover]="false" [(ngModel)]="m.channelId" [options]="list('channels')" optionLabel="name" optionValue="id"
-                [showClear]="true" placeholder="Where will it be implemented?" styleClass="w-full" [disabled]="readonly()" />
+              <p-multiSelect #channelMs [focusOnHover]="false" [(ngModel)]="m.channelIds" [options]="list('channels')" optionLabel="name" optionValue="id"
+                [filter]="true" [showClear]="true" display="chip" [maxSelectedLabels]="100000"
+                placeholder="Where will it be implemented? (one or more)" styleClass="w-full chips-wrap" [disabled]="readonly()">
+                <ng-template pTemplate="footer">
+                  <div class="ms-footer"><span>{{ m.channelIds.length }} selected</span><p-button label="Done" size="small" (onClick)="channelMs.hide()" /></div>
+                </ng-template>
+              </p-multiSelect>
             </div>
           }
           @case ('productGroup') {
@@ -350,6 +353,8 @@ function blankProduct(): TasafProduct {
             <div class="sec-head">
               <h3>{{ cap(it) }}</h3>
               <span class="muted">Skip if not applicable (e.g. sotex / moveout).</span>
+              <i class="pi pi-info-circle muted" style="cursor: help" tooltipPosition="top"
+                pTooltip="Every column except SPLY is required on submit (enter 0 when there were no sales). LSP / Case is prefilled from the product's current list price (ex-VAT) — adjust if needed."></i>
               @if (!readonly()) { <p-button label="Add SKU" icon="pi pi-plus" size="small" [text]="true" (onClick)="addProduct()" /> }
             </div>
             @if (m.products.length) {
@@ -357,7 +362,7 @@ function blankProduct(): TasafProduct {
                 <thead><tr>
                   <th style="width:9rem">ProdNo <span class="req">*</span></th><th>SKU <span class="req">*</span></th>
                   <th class="num">P3 Mo Avg (Cs) <span class="req">*</span></th>
-                  <th class="num" pTooltip="Sales of the SKU in the same period last year, for the planned promo duration">SPLY (Cs) <span class="req">*</span></th>
+                  <th class="num" pTooltip="Sales of the SKU in the same period last year, for the planned promo duration">SPLY (Cs)</th>
                   <th class="num">Promoted Vol (Cs) <span class="req">*</span></th><th class="num">Incr Vol (Cs) <span class="req">*</span></th>
                   <th class="num">LSP / Case <span class="req">*</span></th><th class="num">Promoted Value</th><th></th>
                 </tr></thead>
@@ -392,7 +397,6 @@ function blankProduct(): TasafProduct {
                   }
                 </tbody>
               </table>
-              <small class="muted">Every column is required on submit (enter 0 when there were no sales). LSP / Case is prefilled from the product's current list price (ex-VAT) — adjust if needed.</small>
             }
           }
           @case ('costs') {
@@ -455,7 +459,10 @@ function blankProduct(): TasafProduct {
                 </tr>
                 <tr class="hl">
                   <td>CTS (Promoted Value) @if (ctsLimit() != null) { <span class="muted">— must be within {{ ctsLimit() }}%</span> }</td>
-                  <td class="num">{{ (ratio(totalCost(), promotedValue()) | percent:'1.2-2') ?? '—' }}</td><td></td>
+                  <!-- Green = within the program type's CTS limit, red = over it. -->
+                  <td class="num" [style.color]="ctsLimit() != null && ratio(totalCost(), promotedValue()) != null
+                      ? (ctsOver() ? 'var(--p-red-600, #dc2626)' : 'var(--p-green-600, #16a34a)') : null">
+                    {{ (ratio(totalCost(), promotedValue()) | percent:'1.2-2') ?? '—' }}</td><td></td>
                 </tr>
               </tbody>
             </table>
@@ -474,39 +481,25 @@ function blankProduct(): TasafProduct {
           }
           @case ('payment') {
             <h3>{{ cap(it) }}</h3>
-            <!-- Pick the payment type(s); each line is saved into that type's amount field. -->
+            <!-- ONE payment type per TASAF; it carries the whole Total Cost (saved into that type's amount field). -->
             <table class="lines pay">
-              <colgroup><col /><col style="width: 15rem" /><col style="width: 3rem" /></colgroup>
-              <thead><tr><th>Payment Type <span class="req">*</span></th><th class="num">Amount (₱)</th><th></th></tr></thead>
+              <colgroup><col /><col style="width: 15rem" /><col style="width: 12rem" /></colgroup>
+              <thead><tr><th>Payment Type <span class="req">*</span></th><th class="num">AP / Collection (₱)</th><th class="num">Total (₱)</th></tr></thead>
               <tbody>
-                @for (l of payLines; track $index; let i = $index) {
-                  <tr>
-                    <td>
-                      <p-select [focusOnHover]="false" [(ngModel)]="l.type" [options]="payTypeOptions(l)" optionLabel="label" optionValue="ap"
-                        placeholder="Select payment type" styleClass="w-full" [showClear]="true" [disabled]="readonly()" />
-                    </td>
-                    <td><p-inputNumber [(ngModel)]="l.amount" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /></td>
-                    <td>@if (!readonly() && payLines.length > 1) { <p-button icon="pi pi-trash" [text]="true" severity="danger" size="small" (onClick)="payLines.splice(i, 1)" /> }</td>
-                  </tr>
-                }
+                <tr>
+                  <td>
+                    <p-select [focusOnHover]="false" [(ngModel)]="payType" [options]="payRows" optionLabel="label" optionValue="ap"
+                      placeholder="Select payment type" styleClass="w-full" [showClear]="true" [disabled]="readonly()" />
+                  </td>
+                  <td class="num">@if (payType) { {{ totalCost() | number:'1.2-2' }} }</td>
+                  <td class="num">@if (payType) { {{ totalCost() | number:'1.2-2' }} }</td>
+                </tr>
               </tbody>
-              <tfoot><tr>
-                <td>
-                  @if (!readonly() && payLines.length < payRows.length) {
-                    <p-button label="Add Payment Type" icon="pi pi-plus" size="small" [text]="true" (onClick)="payLines.push({ type: null, amount: 0 })" />
-                  }
-                  <strong style="float: right">Total</strong>
-                </td>
-                <td class="num"><strong>{{ payTotal() | number:'1.2-2' }}</strong></td><td></td>
-              </tr></tfoot>
+              <tfoot><tr><td><strong>Total</strong></td>
+                <td class="num">@if (payType) { <strong>{{ totalCost() | number:'1.2-2' }}</strong> }</td>
+                <td class="num">@if (payType) { <strong>{{ totalCost() | number:'1.2-2' }}</strong> }</td></tr></tfoot>
             </table>
-            @if (payVariance() !== 0) {
-              <p-message severity="warn" styleClass="w-full mt-2"
-                [text]="'Mode of Payment total (' + (payTotal() | number:'1.2-2') + ') is '
-                  + (payVariance() < 0 ? (-payVariance() | number:'1.2-2') + ' MORE than' : (payVariance() | number:'1.2-2') + ' LESS than')
-                  + ' the Total Cost (' + (totalCost() | number:'1.2-2') + '). They must be equal before you can submit.'" />
-            }
-            <small class="muted">Indicate the amount per payment type and the person in charge of liquidating this activity.</small>
+            <small class="muted">One payment type per TASAF — the amount is the Total Cost from Cost Details.</small>
           }
         }
         </div>
@@ -814,6 +807,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       ...b,
       ...Object.fromEntries(Object.keys(b).map(k => [k, (src as unknown as Record<string, unknown>)[k] ?? (b as unknown as Record<string, unknown>)[k]])),
       areaIds: [...(src.areaIds ?? [])],
+      channelIds: [...(src.channelIds ?? [])],
       branches: [],  // held in branchSel
       customers: [], // held in customers()
       products: (src.products ?? []).map(p => ({ ...p })),
@@ -821,7 +815,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     } as SaveTasafDto;
     this.branchSel = (src.branches ?? []).map(x => ({ ...x }));
     this.customers.set((src.customers ?? []).map(c => ({ custKey: c.custKey, cusName: c.cusName })));
-    this.payLines = this.toPayLines(src);
+    this.payType = this.toPayType(src);
     this.startDate = parseIsoDate(src.startDate);
     this.endDate = parseIsoDate(src.endDate);
     this.loadCustomerOptions(false);
@@ -1105,26 +1099,22 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     const cts = this.ratio(this.totalCost(), this.promotedValue());
     return lim != null && cts != null && cts * 100 > lim;
   }
-  // ── Mode of Payment lines (type picked from a dropdown, each type once) ──
-  /** Edited lines; saved into the per-type amount fields (payXxxAp) by payload(). */
-  protected payLines: PayLine[] = [{ type: null, amount: 0 }];
-  /** Payment types not already used on another line (plus this line's own). */
-  payTypeOptions(line: PayLine) {
-    const used = new Set(this.payLines.filter(l => l !== line && l.type).map(l => l.type));
-    return PAY_ROWS.filter(r => !used.has(r.ap));
+  // ── Mode of Payment: ONE payment type per TASAF, carrying the whole Total Cost ──
+  /** The picked type (its payXxxAp field); payload() puts the Total Cost there. */
+  protected payType: PayKey | null = null;
+  /** Saved amounts → the type with the largest amount (AP + legacy Salesman); null if none. */
+  private toPayType(src: SaveTasafDto): PayKey | null {
+    let best: PayKey | null = null, max = 0;
+    for (const r of PAY_ROWS) {
+      const amt = (src[r.ap] || 0) + (src[r.sm] || 0);
+      if (amt > max) { max = amt; best = r.ap; }
+    }
+    return best;
   }
-  payTotal()    { return this.payLines.reduce((s, l) => s + (l.type ? l.amount || 0 : 0), 0); }
-  payVariance() { return Math.round((this.totalCost() - this.payTotal()) * 100) / 100; }
-  /** Saved amounts → lines: one per type with an amount (AP + legacy Salesman), else one empty line. */
-  private toPayLines(src: SaveTasafDto): PayLine[] {
-    const lines = PAY_ROWS.map(r => ({ type: r.ap as PayKey | null, amount: (src[r.ap] || 0) + (src[r.sm] || 0) }))
-      .filter(l => l.amount > 0);
-    return lines.length ? lines : [{ type: null, amount: 0 }];
-  }
-  /** Lines → the per-type amount fields (Salesman columns are no longer used → 0). */
+  /** The picked type gets the Total Cost; every other amount field is 0 (Salesman no longer used). */
   private payFields(): Pick<SaveTasafDto, PayKey> {
     const f = Object.fromEntries(PAY_ROWS.flatMap(r => [[r.ap, 0], [r.sm, 0]])) as Record<PayKey, number>;
-    for (const l of this.payLines) if (l.type) f[l.type] += l.amount || 0;
+    if (this.payType) f[this.payType] = Math.round(this.totalCost() * 100) / 100;
     return f;
   }
 
@@ -1152,7 +1142,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       if (!p.cProdNo?.trim() && !p.sku?.trim()) return; // blank row — dropped on save
       const miss = [
         !p.cProdNo?.trim() && 'ProdNo', !p.sku?.trim() && 'SKU',
-        p.p3MoAvgCs == null && 'P3 Mo Avg', p.splyCs == null && 'SPLY',
+        p.p3MoAvgCs == null && 'P3 Mo Avg',
         !(p.promotedVolCs > 0) && 'Promoted Vol', p.incrVolCs == null && 'Incr Vol',
         !(p.lspPerCase > 0) && 'LSP / Case',
       ].filter(Boolean);
@@ -1172,12 +1162,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       this.messageSvc.add({ severity: 'warn', summary: 'CTS', detail: `CTS is over the ${this.ctsLimit()}% limit — enter the CTS Justification (below Computation) to submit.` });
       return;
     }
-    if (this.payLines.some(l => !l.type && (l.amount || 0) > 0)) {
-      this.messageSvc.add({ severity: 'warn', summary: 'Mode of Payment', detail: 'Select the payment type for every amount entered.' });
-      return;
-    }
-    if (this.payVariance() !== 0) {
-      this.messageSvc.add({ severity: 'warn', summary: 'Mode of Payment', detail: 'The payment total must equal the Total Cost before submitting.' });
+    if (!this.payType) {
+      this.messageSvc.add({ severity: 'warn', summary: 'Mode of Payment', detail: 'Select the payment type before submitting.' });
       return;
     }
     const resubmit = this.current()?.status === 'Returned';

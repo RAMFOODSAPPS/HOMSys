@@ -277,6 +277,12 @@ public class TasafService(
         var missing = MissingForSubmit(t);
         if (missing.Count > 0) return (null, "Complete these before submitting: " + string.Join(", ", missing) + ".");
 
+        // Mode of Payment: ONE payment type per TASAF, carrying the whole Total Cost.
+        var payTypes = new[] { t.PayInvDeductionAp + t.PayInvDeductionSalesman, t.PayCheckAp + t.PayCheckSalesman,
+                               t.PayFreeGoodsAp + t.PayFreeGoodsSalesman, t.PayOffInvoiceAp + t.PayOffInvoiceSalesman }
+            .Count(a => a != 0);
+        if (payTypes == 0) return (null, "Select the Mode of Payment (payment type).");
+        if (payTypes > 1) return (null, "Only one payment type is allowed per TASAF.");
         var payTotal = PaymentTotal(t);
         if (payTotal != t.TotalCost)
             return (null, $"Mode of Payment total ({payTotal:N2}) must equal Total Cost ({t.TotalCost:N2}).");
@@ -544,19 +550,19 @@ public class TasafService(
         else if (IsOthers(t.Objective) && t.ObjectiveOther.Length == 0) m.Add("Objective (Others, indicate)");
         if (t.TargetMarketId is null) m.Add("Target Market");
         else if (IsOthers(t.TargetMarket) && t.TargetMarketOther.Length == 0) m.Add("Target Market (Others, indicate)");
-        if (t.ChannelId is null) m.Add("Channel");
+        if (t.Channels.Count == 0) m.Add("Channel");
         if (t.ProductGroupId is null) m.Add("Product Group");
         if (t.CategoryId is null) m.Add("Category");
         if (t.Background.Length == 0) m.Add("Background");
         if (t.Concessions.Length == 0) m.Add("Concessions");
         if (t.Mechanics.Length == 0) m.Add("Program Mechanics");
-        // Participating Products (optional section): every listed row needs every column.
+        // Participating Products (optional section): every listed row needs every column but SPLY.
         var badRows = t.Products.OrderBy(p => p.LineNo)
-            .Where(p => p.CProdNo.Length == 0 || p.Sku.Length == 0 || p.P3MoAvgCs is null || p.SplyCs is null
+            .Where(p => p.CProdNo.Length == 0 || p.Sku.Length == 0 || p.P3MoAvgCs is null
                         || p.PromotedVolCs <= 0 || p.LspPerCase <= 0)
             .Select(p => p.LineNo).ToList();
         if (badRows.Count > 0)
-            m.Add($"Participating Products row {string.Join(", ", badRows)} (ProdNo, SKU, P3 Mo Avg, SPLY, Promoted Vol, LSP / Case)");
+            m.Add($"Participating Products row {string.Join(", ", badRows)} (ProdNo, SKU, P3 Mo Avg, Promoted Vol, LSP / Case)");
         if (t.Costs.Count == 0 || t.TotalCost <= 0) m.Add("Cost Details");
         else if (t.Costs.Any(c => c.CostTypeId is null)) m.Add("a description on every cost line");
         return m;
@@ -622,7 +628,7 @@ public class TasafService(
             (dto.SalesGroupId, "sales-groups", "Sales Group"),
             (dto.ChainId, "chains", "Customer / Chain"), (dto.ProgramTypeId, "program-types", "Program Type"),
             (dto.ObjectiveId, "objectives", "Objective"), (dto.TargetMarketId, "target-markets", "Target Market"),
-            (dto.ChannelId, "channels", "Channel"), (dto.ProductGroupId, "product-groups", "Product Group"),
+            (dto.ProductGroupId, "product-groups", "Product Group"),
             (dto.ProductGroup2Id, "product-groups", "Secondary Product Group"), (dto.CategoryId, "categories", "Category"),
             (dto.Category2Id, "categories", "Secondary Category"),
         };
@@ -633,6 +639,9 @@ public class TasafService(
         var areaIds = (dto.AreaIds ?? []).Distinct().ToList();
         foreach (var aid in areaIds)
             if (!await LookupExistsAsync("areas", aid)) return "Area not found.";
+        var channelIds = (dto.ChannelIds ?? []).Distinct().ToList();
+        foreach (var cid in channelIds)
+            if (!await LookupExistsAsync("channels", cid)) return "Channel not found.";
 
         var costTypeIds = dto.Costs.Where(c => c.CostTypeId is not null).Select(c => c.CostTypeId!.Value).Distinct();
         foreach (var ct in costTypeIds)
@@ -668,7 +677,6 @@ public class TasafService(
         t.ObjectiveOther    = dto.ObjectiveOther.Trim();
         t.TargetMarketId    = dto.TargetMarketId;
         t.TargetMarketOther = dto.TargetMarketOther.Trim();
-        t.ChannelId         = dto.ChannelId;
         t.ProductGroupId    = dto.ProductGroupId;
         t.ProductGroup2Id   = dto.ProductGroup2Id;
         t.CategoryId        = dto.CategoryId;
@@ -693,6 +701,11 @@ public class TasafService(
         var line = 0;
         foreach (var aid in areaIds)
             t.Areas.Add(new TasafAreaLink { LineNo = ++line, AreaId = aid });
+
+        t.Channels.Clear();
+        line = 0;
+        foreach (var cid in channelIds)
+            t.Channels.Add(new TasafChannelLink { LineNo = ++line, ChannelId = cid });
 
         t.Branches.Clear();
         line = 0;
@@ -782,8 +795,8 @@ public class TasafService(
             TargetMarketId    = t.TargetMarketId,
             TargetMarketName  = t.TargetMarket?.Name,
             TargetMarketOther = t.TargetMarketOther,
-            ChannelId         = t.ChannelId,
-            ChannelName       = t.Channel?.Name,
+            ChannelIds        = t.Channels.OrderBy(c => c.LineNo).Select(c => c.ChannelId).ToList(),
+            ChannelNames      = string.Join(", ", t.Channels.OrderBy(c => c.LineNo).Select(c => c.Channel?.Name).Where(n => n is not null)),
             ProductGroupId    = t.ProductGroupId,
             ProductGroupName  = t.ProductGroup?.Name,
             ProductGroup2Id   = t.ProductGroup2Id,

@@ -45,7 +45,8 @@ export interface SaveTasafDto {
   objectiveOther: string;
   targetMarketId: number | null;
   targetMarketOther: string;
-  channelId: number | null;
+  /** Channels — multi-select. */
+  channelIds: number[];
   productGroupId: number | null;
   productGroup2Id: number | null;
   categoryId: number | null;

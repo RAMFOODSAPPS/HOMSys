@@ -13,7 +13,6 @@ public class TasafRepository(AppDbContext db) : ITasafRepository
         .Include(t => t.ProgramType)
         .Include(t => t.Objective)
         .Include(t => t.TargetMarket)
-        .Include(t => t.Channel)
         .Include(t => t.ProductGroup)
         .Include(t => t.ProductGroup2)
         .Include(t => t.Category)
@@ -38,6 +37,7 @@ public class TasafRepository(AppDbContext db) : ITasafRepository
     public async Task<Tasaf?> GetByIdAsync(int id) =>
         await WithLookups(db.Tasafs)
             .Include(t => t.Areas).ThenInclude(a => a.Area)
+            .Include(t => t.Channels).ThenInclude(c => c.Channel)
             .Include(t => t.Branches.OrderBy(b => b.LineNo))
             .Include(t => t.Customers.OrderBy(c => c.LineNo))
             .Include(t => t.Products.OrderBy(p => p.LineNo))
