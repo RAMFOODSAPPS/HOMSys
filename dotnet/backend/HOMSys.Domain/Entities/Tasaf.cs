@@ -50,6 +50,8 @@ public class Tasaf
     public string Background { get; set; } = string.Empty;
     public string Concessions { get; set; } = string.Empty;
     public string Mechanics { get; set; } = string.Empty;
+    /// <summary>Why CTS is over the program type's MaxCtsPercent; required to submit when it is.</summary>
+    public string CtsJustification { get; set; } = string.Empty;
 
     // ── Computation (pesos) ───────────────────────────────────
     /// <summary>Σ cost lines.</summary>

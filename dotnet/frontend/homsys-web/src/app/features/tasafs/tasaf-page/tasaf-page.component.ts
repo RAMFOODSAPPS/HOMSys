@@ -42,6 +42,8 @@ const PAY_ROWS: { label: string; ap: PayKey; sm: PayKey }[] = [
   { label: 'Off-Invoice',       ap: 'payOffInvoiceAp',   sm: 'payOffInvoiceSalesman' },
 ];
 
+interface PayLine { type: PayKey | null; amount: number; }
+
 const TAB = '/tasafs';
 
 function blankModel(): SaveTasafDto {
@@ -51,7 +53,7 @@ function blankModel(): SaveTasafDto {
     programTypeId: null, programTypeOther: '', objectiveId: null, objectiveOther: '',
     targetMarketId: null, targetMarketOther: '', channelId: null,
     productGroupId: null, productGroup2Id: null, categoryId: null, category2Id: null,
-    background: '', concessions: '', mechanics: '',
+    background: '', concessions: '', mechanics: '', ctsJustification: '',
     promotedValue: null, prePromoSales: null, incrementalSales: null,
     payInvDeductionAp: 0, payInvDeductionSalesman: 0, payCheckAp: 0, payCheckSalesman: 0,
     payFreeGoodsAp: 0, payFreeGoodsSalesman: 0, payOffInvoiceAp: 0, payOffInvoiceSalesman: 0,
@@ -353,11 +355,11 @@ function blankProduct(): TasafProduct {
             @if (m.products.length) {
               <table class="lines" appResizableColumns="tasaf-products">
                 <thead><tr>
-                  <th style="width:9rem">ProdNo</th><th>SKU</th>
-                  <th class="num">P3 Mo Avg (Cs)</th>
-                  <th class="num" pTooltip="Sales of the SKU in the same period last year, for the planned promo duration">SPLY (Cs)</th>
-                  <th class="num">Promoted Vol (Cs)</th><th class="num">Incr Vol (Cs)</th>
-                  <th class="num">LSP / Case</th><th class="num">Promoted Value</th><th></th>
+                  <th style="width:9rem">ProdNo <span class="req">*</span></th><th>SKU <span class="req">*</span></th>
+                  <th class="num">P3 Mo Avg (Cs) <span class="req">*</span></th>
+                  <th class="num" pTooltip="Sales of the SKU in the same period last year, for the planned promo duration">SPLY (Cs) <span class="req">*</span></th>
+                  <th class="num">Promoted Vol (Cs) <span class="req">*</span></th><th class="num">Incr Vol (Cs) <span class="req">*</span></th>
+                  <th class="num">LSP / Case <span class="req">*</span></th><th class="num">Promoted Value</th><th></th>
                 </tr></thead>
                 <tbody>
                   @for (p of m.products; track $index; let i = $index) {
@@ -390,7 +392,7 @@ function blankProduct(): TasafProduct {
                   }
                 </tbody>
               </table>
-              <small class="muted">LSP / Case is prefilled from the product's current list price (ex-VAT) — adjust if needed.</small>
+              <small class="muted">Every column is required on submit (enter 0 when there were no sales). LSP / Case is prefilled from the product's current list price (ex-VAT) — adjust if needed.</small>
             }
           }
           @case ('costs') {
@@ -425,27 +427,31 @@ function blankProduct(): TasafProduct {
               <tbody>
                 <tr><td>TOTAL COST / BUDGET</td><td class="num">{{ totalCost() | number:'1.2-2' }}</td><td></td></tr>
                 <tr>
-                  <td>Promoted Value @if (m.products.length) { <span class="muted">(from products)</span> }</td>
+                  <td>Promoted Value @if (hasProducts()) { <span class="muted">(from products)</span> }</td>
                   <td class="num">
-                    @if (m.products.length) { {{ promotedValue() | number:'1.2-2' }} }
+                    @if (hasProducts()) { {{ promotedValue() | number:'1.2-2' }} }
                     @else { <p-inputNumber [(ngModel)]="m.promotedValue" placeholder="0.00" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /> }
                   </td>
-                  <td class="num">{{ (ratio(promotedValue(), m.prePromoSales) | percent:'1.0-2') ?? '—' }}</td>
+                  <td class="num">{{ (ratio(promotedValue(), prePromoSales()) | percent:'1.0-2') ?? '—' }}</td>
                 </tr>
                 <tr>
                   <td pTooltip="Can use the past 3 months average, but if the SKU is seasonal use SPLY (actual sales of last year, same promo duration)">
                     Pre-Promo Monthly Avg Sales (Pesos) <i class="pi pi-info-circle muted"></i>
+                    @if (hasProducts()) { <span class="muted">(from products: P3Mo Avg × LSP)</span> }
                   </td>
-                  <td class="num"><p-inputNumber [(ngModel)]="m.prePromoSales" placeholder="0.00" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /></td>
+                  <td class="num">
+                    @if (hasProducts()) { {{ prePromoSales() | number:'1.2-2' }} }
+                    @else { <p-inputNumber [(ngModel)]="m.prePromoSales" placeholder="0.00" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /> }
+                  </td>
                   <td></td>
                 </tr>
                 <tr>
-                  <td>Incremental Sales @if (m.products.length) { <span class="muted">(from products)</span> }</td>
+                  <td>Incremental Sales @if (hasProducts()) { <span class="muted">(from products)</span> }</td>
                   <td class="num">
-                    @if (m.products.length) { {{ incrementalSales() | number:'1.2-2' }} }
+                    @if (hasProducts()) { {{ incrementalSales() | number:'1.2-2' }} }
                     @else { <p-inputNumber [(ngModel)]="m.incrementalSales" placeholder="0.00" [minFractionDigits]="2" [maxFractionDigits]="2" inputStyleClass="numin" [disabled]="readonly()" /> }
                   </td>
-                  <td class="num">{{ (ratio(incrementalSales(), m.prePromoSales) | percent:'1.0-2') ?? '—' }}</td>
+                  <td class="num">{{ (ratio(incrementalSales(), prePromoSales()) | percent:'1.0-2') ?? '—' }}</td>
                 </tr>
                 <tr class="hl">
                   <td>CTS (Promoted Value) @if (ctsLimit() != null) { <span class="muted">— must be within {{ ctsLimit() }}%</span> }</td>
@@ -453,36 +459,50 @@ function blankProduct(): TasafProduct {
                 </tr>
               </tbody>
             </table>
-            @if (ctsOver()) {
-              <p-message severity="warn" styleClass="w-full mt-2"
-                [text]="'CTS is over the ' + ctsLimit() + '% limit for this program type — it cannot be submitted until it is within the limit.'" />
+            @if (ctsOver() || m.ctsJustification) {
+              <!-- Over the limit: allowed only with a reason, which the approvers see. -->
+              <div class="field mt-2">
+                @if (ctsOver()) {
+                  <p-message severity="warn" styleClass="w-full mb-2"
+                    [text]="'CTS is ' + (ratio(totalCost(), promotedValue()) | percent:'1.2-2') + ' — over the ' + ctsLimit() + '% limit for this program type. Justify it below to submit.'" />
+                }
+                <label>CTS Justification @if (ctsOver()) { <span class="req">*</span> }</label>
+                <textarea pTextarea [(ngModel)]="m.ctsJustification" rows="2" [autoResize]="true" class="w-full" maxlength="1000"
+                  [disabled]="readonly()" placeholder="Why is CTS over the limit? e.g. new listing, account anniversary, competitive response…"></textarea>
+              </div>
             }
           }
           @case ('payment') {
             <h3>{{ cap(it) }}</h3>
+            <!-- Pick the payment type(s); each line is saved into that type's amount field. -->
             <table class="lines pay">
-              <colgroup><col /><col style="width: 15rem" /><col style="width: 15rem" /><col style="width: 10rem" /></colgroup>
-              <thead><tr><th>Payment Type</th><th class="num">AP / Collection</th><th class="num">Salesman</th><th class="num">Total</th></tr></thead>
+              <colgroup><col /><col style="width: 15rem" /><col style="width: 3rem" /></colgroup>
+              <thead><tr><th>Payment Type <span class="req">*</span></th><th class="num">Amount (₱)</th><th></th></tr></thead>
               <tbody>
-                @for (r of payRows; track r.label) {
+                @for (l of payLines; track $index; let i = $index) {
                   <tr>
-                    <td>{{ r.label }}</td>
-                    <td><p-inputNumber [(ngModel)]="m[r.ap]" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /></td>
-                    <td><p-inputNumber [(ngModel)]="m[r.sm]" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /></td>
-                    <td class="num">{{ (m[r.ap] || 0) + (m[r.sm] || 0) | number:'1.2-2' }}</td>
+                    <td>
+                      <p-select [focusOnHover]="false" [(ngModel)]="l.type" [options]="payTypeOptions(l)" optionLabel="label" optionValue="ap"
+                        placeholder="Select payment type" styleClass="w-full" [showClear]="true" [disabled]="readonly()" />
+                    </td>
+                    <td><p-inputNumber [(ngModel)]="l.amount" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /></td>
+                    <td>@if (!readonly() && payLines.length > 1) { <p-button icon="pi pi-trash" [text]="true" severity="danger" size="small" (onClick)="payLines.splice(i, 1)" /> }</td>
                   </tr>
                 }
               </tbody>
               <tfoot><tr>
-                <td><strong>Total</strong></td>
-                <td class="num"><strong>{{ payColumn('ap') | number:'1.2-2' }}</strong></td>
-                <td class="num"><strong>{{ payColumn('sm') | number:'1.2-2' }}</strong></td>
-                <td class="num"><strong>{{ payColumn('ap') + payColumn('sm') | number:'1.2-2' }}</strong></td>
+                <td>
+                  @if (!readonly() && payLines.length < payRows.length) {
+                    <p-button label="Add Payment Type" icon="pi pi-plus" size="small" [text]="true" (onClick)="payLines.push({ type: null, amount: 0 })" />
+                  }
+                  <strong style="float: right">Total</strong>
+                </td>
+                <td class="num"><strong>{{ payTotal() | number:'1.2-2' }}</strong></td><td></td>
               </tr></tfoot>
             </table>
             @if (payVariance() !== 0) {
               <p-message severity="warn" styleClass="w-full mt-2"
-                [text]="'Mode of Payment total (' + (payColumn('ap') + payColumn('sm') | number:'1.2-2') + ') is '
+                [text]="'Mode of Payment total (' + (payTotal() | number:'1.2-2') + ') is '
                   + (payVariance() < 0 ? (-payVariance() | number:'1.2-2') + ' MORE than' : (payVariance() | number:'1.2-2') + ' LESS than')
                   + ' the Total Cost (' + (totalCost() | number:'1.2-2') + '). They must be equal before you can submit.'" />
             }
@@ -801,6 +821,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     } as SaveTasafDto;
     this.branchSel = (src.branches ?? []).map(x => ({ ...x }));
     this.customers.set((src.customers ?? []).map(c => ({ custKey: c.custKey, cusName: c.cusName })));
+    this.payLines = this.toPayLines(src);
     this.startDate = parseIsoDate(src.startDate);
     this.endDate = parseIsoDate(src.endDate);
     this.loadCustomerOptions(false);
@@ -811,6 +832,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   private payload(): SaveTasafDto {
     return {
       ...this.m,
+      ...this.payFields(),
       startDate: toIsoDate(this.startDate),
       endDate: toIsoDate(this.endDate),
       customers: this.customers().map(c => ({ custKey: c.custKey, cusName: c.cusName })),
@@ -1064,8 +1086,12 @@ export class TasafPageComponent implements OnInit, OnDestroy {
 
   // ── Computation (mirrors the sheet; the server recomputes on save) ──
   totalCost()        { return this.m.costs.reduce((s, c) => s + (c.amount || 0), 0); }
-  promotedValue()    { return this.m.products.length ? this.m.products.reduce((s, p) => s + (p.promotedVolCs || 0) * (p.lspPerCase || 0), 0) : (this.m.promotedValue ?? 0); }
-  incrementalSales() { return this.m.products.length ? this.m.products.reduce((s, p) => s + (p.incrVolCs || 0) * (p.lspPerCase || 0), 0) : (this.m.incrementalSales ?? 0); }
+  /** A product row counts once it has a SKU (blank rows are dropped on save, like the server does). */
+  hasProducts()      { return this.m.products.some(p => !!(p.cProdNo?.trim() || p.sku?.trim())); }
+  promotedValue()    { return this.hasProducts() ? this.m.products.reduce((s, p) => s + (p.promotedVolCs || 0) * (p.lspPerCase || 0), 0) : (this.m.promotedValue ?? 0); }
+  /** Σ P3Mo Avg (cs) × LSP — SPLY when a (seasonal) SKU has no P3M — else as entered. Same as the server. */
+  prePromoSales()    { return this.hasProducts() ? this.m.products.reduce((s, p) => s + (p.p3MoAvgCs ?? p.splyCs ?? 0) * (p.lspPerCase || 0), 0) : (this.m.prePromoSales ?? 0); }
+  incrementalSales() { return this.hasProducts() ? this.m.products.reduce((s, p) => s + (p.incrVolCs || 0) * (p.lspPerCase || 0), 0) : (this.m.incrementalSales ?? 0); }
   ratio(num: number | null, den: number | null) { return num != null && den ? num / den : null; }
   /** Approval matrix (approval type) of the selected program type. */
   approvalTypeName() {
@@ -1079,8 +1105,28 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     const cts = this.ratio(this.totalCost(), this.promotedValue());
     return lim != null && cts != null && cts * 100 > lim;
   }
-  payColumn(col: 'ap' | 'sm') { return PAY_ROWS.reduce((s, r) => s + (this.m[r[col]] || 0), 0); }
-  payVariance() { return Math.round((this.totalCost() - this.payColumn('ap') - this.payColumn('sm')) * 100) / 100; }
+  // ── Mode of Payment lines (type picked from a dropdown, each type once) ──
+  /** Edited lines; saved into the per-type amount fields (payXxxAp) by payload(). */
+  protected payLines: PayLine[] = [{ type: null, amount: 0 }];
+  /** Payment types not already used on another line (plus this line's own). */
+  payTypeOptions(line: PayLine) {
+    const used = new Set(this.payLines.filter(l => l !== line && l.type).map(l => l.type));
+    return PAY_ROWS.filter(r => !used.has(r.ap));
+  }
+  payTotal()    { return this.payLines.reduce((s, l) => s + (l.type ? l.amount || 0 : 0), 0); }
+  payVariance() { return Math.round((this.totalCost() - this.payTotal()) * 100) / 100; }
+  /** Saved amounts → lines: one per type with an amount (AP + legacy Salesman), else one empty line. */
+  private toPayLines(src: SaveTasafDto): PayLine[] {
+    const lines = PAY_ROWS.map(r => ({ type: r.ap as PayKey | null, amount: (src[r.ap] || 0) + (src[r.sm] || 0) }))
+      .filter(l => l.amount > 0);
+    return lines.length ? lines : [{ type: null, amount: 0 }];
+  }
+  /** Lines → the per-type amount fields (Salesman columns are no longer used → 0). */
+  private payFields(): Pick<SaveTasafDto, PayKey> {
+    const f = Object.fromEntries(PAY_ROWS.flatMap(r => [[r.ap, 0], [r.sm, 0]])) as Record<PayKey, number>;
+    for (const l of this.payLines) if (l.type) f[l.type] += l.amount || 0;
+    return f;
+  }
 
   sev(status: string) { return TASAF_STATUS_SEVERITY[status] ?? 'info'; }
 
@@ -1099,9 +1145,35 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   }
 
   // ── Workflow ───────────────────────────────────────────────
+  /** Participating Products rows missing a required column (same rule as the server), e.g. "row 2: SPLY". */
+  productRowsMissing(): string[] {
+    const out: string[] = [];
+    this.m.products.forEach((p, i) => {
+      if (!p.cProdNo?.trim() && !p.sku?.trim()) return; // blank row — dropped on save
+      const miss = [
+        !p.cProdNo?.trim() && 'ProdNo', !p.sku?.trim() && 'SKU',
+        p.p3MoAvgCs == null && 'P3 Mo Avg', p.splyCs == null && 'SPLY',
+        !(p.promotedVolCs > 0) && 'Promoted Vol', p.incrVolCs == null && 'Incr Vol',
+        !(p.lspPerCase > 0) && 'LSP / Case',
+      ].filter(Boolean);
+      if (miss.length) out.push(`row ${i + 1}: ${miss.join(', ')}`);
+    });
+    return out;
+  }
+
   confirmSubmit() {
-    if (this.ctsOver()) {
-      this.messageSvc.add({ severity: 'warn', summary: 'CTS', detail: `CTS must be within ${this.ctsLimit()}% for this program type.` });
+    const rows = this.productRowsMissing();
+    if (rows.length) {
+      this.messageSvc.add({ severity: 'warn', summary: 'Participating Products', life: 8000,
+        detail: `Complete every product column before submitting — ${rows.join('; ')}.` });
+      return;
+    }
+    if (this.ctsOver() && !this.m.ctsJustification.trim()) {
+      this.messageSvc.add({ severity: 'warn', summary: 'CTS', detail: `CTS is over the ${this.ctsLimit()}% limit — enter the CTS Justification (below Computation) to submit.` });
+      return;
+    }
+    if (this.payLines.some(l => !l.type && (l.amount || 0) > 0)) {
+      this.messageSvc.add({ severity: 'warn', summary: 'Mode of Payment', detail: 'Select the payment type for every amount entered.' });
       return;
     }
     if (this.payVariance() !== 0) {

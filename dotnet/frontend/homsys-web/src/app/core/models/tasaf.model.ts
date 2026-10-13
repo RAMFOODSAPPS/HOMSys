@@ -53,6 +53,8 @@ export interface SaveTasafDto {
   background: string;
   concessions: string;
   mechanics: string;
+  /** Why CTS is over the program type's limit — required to submit when it is. */
+  ctsJustification: string;
   promotedValue: number | null;
   prePromoSales: number | null;
   incrementalSales: number | null;

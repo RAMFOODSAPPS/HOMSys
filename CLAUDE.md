@@ -448,7 +448,8 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   Landmark, the rest RKA; LKA Others → LKA, RDP Others → GT). The form lists only the picked group's chains,
   picking a chain fills an empty Sales Group, and switching group clears a chain from another group. Program duration = `StartDate`/`EndDate` (date pickers).
   Server recomputes TotalCost, product PromotedValue (vol × LSP), and promoted /
-  incremental sales from products when any are listed.
+  incremental sales and PrePromoSales (Σ P3Mo Avg cs × LSP, SPLY when P3M is blank) from products when any
+  are listed (a row counts once it has a SKU — blank rows are dropped).
 - **Workflow** ("Simplified Approval Matrix", `Data Fields for IT.xlsx` › TASAF):
   Draft → For Approval → Approved, signed **sequentially** by a chain built at submit
   into `TasafApprovalStep`s. Two approval matrices = `TasafApprovalType` (1 Promo /
@@ -461,7 +462,8 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   (setup › Approval Matrix); a vacant cell = step `Skipped`.
   Any approver can Return (→ Returned, editable; resubmit rebuilds the chain) or
   Reject; both need a comment. Submit requires payment grid total = TotalCost and
-  CTS ≤ the program type's `MaxCtsPercent` (8% on PROMO- types).
+  CTS ≤ the program type's `MaxCtsPercent` (8% on PROMO- types) — or, when over it, a `CtsJustification`
+  (textarea under Computation, shown to approvers; migration `TasafCtsJustification`).
   RefNo `YEAR-SG-INITIALS-NN` (workbook GUIDE sheet, e.g. `2025-RKA-ER-03`) assigned on first
   submit and kept through returns/resubmits (`TasafRepository.SubmitAsync` retries on the
   unique index). YEAR = Manila date at submit; SG = sales group Code; INITIALS = first letter

@@ -17,6 +17,10 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
     provideAppInitializer(() => inject(AuthService).initSession()),
     providePrimeNG({
+      // Every dropdown / multiselect / autocomplete panel opens on <body> (clipped, never scrolls — see
+      // styles.scss). Inside the scrolling page area, focusing the panel's search box scrolled that area,
+      // and PrimeNG closes a panel on scroll — so dropdowns lower on a long form closed as they opened.
+      overlayOptions: { appendTo: 'body' },
       theme: {
         preset: HOMSysTheme,
         options: {

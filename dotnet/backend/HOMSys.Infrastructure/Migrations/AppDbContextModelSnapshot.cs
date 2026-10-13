@@ -2355,6 +2355,11 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("CtsJustification")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<int?>("CurrentApproverUserId")
                         .HasColumnType("int");
 

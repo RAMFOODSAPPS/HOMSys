@@ -91,6 +91,7 @@ internal static class TasafModel
             e.Property(x => x.ObjectiveOther).HasMaxLength(200);
             e.Property(x => x.TargetMarketOther).HasMaxLength(200);
             e.Property(x => x.ProponentName).HasMaxLength(150);
+            e.Property(x => x.CtsJustification).HasMaxLength(1000);
             e.Property(x => x.CreatedBy).HasMaxLength(100);
             e.Property(x => x.UpdatedBy).HasMaxLength(100);
             foreach (var p in new[] { nameof(Tasaf.TotalCost), nameof(Tasaf.PromotedValue), nameof(Tasaf.PrePromoSales),

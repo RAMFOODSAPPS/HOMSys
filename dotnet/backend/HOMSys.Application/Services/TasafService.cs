@@ -287,9 +287,10 @@ public class TasafService(
         {
             if (t.PromotedValue is not > 0)
                 return (null, $"{programType.Name} needs a Promoted Value so CTS can be checked against the {maxCts:0.##}% limit.");
+            // Over the limit is allowed only with a written justification (shown to the approvers).
             var cts = t.TotalCost / t.PromotedValue.Value * 100m;
-            if (cts > maxCts)
-                return (null, $"CTS is {cts:0.##}% — {programType.Name} must be within {maxCts:0.##}%.");
+            if (cts > maxCts && t.CtsJustification.Length == 0)
+                return (null, $"CTS is {cts:0.##}% — over the {maxCts:0.##}% limit for {programType.Name}. Enter the CTS justification to submit.");
         }
 
         // Build the chain from the program type's approval matrix (Promo / Near Ex, or
@@ -549,6 +550,13 @@ public class TasafService(
         if (t.Background.Length == 0) m.Add("Background");
         if (t.Concessions.Length == 0) m.Add("Concessions");
         if (t.Mechanics.Length == 0) m.Add("Program Mechanics");
+        // Participating Products (optional section): every listed row needs every column.
+        var badRows = t.Products.OrderBy(p => p.LineNo)
+            .Where(p => p.CProdNo.Length == 0 || p.Sku.Length == 0 || p.P3MoAvgCs is null || p.SplyCs is null
+                        || p.PromotedVolCs <= 0 || p.LspPerCase <= 0)
+            .Select(p => p.LineNo).ToList();
+        if (badRows.Count > 0)
+            m.Add($"Participating Products row {string.Join(", ", badRows)} (ProdNo, SKU, P3 Mo Avg, SPLY, Promoted Vol, LSP / Case)");
         if (t.Costs.Count == 0 || t.TotalCost <= 0) m.Add("Cost Details");
         else if (t.Costs.Any(c => c.CostTypeId is null)) m.Add("a description on every cost line");
         return m;
@@ -668,6 +676,7 @@ public class TasafService(
         t.Background        = dto.Background.Trim();
         t.Concessions       = dto.Concessions.Trim();
         t.Mechanics         = dto.Mechanics.Trim();
+        t.CtsJustification  = (dto.CtsJustification ?? "").Trim() is var just && just.Length > 1000 ? just[..1000] : just;
         t.PrePromoSales     = dto.PrePromoSales;
         t.PayInvDeductionAp       = dto.PayInvDeductionAp;
         t.PayInvDeductionSalesman = dto.PayInvDeductionSalesman;
@@ -726,6 +735,8 @@ public class TasafService(
         {
             t.PromotedValue    = t.Products.Sum(p => p.PromotedValue);
             t.IncrementalSales = Math.Round(t.Products.Sum(p => p.IncrVolCs * p.LspPerCase), 2);
+            // Pre-promo monthly avg = Σ P3Mo Avg (cs) × LSP; a seasonal SKU with no P3M uses its SPLY.
+            t.PrePromoSales    = Math.Round(t.Products.Sum(p => (p.P3MoAvgCs ?? p.SplyCs ?? 0) * p.LspPerCase), 2);
         }
         else
         {
@@ -784,6 +795,7 @@ public class TasafService(
             Background        = t.Background,
             Concessions       = t.Concessions,
             Mechanics         = t.Mechanics,
+            CtsJustification  = t.CtsJustification,
             TotalCost         = t.TotalCost,
             PromotedValue     = t.PromotedValue,
             PrePromoSales     = t.PrePromoSales,

@@ -56,6 +56,8 @@ public class SaveTasafDto
     public string Background { get; set; } = string.Empty;
     public string Concessions { get; set; } = string.Empty;
     public string Mechanics { get; set; } = string.Empty;
+    /// <summary>Why CTS is over the program type's limit — required to submit when it is.</summary>
+    public string CtsJustification { get; set; } = string.Empty;
     public decimal? PromotedValue { get; set; }
     public decimal? PrePromoSales { get; set; }
     public decimal? IncrementalSales { get; set; }

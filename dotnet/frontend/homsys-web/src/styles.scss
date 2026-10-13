@@ -61,6 +61,10 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  // clip, not just hidden: "hidden" still lets the browser scroll the body from code — e.g. focusing a
+  // dropdown's search box in a panel appended to <body> near the bottom of the window. That shifted the
+  // whole page and PrimeNG closed the dropdown on the scroll. Pages scroll inside .layout-content instead.
+  overflow: clip;
 }
 
 body {
