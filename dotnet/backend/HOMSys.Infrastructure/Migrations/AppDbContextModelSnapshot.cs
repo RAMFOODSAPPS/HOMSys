@@ -2327,9 +2327,6 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
-                    b.Property<int?>("AreaId")
-                        .HasColumnType("int");
-
                     b.Property<string>("Background")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -2494,8 +2491,6 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("AreaId");
 
                     b.HasIndex("Category2Id");
 
@@ -3174,6 +3169,32 @@ namespace HOMSys.Infrastructure.Migrations
                             Name = "Nationwide",
                             SortOrder = 13
                         });
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafAreaLink", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AreaId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TasafId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AreaId");
+
+                    b.HasIndex("TasafId");
+
+                    b.ToTable("TasafAreaLinks", (string)null);
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafBranch", b =>
@@ -5516,11 +5537,6 @@ namespace HOMSys.Infrastructure.Migrations
 
             modelBuilder.Entity("HOMSys.Domain.Entities.Tasaf", b =>
                 {
-                    b.HasOne("HOMSys.Domain.Entities.TasafArea", "Area")
-                        .WithMany()
-                        .HasForeignKey("AreaId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("HOMSys.Domain.Entities.TasafCategory", "Category2")
                         .WithMany()
                         .HasForeignKey("Category2Id")
@@ -5576,8 +5592,6 @@ namespace HOMSys.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("TargetMarketId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Area");
 
                     b.Navigation("Category");
 
@@ -5663,6 +5677,23 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("SalesGroup");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafAreaLink", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.TasafArea", "Area")
+                        .WithMany()
+                        .HasForeignKey("AreaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HOMSys.Domain.Entities.Tasaf", null)
+                        .WithMany("Areas")
+                        .HasForeignKey("TasafId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Area");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafBranch", b =>
@@ -5816,6 +5847,8 @@ namespace HOMSys.Infrastructure.Migrations
             modelBuilder.Entity("HOMSys.Domain.Entities.Tasaf", b =>
                 {
                     b.Navigation("Actions");
+
+                    b.Navigation("Areas");
 
                     b.Navigation("Branches");
 

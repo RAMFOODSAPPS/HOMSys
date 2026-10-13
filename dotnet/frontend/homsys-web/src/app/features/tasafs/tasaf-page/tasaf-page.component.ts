@@ -26,6 +26,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { FormLayoutService } from '../../../core/services/form-layout.service';
 import { FormLayoutItem, cellStyle, defaultItems, mergeLayout } from '../../../core/models/form-layout.model';
 import { FormDesignerComponent } from '../../../shared/form-designer/form-designer.component';
+import { ResizableColumnsDirective } from '../../../shared/resizable-columns.directive';
 import { TASAF_FIELDS, TASAF_FORM_KEY } from './tasaf-layout';
 import {
   SaveTasafDto, TASAF_STATUS_SEVERITY, utc, parseIsoDate, programDuration, toIsoDate, TasafBranch, TasafDialogAction, TasafDto, TasafFormOptions, TasafCustomerRef, TasafOption, TasafProduct
@@ -46,7 +47,7 @@ const TAB = '/tasafs';
 function blankModel(): SaveTasafDto {
   return {
     title: '', startDate: null, endDate: null,
-    salesGroupId: null, areaId: null, chainId: null,
+    salesGroupId: null, areaIds: [], chainId: null,
     programTypeId: null, programTypeOther: '', objectiveId: null, objectiveOther: '',
     targetMarketId: null, targetMarketOther: '', channelId: null,
     productGroupId: null, productGroup2Id: null, categoryId: null, category2Id: null,
@@ -70,7 +71,7 @@ function blankProduct(): TasafProduct {
   imports: [
     FormsModule, DatePipe, DecimalPipe, PercentPipe, InputTextModule, InputNumberModule, SelectModule,
     MultiSelectModule, AutoCompleteModule, TextareaModule, ButtonModule, TagModule, MessageModule,
-    ToastModule, TooltipModule, ConfirmDialogModule, DialogModule, DatePickerModule, FormDesignerComponent
+    ToastModule, TooltipModule, ConfirmDialogModule, DialogModule, DatePickerModule, FormDesignerComponent, ResizableColumnsDirective
   ],
   template: `
     <p-toast position="top-right" />
@@ -82,7 +83,7 @@ function blankProduct(): TasafProduct {
           <div class="doc-title">TRADE ACTIVITY SPEND APPROVAL FORM</div>
         </div>
         <div class="doc-meta">
-          <span>Reference No.</span>
+          <span>Document No.</span>
           @if (current()?.refNo) { <strong>{{ current()!.refNo }}</strong> }
           @else if (refPreview()) {
             <strong class="ref-preview" pTooltip="YEAR - Sales Group - Proponent Initials - Proposal No. The proposal number is one continuous series across all TASAFs, assigned when you submit.">{{ refPreview() }}</strong>
@@ -151,15 +152,16 @@ function blankProduct(): TasafProduct {
           @case ('salesGroup') {
             <div class="field">
               <label>{{ cap(it) }}</label>
-              <p-select [(ngModel)]="m.salesGroupId" [options]="list('sales-groups')" optionLabel="name" optionValue="id"
+              <p-select [ngModel]="m.salesGroupId" (ngModelChange)="onSalesGroup($event)" [options]="list('sales-groups')" optionLabel="name" optionValue="id"
                 [showClear]="true" placeholder="Select" styleClass="w-full" [disabled]="readonly()" />
             </div>
           }
           @case ('area') {
             <div class="field">
               <label>{{ cap(it) }}</label>
-              <p-select [(ngModel)]="m.areaId" [options]="list('areas')" optionLabel="name" optionValue="id"
-                [showClear]="true" placeholder="Select" styleClass="w-full" [disabled]="readonly()" />
+              <p-multiSelect [(ngModel)]="m.areaIds" [options]="list('areas')" optionLabel="name" optionValue="id"
+                [filter]="true" [showClear]="true" display="chip" [maxSelectedLabels]="100000"
+                placeholder="Select one or more areas" styleClass="w-full chips-wrap" appendTo="body" [disabled]="readonly()" />
             </div>
           }
           @case ('chain') {
@@ -337,7 +339,7 @@ function blankProduct(): TasafProduct {
               @if (!readonly()) { <p-button label="Add SKU" icon="pi pi-plus" size="small" [text]="true" (onClick)="addProduct()" /> }
             </div>
             @if (m.products.length) {
-              <table class="lines">
+              <table class="lines" appResizableColumns="tasaf-products">
                 <thead><tr>
                   <th style="width:9rem">ProdNo</th><th>SKU</th>
                   <th class="num">P3 Mo Avg (Cs)</th>
@@ -384,7 +386,7 @@ function blankProduct(): TasafProduct {
               <h3>{{ cap(it) }}</h3>
               @if (!readonly()) { <p-button label="Add Cost" icon="pi pi-plus" size="small" [text]="true" (onClick)="m.costs.push({ costTypeId: null, amount: 0, remarks: '' })" /> }
             </div>
-            <table class="lines">
+            <table class="lines" appResizableColumns="tasaf-costs">
               <thead><tr><th style="width:40%">Description</th><th class="num" style="width:12rem">Cost</th><th>Remarks / Details</th><th></th></tr></thead>
               <tbody>
                 @for (c of m.costs; track $index; let i = $index) {
@@ -465,7 +467,9 @@ function blankProduct(): TasafProduct {
             </table>
             @if (payVariance() !== 0) {
               <p-message severity="warn" styleClass="w-full mt-2"
-                [text]="'Payment total differs from Total Cost by ' + (payVariance() | number:'1.2-2') + '. They must match before submitting.'" />
+                [text]="'Mode of Payment total (' + (payColumn('ap') + payColumn('sm') | number:'1.2-2') + ') is '
+                  + (payVariance() < 0 ? (-payVariance() | number:'1.2-2') + ' MORE than' : (payVariance() | number:'1.2-2') + ' LESS than')
+                  + ' the Total Cost (' + (totalCost() | number:'1.2-2') + '). They must be equal before you can submit.'" />
             }
             <small class="muted">Indicate the amount per payment type and the person in charge of liquidating this activity.</small>
           }
@@ -557,7 +561,14 @@ function blankProduct(): TasafProduct {
     .sec-head p-button { margin-left: auto; }
     .fl-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 1rem; }
     .fl-cell { grid-column: var(--c) / span var(--w); grid-row: var(--r) / span var(--h); min-width: 0; }
-    .fl-cell.blk { border: 1px solid var(--p-surface-border); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 0.85rem; }
+    /* Section blocks (Participating Products, Cost Details, Computation, Mode of Payment):
+       maroon top bar + title rule + space between, so each reads as its own section. */
+    .fl-cell.blk { border: 1px solid var(--p-surface-border); border-top: 2px solid #e2c4c4; border-radius: 0;
+      padding: 0.75rem 1rem; margin: 0.5rem 0 1.25rem; overflow-x: auto; background: var(--p-surface-card); }
+    .fl-cell.blk > h3, .fl-cell.blk > .sec-head { padding-bottom: 0.5rem; margin-bottom: 0.75rem;
+      border-bottom: 1px solid var(--p-surface-border); }
+    .fl-cell.blk > h3 { text-transform: uppercase; letter-spacing: 0.04em; }
+    .fl-cell.blk > .sec-head h3 { text-transform: uppercase; letter-spacing: 0.04em; }
     .fl-cell > .note { display: block; margin-bottom: 0.75rem; }
     .field { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.75rem; min-width: 0; }
     .field.full { grid-column: 1 / -1; }
@@ -765,6 +776,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     this.m = {
       ...b,
       ...Object.fromEntries(Object.keys(b).map(k => [k, (src as unknown as Record<string, unknown>)[k] ?? (b as unknown as Record<string, unknown>)[k]])),
+      areaIds: [...(src.areaIds ?? [])],
       branches: [],  // held in branchSel
       customers: [], // held in customers()
       products: (src.products ?? []).map(p => ({ ...p })),
@@ -813,7 +825,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       ...(t?.canRevert ? { revert: { onClick: () => this.openDecision('revert'), disabled: this.designing } } : {}),
       ...(t?.canCancel ? { cancelDoc: { label: 'Cancel TASAF', onClick: () => this.openDecision('cancel'), disabled: this.designing } } : {}),
       cancel: { onClick: () => this.cancel() },
-      add:     { onClick: () => this.newTasaf() },
+      ...(!this.readonly() ? { clearForm: { onClick: () => this.confirmClear(), disabled: this.designing } } : {}),
+      add:    { onClick: () => this.newTasaf() },
       // Delete is Admin-only (also enforced by the API).
       ...(this.auth.isAdmin() ? { delete: { onClick: () => this.confirmDelete(), disabled: this.cannotDelete, loading: this.deleting } } : {}),
       refresh: { onClick: () => this.refresh(), loading: this.refreshing },
@@ -832,6 +845,21 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       message: 'Discard your unsaved changes?',
       icon: 'pi pi-exclamation-triangle',
       accept: () => this.newTasaf()
+    });
+  }
+
+  /** Clear: empty every field but stay on this TASAF (an open one still needs Save to keep it). */
+  private confirmClear() {
+    this.confirmSvc.confirm({
+      header: 'Clear form',
+      message: 'Clear all fields on this form?' + (this.current() ? ' Nothing is saved until you click Save.' : ''),
+      icon: 'pi pi-eraser',
+      accept: () => {
+        const snap = this.snapshot;
+        this.setModel(blankModel());
+        if (this.current()) this.snapshot = snap; // still dirty vs. the saved TASAF
+        this.apiError.set(null);
+      }
     });
   }
 
@@ -917,7 +945,16 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   /** User picked a chain: load its stores; drop picked stores that aren't one of them. */
   onChain(chainId: number | null) {
     this.m.chainId = chainId;
+    // A chain belongs to one sales group (TASAF Setup › Customers / Chains) — fill it in.
+    const sg = this.list('chains').find(o => o.id === chainId)?.parentId;
+    if (sg && !this.m.salesGroupId) this.m.salesGroupId = sg;
     this.loadChainCustomers(chainId, true);
+  }
+
+  /** Sales group changed: a chain of another group no longer applies. */
+  onSalesGroup(salesGroupId: number | null) {
+    this.m.salesGroupId = salesGroupId;
+    if (this.m.chainId && !this.chainOptions().some(c => c.id === this.m.chainId)) this.onChain(null);
   }
 
   private loadChainCustomers(chainId: number | null, clearIfNotInList: boolean) {
@@ -973,7 +1010,13 @@ export class TasafPageComponent implements OnInit, OnDestroy {
           .map(p => ({ cProdNo: p.cProdNo, prodDesc: p.sku, packSize: '', category: '', categoryName: 'not in the selected category', lspPerCase: p.lspPerCase }));
         this.productOptions.set([...extra, ...list].map(o => ({ ...o, label: `${o.cProdNo} — ${o.prodDesc} ${o.packSize}`.trim() })));
       },
-      error: () => { if (req === this.productReq) this.productLoading.set(false); }
+      error: err => {
+        if (req !== this.productReq) return;
+        this.productLoading.set(false);
+        this.messageSvc.add({ severity: 'warn', summary: 'SKU list',
+          detail: err?.status === 404 ? 'The server is out of date — restart the API to load the SKU list.'
+                                      : 'Could not load the SKU list.' });
+      }
     });
   }
 

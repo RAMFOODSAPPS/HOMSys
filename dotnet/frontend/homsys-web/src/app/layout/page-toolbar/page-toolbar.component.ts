@@ -41,6 +41,12 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
               [disabled]="cfg().cancel!.disabled ? cfg().cancel!.disabled!() : false"
               (onClick)="cfg().cancel!.onClick()" />
           }
+          @if (cfg().clearForm) {
+            <p-button icon="pi pi-eraser" pTooltip="Clear" tooltipPosition="bottom"
+              [text]="true" severity="secondary"
+              [disabled]="cfg().clearForm!.disabled ? cfg().clearForm!.disabled!() : false"
+              (onClick)="cfg().clearForm!.onClick()" />
+          }
           @if (cfg().add) {
             <p-button icon="pi pi-plus" pTooltip="Add" tooltipPosition="bottom"
               [text]="true"
@@ -273,7 +279,7 @@ export class PageToolbarComponent {
 
   protected hasAnyAction() {
     const c = this.cfg();
-    return c.save || c.submit || c.approve || c.return || c.reject || c.revert || c.cancelDoc || c.cancel || c.add || c.edit || c.delete || c.refresh || c.find || c.search || c.print || c.export || c.import || c.importByName || c.design;
+    return c.save || c.submit || c.approve || c.return || c.reject || c.revert || c.cancelDoc || c.cancel || c.clearForm || c.add || c.edit || c.delete || c.refresh || c.find || c.search || c.print || c.export || c.import || c.importByName || c.design;
   }
 
   protected exportMenuItems(): MenuItem[] {

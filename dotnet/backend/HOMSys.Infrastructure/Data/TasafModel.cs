@@ -100,7 +100,6 @@ internal static class TasafModel
 
             // Lookups: a referenced master row can't be deleted (deactivate it instead).
             e.HasOne(x => x.SalesGroup).WithMany().HasForeignKey(x => x.SalesGroupId).OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(x => x.Area).WithMany().HasForeignKey(x => x.AreaId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Chain).WithMany().HasForeignKey(x => x.ChainId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.ProgramType).WithMany().HasForeignKey(x => x.ProgramTypeId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Objective).WithMany().HasForeignKey(x => x.ObjectiveId).OnDelete(DeleteBehavior.Restrict);
@@ -112,6 +111,7 @@ internal static class TasafModel
             e.HasOne(x => x.Category2).WithMany().HasForeignKey(x => x.Category2Id).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.ProponentUser).WithMany().HasForeignKey(x => x.ProponentUserId).OnDelete(DeleteBehavior.Restrict);
 
+            e.HasMany(x => x.Areas).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Branches).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Customers).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Products).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
@@ -159,6 +159,12 @@ internal static class TasafModel
             e.Property(x => x.CustKey).HasMaxLength(20);
             e.Property(x => x.CusName).HasMaxLength(150);
             e.HasIndex(x => x.CustKey);
+        });
+
+        mb.Entity<TasafAreaLink>(e =>
+        {
+            e.ToTable("TasafAreaLinks");
+            e.HasOne(x => x.Area).WithMany().HasForeignKey(x => x.AreaId).OnDelete(DeleteBehavior.Restrict);
         });
 
         mb.Entity<TasafBranch>(e =>

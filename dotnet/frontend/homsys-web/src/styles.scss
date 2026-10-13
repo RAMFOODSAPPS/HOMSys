@@ -322,3 +322,16 @@ p-sorticon svg {
 .cdk-drag-preview { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18); border-radius: 3px; opacity: 0.95; }
 .cdk-drag-placeholder { opacity: 0.35; }
 .cdk-drag-animating, .an-chip-list.cdk-drop-list-dragging .an-chip:not(.cdk-drag-placeholder) { transition: transform 200ms cubic-bezier(0, 0, 0.2, 1); }
+
+// ── Resizable table columns (shared/resizable-columns.directive.ts) ──
+table.rc-table.rc-fixed { table-layout: fixed; }  // only once a column was resized
+table.rc-table th { position: relative; overflow: hidden; text-overflow: ellipsis; }
+table.rc-table.rc-fixed td { overflow: hidden; }
+table.rc-table.rc-fixed td .p-inputnumber, table.rc-table.rc-fixed td .p-select,
+table.rc-table.rc-fixed td .p-inputtext { width: 100%; min-width: 0; }
+.rc-handle {
+  position: absolute; top: 0; right: 0; width: 7px; height: 100%; cursor: col-resize; z-index: 1;
+  border-right: 2px solid transparent;
+  &:hover { border-right-color: #800000; }
+}
+body.rc-resizing { cursor: col-resize !important; user-select: none; }

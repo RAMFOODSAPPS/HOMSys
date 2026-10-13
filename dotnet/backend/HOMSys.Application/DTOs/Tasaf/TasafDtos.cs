@@ -39,7 +39,8 @@ public class SaveTasafDto
     public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
     public int? SalesGroupId { get; set; }
-    public int? AreaId { get; set; }
+    /// <summary>Areas covered (multi-select).</summary>
+    public List<int> AreaIds { get; set; } = [];
     public int? ChainId { get; set; }
     public int? ProgramTypeId { get; set; }
     public string ProgramTypeOther { get; set; } = string.Empty;
@@ -81,7 +82,8 @@ public class TasafDto : SaveTasafDto
 
     // Display names of the picked lookups.
     public string? SalesGroupName { get; set; }
-    public string? AreaName { get; set; }
+    /// <summary>Picked area names, comma-separated.</summary>
+    public string? AreaNames { get; set; }
     public string? ChainName { get; set; }
     public string? ProgramTypeName { get; set; }
     public string? ObjectiveName { get; set; }

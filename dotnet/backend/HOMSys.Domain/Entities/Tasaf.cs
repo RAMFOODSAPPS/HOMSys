@@ -23,8 +23,6 @@ public class Tasaf
 
     public int? SalesGroupId { get; set; }
     public TasafSalesGroup? SalesGroup { get; set; }
-    public int? AreaId { get; set; }
-    public TasafArea? Area { get; set; }
     public int? ChainId { get; set; }
     public TasafChain? Chain { get; set; }
 
@@ -96,6 +94,8 @@ public class Tasaf
     public DateTime? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }
 
+    /// <summary>Areas covered (multi-select).</summary>
+    public List<TasafAreaLink> Areas { get; set; } = [];
     public List<TasafBranch> Branches { get; set; } = [];
     /// <summary>Participating stores (Cust Keys) from the customer master — any number.</summary>
     public List<TasafCustomer> Customers { get; set; } = [];
@@ -159,6 +159,16 @@ public class TasafAction
     public string Role { get; set; } = string.Empty;
     public string Comment { get; set; } = string.Empty;
     public DateTime At { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>An area the TASAF covers (TasafArea master row).</summary>
+public class TasafAreaLink
+{
+    public int Id { get; set; }
+    public int TasafId { get; set; }
+    public int LineNo { get; set; }
+    public int AreaId { get; set; }
+    public TasafArea? Area { get; set; }
 }
 
 /// <summary>A participating branch: a Site, or a scope such as "ALL LUZON" (SiteId null).</summary>

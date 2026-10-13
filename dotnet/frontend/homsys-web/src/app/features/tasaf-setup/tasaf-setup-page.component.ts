@@ -66,7 +66,7 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
       <div class="rows">
         @if (numberingMode()) {
           <p-message severity="info" styleClass="w-full mb-2"
-            text="Reference No. = YEAR - Sales Group - Proponent Initials - Proposal No. (e.g. 2026-RKA-ER-03). The proposal number is ONE continuous series across all TASAFs and never resets. It is assigned when a TASAF is first submitted. Set the next number here to continue an existing series (e.g. from the Excel files)." />
+            text="Document No. = YEAR - Sales Group - Proponent Initials - Proposal No. (e.g. 2026-RKA-ER-03). The proposal number is ONE continuous series across all TASAFs and never resets. It is assigned when a TASAF is first submitted. Set the next number here to continue an existing series (e.g. from the Excel files)." />
           <div class="num-card">
             <div class="num-row">
               <span>Last number used</span>
@@ -92,7 +92,7 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
               </div>
             </div>
             <div class="num-row">
-              <span>Next Reference No.</span>
+              <span>Next Document No.</span>
               <strong class="num-preview">{{ numPreview() }}</strong>
             </div>
             @if (numbering()?.updatedBy) {

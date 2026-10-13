@@ -34,7 +34,8 @@ export interface SaveTasafDto {
   startDate: string | null;
   endDate: string | null;
   salesGroupId: number | null;
-  areaId: number | null;
+  /** Areas covered — multi-select. */
+  areaIds: number[];
   chainId: number | null;
   /** Participating stores (Cust Keys) — any number. */
   customers: TasafCustomerRef[];

@@ -499,7 +499,7 @@ public class TasafService(
         if (t.StartDate is null) m.Add("Program start date");
         if (t.EndDate is null) m.Add("Program end date");
         if (t.SalesGroupId is null) m.Add("Sales Group");
-        if (t.AreaId is null) m.Add("Area");
+        if (t.Areas.Count == 0) m.Add("Area");
         if (t.ChainId is null) m.Add("Customer / Chain");
         if (t.Branches.Count == 0) m.Add("Branch");
         if (t.ProgramTypeId is null) m.Add("Program Type");
@@ -575,7 +575,7 @@ public class TasafService(
         // Every picked lookup must exist (inactive is allowed, so an older draft still saves).
         var checks = new (int? id, string key, string label)[]
         {
-            (dto.SalesGroupId, "sales-groups", "Sales Group"), (dto.AreaId, "areas", "Area"),
+            (dto.SalesGroupId, "sales-groups", "Sales Group"),
             (dto.ChainId, "chains", "Customer / Chain"), (dto.ProgramTypeId, "program-types", "Program Type"),
             (dto.ObjectiveId, "objectives", "Objective"), (dto.TargetMarketId, "target-markets", "Target Market"),
             (dto.ChannelId, "channels", "Channel"), (dto.ProductGroupId, "product-groups", "Product Group"),
@@ -585,6 +585,10 @@ public class TasafService(
         foreach (var (lookupId, key, label) in checks)
             if (lookupId is int lid && !await LookupExistsAsync(key, lid))
                 return $"{label} not found.";
+
+        var areaIds = (dto.AreaIds ?? []).Distinct().ToList();
+        foreach (var aid in areaIds)
+            if (!await LookupExistsAsync("areas", aid)) return "Area not found.";
 
         var costTypeIds = dto.Costs.Where(c => c.CostTypeId is not null).Select(c => c.CostTypeId!.Value).Distinct();
         foreach (var ct in costTypeIds)
@@ -613,7 +617,6 @@ public class TasafService(
         t.StartDate         = dto.StartDate;
         t.EndDate           = dto.EndDate;
         t.SalesGroupId      = dto.SalesGroupId;
-        t.AreaId            = dto.AreaId;
         t.ChainId           = dto.ChainId;
         t.ProgramTypeId     = dto.ProgramTypeId;
         t.ProgramTypeOther  = dto.ProgramTypeOther.Trim();
@@ -641,8 +644,13 @@ public class TasafService(
 
         // Lines — replaced wholesale; blank rows dropped. Removed children are
         // orphan-deleted by EF (required FK, cascade).
-        t.Branches.Clear();
+        t.Areas.Clear();
         var line = 0;
+        foreach (var aid in areaIds)
+            t.Areas.Add(new TasafAreaLink { LineNo = ++line, AreaId = aid });
+
+        t.Branches.Clear();
+        line = 0;
         foreach (var b in dto.Branches.Where(b => b.SiteId is not null || !string.IsNullOrWhiteSpace(b.Name))
                      .DistinctBy(b => (b.SiteId, b.Name.Trim())))
             t.Branches.Add(new TasafBranch { LineNo = ++line, SiteId = b.SiteId, Name = b.Name.Trim() });
@@ -714,8 +722,8 @@ public class TasafService(
             EndDate           = t.EndDate,
             SalesGroupId      = t.SalesGroupId,
             SalesGroupName    = t.SalesGroup?.Name,
-            AreaId            = t.AreaId,
-            AreaName          = t.Area?.Name,
+            AreaIds           = t.Areas.OrderBy(a => a.LineNo).Select(a => a.AreaId).ToList(),
+            AreaNames         = string.Join(", ", t.Areas.OrderBy(a => a.LineNo).Select(a => a.Area?.Name).Where(n => n is not null)),
             ChainId           = t.ChainId,
             ChainName         = t.Chain?.Name,
             ProgramTypeId     = t.ProgramTypeId,

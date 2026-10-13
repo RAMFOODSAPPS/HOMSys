@@ -9,7 +9,6 @@ public class TasafRepository(AppDbContext db) : ITasafRepository
 {
     private IQueryable<Tasaf> WithLookups(IQueryable<Tasaf> q) => q
         .Include(t => t.SalesGroup)
-        .Include(t => t.Area)
         .Include(t => t.Chain)
         .Include(t => t.ProgramType)
         .Include(t => t.Objective)
@@ -38,6 +37,7 @@ public class TasafRepository(AppDbContext db) : ITasafRepository
 
     public async Task<Tasaf?> GetByIdAsync(int id) =>
         await WithLookups(db.Tasafs)
+            .Include(t => t.Areas).ThenInclude(a => a.Area)
             .Include(t => t.Branches.OrderBy(b => b.LineNo))
             .Include(t => t.Customers.OrderBy(c => c.LineNo))
             .Include(t => t.Products.OrderBy(p => p.LineNo))

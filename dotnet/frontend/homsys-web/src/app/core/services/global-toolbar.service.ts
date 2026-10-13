@@ -34,6 +34,8 @@ export interface ToolbarConfig {
   /** Withdraw the document (kept, status Cancelled) — not the same as `cancel` (discard edits). */
   cancelDoc?: ToolbarHandler & { label: string };
   cancel?:  ToolbarHandler;
+  /** Empty the form's fields (the document stays open; nothing is saved). */
+  clearForm?: ToolbarHandler;
   add?:     ToolbarHandler;
   edit?:    ToolbarHandler;
   delete?:  ToolbarHandler;

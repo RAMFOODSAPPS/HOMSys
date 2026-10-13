@@ -432,12 +432,16 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   deleted (FK Restrict) — deactivate instead.
 - **Form** (`Tasaf` + Branches/Products/Costs/Actions, `TasafService`, `/tasafs`).
   Branches = active Sites + "ALL BRANCHES/LUZON/VISAYAS/MINDANAO" (SiteId null).
+  Area is MULTI-select (`TasafAreaLinks` child rows → `AreaIds`/`AreaNames`; migration `TasafMultipleAreas`).
   Cust Key is MULTI-select (`TasafCustomers` child rows, names re-read from cust4win on save, max 2000).
   Picking a Customer / Chain loads its stores into a multi-select (`GET tasafs/chain-customers/{id}`)
   — active `Customers` whose CusName matches any of the chain's `CustomerMatch` keywords (comma-separated
   LIKE fragments, edited in Setup › Customers / Chains; defaults seeded by migration
   `TasafChainCustomerMatch`). cust4win has no chain column, so the name is the only link. No keywords
-  or no match → the free customer search. Program duration = `StartDate`/`EndDate` (date pickers).
+  or no match → the free customer search. Each chain has a Sales Group (`TasafChain.SalesGroupId`, seeded
+  by migration `TasafChainSalesGroups` from `Book1.xlsx` MODERN TRADE: NKA = SVI/Puregold/Robinson/Waltermart/
+  Landmark, the rest RKA; LKA Others → LKA, RDP Others → GT). The form lists only the picked group's chains,
+  picking a chain fills an empty Sales Group, and switching group clears a chain from another group. Program duration = `StartDate`/`EndDate` (date pickers).
   Server recomputes TotalCost, product PromotedValue (vol × LSP), and promoted /
   incremental sales from products when any are listed.
 - **Workflow** ("Simplified Approval Matrix", `Data Fields for IT.xlsx` › TASAF):

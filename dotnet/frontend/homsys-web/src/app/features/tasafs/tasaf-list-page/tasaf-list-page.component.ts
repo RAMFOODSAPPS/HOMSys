@@ -18,7 +18,7 @@ type View = 'action' | 'mine' | 'all';
 const VIEW_KEY = 'homsys_tasaf_list_view';
 
 const EXPORT_COLS: ExportColumn[] = [
-  { header: 'Ref No',       field: 'refNo' },
+  { header: 'Document No',  field: 'refNo' },
   { header: 'Status',       field: 'status' },
   { header: 'Title',        field: 'title' },
   { header: 'Sales Group',  field: 'salesGroupName' },
@@ -51,7 +51,7 @@ const EXPORT_COLS: ExportColumn[] = [
       (onRowSelect)="noSelection.set(false)" (onRowUnselect)="noSelection.set(true)" styleClass="p-datatable-sm">
       <ng-template pTemplate="header">
         <tr>
-          <th pSortableColumn="refNo">Ref No <p-sortIcon field="refNo" /></th>
+          <th pSortableColumn="refNo">Document No <p-sortIcon field="refNo" /></th>
           <th pSortableColumn="status">Status <p-sortIcon field="status" /></th>
           <th pSortableColumn="title">Activity Title <p-sortIcon field="title" /></th>
           <th pSortableColumn="salesGroupName">Sales Group <p-sortIcon field="salesGroupName" /></th>
