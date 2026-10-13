@@ -24,4 +24,8 @@ public interface ITasafLookupRepository
     Task<List<TasafApprovalRule>> GetRulesAsync();
     /// <summary>Upserts the given cells; Required = false deletes the rule.</summary>
     Task SaveRulesAsync(IEnumerable<TasafApprovalRuleCellDto> cells, string updatedBy);
+
+    /// <summary>TASAF Setup › Numbering (single row) + the highest proposal number used.</summary>
+    Task<(TasafNumbering setting, int? lastSeq, string? lastRefNo)> GetNumberingAsync();
+    Task SaveNumberingAsync(int nextNumber, int minDigits, string updatedBy);
 }

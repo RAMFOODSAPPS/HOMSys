@@ -85,6 +85,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TasafApprovalRule> TasafApprovalRules => Set<TasafApprovalRule>();
     public DbSet<TasafApprovalStep> TasafApprovalSteps => Set<TasafApprovalStep>();
     public DbSet<Tasaf> Tasafs => Set<Tasaf>();
+    public DbSet<TasafNumbering> TasafNumberings => Set<TasafNumbering>();
     public DbSet<TasafBranch> TasafBranches => Set<TasafBranch>();
     public DbSet<TasafProduct> TasafProducts => Set<TasafProduct>();
     public DbSet<TasafCost> TasafCosts => Set<TasafCost>();

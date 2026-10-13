@@ -68,10 +68,19 @@ internal static class TasafModel
 
     private static void ConfigureDocument(ModelBuilder mb)
     {
+        // TASAF Setup › Numbering — single row.
+        mb.Entity<TasafNumbering>(e =>
+        {
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.UpdatedBy).HasMaxLength(100);
+            e.HasData(new TasafNumbering { Id = 1, NextNumber = 1, MinDigits = 2 });
+        });
+
         mb.Entity<Tasaf>(e =>
         {
             e.Property(x => x.RefNo).HasMaxLength(30);
             e.HasIndex(x => x.RefNo).IsUnique().HasFilter("[RefNo] IS NOT NULL");
+            e.HasIndex(x => x.RefSeq).IsUnique().HasFilter("[RefSeq] IS NOT NULL");
             e.Property(x => x.Status).HasMaxLength(20).IsRequired();
             e.HasIndex(x => x.Status);
             e.HasIndex(x => x.ProponentUserId);

@@ -2,7 +2,8 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import {
-  SaveTasafLookupDto, TasafApprovalMatrix, TasafApprovalRuleCell, TasafApprovalRules, TasafApproverCell, TasafLookupDto, TasafMasterMeta, TasafUserOption
+  SaveTasafLookupDto, TasafApprovalMatrix, TasafApprovalRuleCell, TasafApprovalRules, TasafApproverCell, TasafLookupDto, TasafMasterMeta,
+  TasafNumbering, TasafUserOption
 } from '../models/tasaf-master.model';
 import { ApiResponse } from '../models/auth.model';
 
@@ -21,6 +22,11 @@ export class TasafMasterService {
   getMatrix() { return this.http.get<ApiResponse<TasafApprovalMatrix>>(`${this.base}/approval-matrix`); }
   saveMatrix(cells: TasafApproverCell[]) {
     return this.http.put<ApiResponse<TasafApprovalMatrix>>(`${this.base}/approval-matrix`, cells);
+  }
+
+  getNumbering() { return this.http.get<ApiResponse<TasafNumbering>>(`${this.base}/numbering`); }
+  saveNumbering(nextNumber: number, minDigits: number) {
+    return this.http.put<ApiResponse<TasafNumbering>>(`${this.base}/numbering`, { nextNumber, minDigits });
   }
 
   getAll(key: string) { return this.http.get<ApiResponse<TasafLookupDto[]>>(`${this.base}/${key}`); }

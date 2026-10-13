@@ -2463,6 +2463,9 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<int?>("RefSeq")
+                        .HasColumnType("int");
+
                     b.Property<int?>("SalesGroupId")
                         .HasColumnType("int");
 
@@ -2531,6 +2534,10 @@ namespace HOMSys.Infrastructure.Migrations
                     b.HasIndex("RefNo")
                         .IsUnique()
                         .HasFilter("[RefNo] IS NOT NULL");
+
+                    b.HasIndex("RefSeq")
+                        .IsUnique()
+                        .HasFilter("[RefSeq] IS NOT NULL");
 
                     b.HasIndex("SalesGroupId");
 
@@ -4272,6 +4279,37 @@ namespace HOMSys.Infrastructure.Migrations
                             IsActive = true,
                             Name = "Free Goods - Free Goods",
                             SortOrder = 27
+                        });
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafNumbering", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MinDigits")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NextNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TasafNumberings");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            MinDigits = 2,
+                            NextNumber = 1
                         });
                 });
 

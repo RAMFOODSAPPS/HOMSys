@@ -140,4 +140,22 @@ public class TasafLookupRepository(AppDbContext db) : ITasafLookupRepository
             .Where(u => idList.Contains(u.Id))
             .ToDictionaryAsync(u => u.Id, u => (u.FirstName + " " + u.LastName).Trim());
     }
+
+    public async Task<(TasafNumbering setting, int? lastSeq, string? lastRefNo)> GetNumberingAsync()
+    {
+        var setting = await db.TasafNumberings.AsNoTracking().FirstAsync(x => x.Id == 1);
+        var last = await db.Tasafs.AsNoTracking()
+            .Where(t => t.RefSeq != null)
+            .OrderByDescending(t => t.RefSeq)
+            .Select(t => new { t.RefSeq, t.RefNo })
+            .FirstOrDefaultAsync();
+        return (setting, last?.RefSeq, last?.RefNo);
+    }
+
+    public async Task SaveNumberingAsync(int nextNumber, int minDigits, string updatedBy) =>
+        await db.TasafNumberings.Where(x => x.Id == 1).ExecuteUpdateAsync(s => s
+            .SetProperty(x => x.NextNumber, nextNumber)
+            .SetProperty(x => x.MinDigits, minDigits)
+            .SetProperty(x => x.UpdatedAt, DateTime.UtcNow)
+            .SetProperty(x => x.UpdatedBy, updatedBy));
 }

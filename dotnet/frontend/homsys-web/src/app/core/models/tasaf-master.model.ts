@@ -70,3 +70,15 @@ export interface TasafUserOption {
   username: string;
   fullName: string;
 }
+
+/** TASAF Setup › Numbering — the RefNo proposal-number series (one continuous series). */
+export interface TasafNumbering {
+  /** Number the next submitted TASAF gets. */
+  nextNumber: number;
+  minDigits: number;
+  /** Highest number already used (null = none yet). */
+  lastNumber: number | null;
+  lastRefNo: string | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}

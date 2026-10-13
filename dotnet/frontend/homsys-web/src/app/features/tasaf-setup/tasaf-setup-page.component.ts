@@ -1,5 +1,5 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
@@ -18,12 +18,14 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
 import { ExportColumn, ExportService } from '../../core/services/export.service';
 import { TasafMasterService } from '../../core/services/tasaf-master.service';
 import {
-  TasafApprovalMatrix, TasafApprovalRules, TasafLookupDto, TasafMasterMeta, TasafUserOption
+  TasafApprovalMatrix, TasafApprovalRules, TasafLookupDto, TasafMasterMeta, TasafNumbering, TasafUserOption
 } from '../../core/models/tasaf-master.model';
+import { utc } from '../../core/utils/utc-date';
 
 const LAST_MASTER_KEY = 'homsys_tasaf_setup_master';
 const MATRIX_KEY = 'approval-matrix';
 const RULES_KEY = 'approval-rules';
+const NUMBERING_KEY = 'numbering';
 
 interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
 
@@ -33,7 +35,7 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
   standalone: true,
   providers: [MessageService, ConfirmationService],
   imports: [
-    ReactiveFormsModule, FormsModule, DecimalPipe, TableModule, ButtonModule, TagModule, DialogModule,
+    ReactiveFormsModule, FormsModule, DatePipe, DecimalPipe, TableModule, ButtonModule, TagModule, DialogModule,
     InputTextModule, InputNumberModule, SelectModule, ToggleSwitchModule, TextareaModule,
     MessageModule, ToastModule, ConfirmDialogModule
   ],
@@ -55,10 +57,53 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
           <button type="button" class="master-btn" [class.active]="matrixMode()" (click)="selectMatrix()">
             <i class="pi pi-sitemap"></i> Approval Matrix
           </button>
+          <button type="button" class="master-btn" [class.active]="numberingMode()" (click)="selectNumbering()">
+            <i class="pi pi-hashtag"></i> Numbering
+          </button>
         }
       </nav>
 
       <div class="rows">
+        @if (numberingMode()) {
+          <p-message severity="info" styleClass="w-full mb-2"
+            text="Reference No. = YEAR - Sales Group - Proponent Initials - Proposal No. (e.g. 2026-RKA-ER-03). The proposal number is ONE continuous series across all TASAFs and never resets. It is assigned when a TASAF is first submitted. Set the next number here to continue an existing series (e.g. from the Excel files)." />
+          <div class="num-card">
+            <div class="num-row">
+              <span>Last number used</span>
+              <strong>
+                @if (numbering()?.lastNumber != null) { {{ numbering()!.lastNumber }} <span class="muted">({{ numbering()!.lastRefNo }})</span> }
+                @else { <span class="muted">None yet</span> }
+              </strong>
+            </div>
+            <div class="num-row">
+              <label for="numNext">Next number</label>
+              <div>
+                <p-inputNumber inputId="numNext" [ngModel]="numNext()" (ngModelChange)="numNext.set($event)" [ngModelOptions]="{ standalone: true }"
+                  [min]="1" [max]="9999999" [useGrouping]="false" [showButtons]="true" inputStyleClass="num-in" />
+                <small class="muted">Must be higher than the last number used.</small>
+              </div>
+            </div>
+            <div class="num-row">
+              <label for="numDigits">Minimum digits</label>
+              <div>
+                <p-inputNumber inputId="numDigits" [ngModel]="numDigits()" (ngModelChange)="numDigits.set($event)" [ngModelOptions]="{ standalone: true }"
+                  [min]="1" [max]="6" [useGrouping]="false" [showButtons]="true" inputStyleClass="num-in" />
+                <small class="muted">Zero-padding only — e.g. 2 → 01, 02 … 99, 100, 101. The series is never capped.</small>
+              </div>
+            </div>
+            <div class="num-row">
+              <span>Next Reference No.</span>
+              <strong class="num-preview">{{ numPreview() }}</strong>
+            </div>
+            @if (numbering()?.updatedBy) {
+              <small class="muted">Last changed by {{ numbering()!.updatedBy }} on {{ utc(numbering()!.updatedAt) | date:'dd MMM yyyy h:mm a' }}</small>
+            }
+          </div>
+          <div class="form-actions mt-2">
+            @if (numberingDirty()) { <span class="unset">Unsaved changes</span> }
+            <p-button label="Save Numbering" icon="pi pi-save" [loading]="saving()" [disabled]="!numberingDirty()" (onClick)="saveNumbering()" />
+          </div>
+        }
         @if (rulesMode()) {
           <p-message severity="info" styleClass="w-full mb-2"
             text="Which roles sign each approval type, in this order (left to right). 'Over amount' = the role signs only when the TASAF's total cost is MORE THAN the amount. Each Program Type is linked to one Approval Type." />
@@ -261,6 +306,14 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
     .field-row { display: grid; grid-template-columns: 1fr 8rem; gap: 0.75rem; }
     .field-inline { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
     .form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+    .num-card { background: var(--p-surface-card); border: 1px solid var(--p-surface-border); border-radius: 8px;
+      padding: 1rem 1.25rem; max-width: 640px; display: flex; flex-direction: column; gap: 0.9rem; }
+    .num-row { display: grid; grid-template-columns: 170px 1fr; align-items: center; gap: 1rem; font-size: 0.875rem; }
+    .num-row > label, .num-row > span { font-weight: 500; }
+    .num-row small { display: block; margin-top: 0.25rem; }
+    .num-preview { color: #800000; font-size: 1.05rem; letter-spacing: 0.02em; }
+    .muted { font-weight: 400; font-size: 0.75rem; color: var(--p-text-muted-color); }
+    :host ::ng-deep .num-in { width: 9rem; }
     .required-star { color: var(--p-red-500, #ef4444); }
     .optional-label { font-weight: 400; font-size: 0.75rem; color: var(--p-text-muted-color); }
     .matrix-btn { margin-top: 0.4rem; border-top: 1px solid var(--p-surface-border); border-radius: 0 0 6px 6px; }
@@ -314,6 +367,20 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
   private   savedRules = '{}';
   protected rulesDirty = computed(() => JSON.stringify(this.ruleCells()) !== this.savedRules);
   protected programTypes = signal<TasafLookupDto[]>([]);
+
+  // Numbering view: RefNo proposal-number series.
+  protected numberingMode  = signal(false);
+  protected numbering      = signal<TasafNumbering | null>(null);
+  protected numNext        = signal<number | null>(null);
+  protected numDigits      = signal<number | null>(null);
+  protected numberingDirty = computed(() => !!this.numbering() &&
+    (this.numNext() !== this.numbering()!.nextNumber || this.numDigits() !== this.numbering()!.minDigits));
+  protected numPreview = computed(() => {
+    const n = this.numNext() ?? 1;
+    const year = new Date(Date.now() + 8 * 3600_000).getUTCFullYear(); // Asia/Manila
+    return `${year}-RKA-ER-${String(n).padStart(this.numDigits() ?? 2, '0')}`;
+  });
+  protected readonly utc = utc;
   protected readonly ruleModes = [
     { label: 'Not required', value: 'none' },
     { label: 'Always',       value: 'always' },
@@ -350,6 +417,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
       const last = localStorage.getItem(LAST_MASTER_KEY);
       if (last === MATRIX_KEY) { this.selectMatrix(); return; }
       if (last === RULES_KEY) { this.selectRules(); return; }
+      if (last === NUMBERING_KEY) { this.selectNumbering(); return; }
       const first = metas.find(m => m.key === last) ?? metas[0];
       if (first) this.selectMaster(first);
     });
@@ -366,16 +434,18 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
       add:     { onClick: () => this.openNew(), disabled: this.notMaster },
       edit:    { onClick: () => this.selected && this.openEdit(this.selected), disabled: this.editOff },
       delete:  { onClick: () => this.confirmDelete(), disabled: this.editOff, loading: this.deleting },
-      refresh: { onClick: () => this.matrixMode() ? this.loadMatrix() : this.rulesMode() ? this.loadRules() : this.loadRows(), loading: this.loading },
+      refresh: { onClick: () => this.matrixMode() ? this.loadMatrix() : this.rulesMode() ? this.loadRules()
+                                 : this.numberingMode() ? this.loadNumbering() : this.loadRows(), loading: this.loading },
       search:  term => this.searchTerm.set(term),
       export:  { pdf: () => this.export('pdf'), excel: () => this.export('excel'), csv: () => this.export('csv') },
     });
   }
 
   /** Switch the right-hand panel: a master list, the rules grid, or the people matrix. */
-  private setView(view: 'master' | 'rules' | 'matrix', key: string) {
+  private setView(view: 'master' | 'rules' | 'matrix' | 'numbering', key: string) {
     this.matrixMode.set(view === 'matrix');
     this.rulesMode.set(view === 'rules');
+    this.numberingMode.set(view === 'numbering');
     if (view !== 'master') this.current.set(null);
     this.selected = null;
     this.noSelection.set(true);
@@ -447,6 +517,47 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
   programTypesOf(typeId: number) {
     const names = this.programTypes().filter(p => p.parentId === typeId && p.isActive).map(p => p.name);
     return names.length ? names.join(', ') : 'No program types linked';
+  }
+
+  // ── Numbering ──────────────────────────────────────────────
+  selectNumbering() {
+    this.setView('numbering', NUMBERING_KEY);
+    this.loadNumbering();
+  }
+
+  loadNumbering() {
+    this.loading.set(true);
+    this.api.getNumbering().subscribe({
+      next: res => { this.applyNumbering(res.data ?? null); this.loading.set(false); },
+      error: () => this.loading.set(false)
+    });
+  }
+
+  private applyNumbering(n: TasafNumbering | null) {
+    this.numbering.set(n);
+    this.numNext.set(n?.nextNumber ?? null);
+    this.numDigits.set(n?.minDigits ?? null);
+  }
+
+  saveNumbering() {
+    const next = this.numNext();
+    const digits = this.numDigits();
+    if (!next || !digits) {
+      this.messageSvc.add({ severity: 'warn', summary: 'Numbering', detail: 'Enter the next number and the minimum digits.' });
+      return;
+    }
+    this.saving.set(true);
+    this.api.saveNumbering(next, digits).subscribe({
+      next: res => {
+        this.saving.set(false);
+        this.applyNumbering(res.data ?? null);
+        this.messageSvc.add({ severity: 'success', summary: 'Saved', detail: `The next TASAF gets number ${res.data?.nextNumber}.` });
+      },
+      error: err => {
+        this.saving.set(false);
+        this.messageSvc.add({ severity: 'error', summary: 'Error', detail: err?.error?.message ?? 'Failed to save the numbering.' });
+      }
+    });
   }
 
   // ── Approval matrix ────────────────────────────────────────

@@ -11,6 +11,8 @@ public class Tasaf
 
     /// <summary>YEAR-SalesGroup-ProponentInitials-NN (e.g. 2026-RKA-ER-03). Null until submitted.</summary>
     public string? RefNo { get; set; }
+    /// <summary>The proposal number (last part of RefNo): one continuous series, unique. See TasafNumbering.</summary>
+    public int? RefSeq { get; set; }
     public string Status { get; set; } = TasafStatus.Draft;
 
     // ── Program ───────────────────────────────────────────────
@@ -200,4 +202,18 @@ public class TasafCost
     public TasafCostType? CostType { get; set; }
     public decimal Amount { get; set; }
     public string Remarks { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// TASAF Setup › Numbering (single row, Id 1). The proposal number is one continuous series
+/// across all TASAFs; the next RefNo takes max(NextNumber, highest used + 1).
+/// </summary>
+public class TasafNumbering
+{
+    public int Id { get; set; }
+    public int NextNumber { get; set; } = 1;
+    /// <summary>Zero-padded to at least this many digits (2 → 01 … 99, 100, ...).</summary>
+    public int MinDigits { get; set; } = 2;
+    public DateTime? UpdatedAt { get; set; }
+    public string? UpdatedBy { get; set; }
 }

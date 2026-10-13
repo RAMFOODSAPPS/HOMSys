@@ -82,3 +82,22 @@ public class TasafUserOptionDto
     public string Username { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
 }
+
+/// <summary>TASAF Setup › Numbering.</summary>
+public class TasafNumberingDto
+{
+    /// <summary>The number the next submitted TASAF gets (setting, or highest used + 1 if higher).</summary>
+    public int NextNumber { get; set; }
+    public int MinDigits { get; set; }
+    /// <summary>Highest proposal number already used (null = none yet).</summary>
+    public int? LastNumber { get; set; }
+    public string? LastRefNo { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? UpdatedBy { get; set; }
+}
+
+public class SaveTasafNumberingDto
+{
+    public int NextNumber { get; set; }
+    public int MinDigits { get; set; }
+}

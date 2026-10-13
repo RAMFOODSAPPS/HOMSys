@@ -84,6 +84,33 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         return (await GetRulesAsync(), null);
     }
 
+    // ── Numbering (RefNo proposal number series) ──────────────
+    public async Task<TasafNumberingDto> GetNumberingAsync()
+    {
+        var (setting, lastSeq, lastRefNo) = await repo.GetNumberingAsync();
+        return new TasafNumberingDto
+        {
+            NextNumber = Math.Max(setting.NextNumber, (lastSeq ?? 0) + 1),
+            MinDigits  = setting.MinDigits,
+            LastNumber = lastSeq,
+            LastRefNo  = lastRefNo,
+            UpdatedAt  = setting.UpdatedAt,
+            UpdatedBy  = setting.UpdatedBy
+        };
+    }
+
+    public async Task<(TasafNumberingDto? numbering, string? error)> SaveNumberingAsync(SaveTasafNumberingDto dto)
+    {
+        if (dto.MinDigits is < 1 or > 6) return (null, "Minimum digits must be between 1 and 6.");
+        if (dto.NextNumber is < 1 or > 9_999_999) return (null, "Next number must be between 1 and 9,999,999.");
+        var (_, lastSeq, lastRefNo) = await repo.GetNumberingAsync();
+        if (lastSeq is int last && dto.NextNumber <= last)
+            return (null, $"Number {dto.NextNumber} is already used (last: {lastRefNo}). The next number must be {last + 1} or higher.");
+
+        await repo.SaveNumberingAsync(dto.NextNumber, dto.MinDigits, CurrentUser);
+        return (await GetNumberingAsync(), null);
+    }
+
     // ── Approval matrix (sales group × role → user) ───────────
     public async Task<TasafApprovalMatrixDto> GetMatrixAsync()
     {

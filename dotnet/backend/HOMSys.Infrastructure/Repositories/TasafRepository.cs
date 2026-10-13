@@ -67,17 +67,15 @@ public class TasafRepository(AppDbContext db) : ITasafRepository
         {
             if (assign)
             {
-                // Proposal number is ONE continuous series across every TASAF (all years,
-                // sales groups and proponents) — the number after the last "-". Never resets,
-                // no 99 cap (01..99, then 100, 101, ...).
-                var taken = await db.Tasafs.AsNoTracking()
-                    .Where(t => t.RefNo != null)
-                    .Select(t => t.RefNo!)
-                    .ToListAsync();
-                var next = taken
-                    .Select(r => int.TryParse(r[(r.LastIndexOf('-') + 1)..], out var n) ? n : 0)
-                    .DefaultIfEmpty(0).Max() + 1;
-                tasaf.RefNo = $"{refNoPrefix}{next:00}";
+                // Proposal number = ONE continuous series across every TASAF (all years, sales
+                // groups, proponents); never resets, no 99 cap. Start/padding come from TASAF
+                // Setup › Numbering. RefSeq's unique index makes concurrent submits retry.
+                var setting = await db.TasafNumberings.FirstAsync(x => x.Id == 1);
+                var maxSeq  = await db.Tasafs.MaxAsync(t => t.RefSeq) ?? 0;
+                var next    = Math.Max(maxSeq + 1, setting.NextNumber);
+                tasaf.RefSeq = next;
+                tasaf.RefNo  = refNoPrefix + next.ToString().PadLeft(Math.Clamp(setting.MinDigits, 1, 6), '0');
+                setting.NextNumber = next + 1;
             }
             try
             {

@@ -453,6 +453,10 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   of the proponent's FirstName + LastName (`Juan Dela Cruz Jr.` → `JD`); NN = ONE continuous
   series across all TASAFs (every year, sales group and proponent), never resets, no 99 cap
   (`2026-RKA-ER-01`, `2026-NKA-MV-02`, … `2027-RKA-ER-58`, … `100`). The form header previews `2026-RKA-ER-NN` before submit.
+  The number is stored in `Tasaf.RefSeq` (unique index → concurrent submits retry) and comes from
+  **TASAF Setup › Numbering** (`TasafNumbering`, single row Id 1, `api/tasaf-masters/numbering`):
+  next = max(NextNumber, highest RefSeq + 1), zero-padded to MinDigits (default 2). Admins can
+  raise NextNumber (e.g. to continue the Excel series) but never to a number already used.
 - **Access**: `tasaf` (17) create/see own + those you review/approve; `tasaf-view-all`
   (18); `tasaf-masters` (16). GKAMs and approvers also need `tasaf` to open the page.
   **Delete is Admin-only** (`[Authorize(Roles = "Admin")]` + `TasafService.CanDelete`), and

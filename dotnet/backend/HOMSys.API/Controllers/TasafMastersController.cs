@@ -32,6 +32,20 @@ public class TasafMastersController(TasafMasterService service) : ControllerBase
         return Ok(new { success = true, data = matrix });
     }
 
+    [HttpGet("numbering")]
+    public async Task<IActionResult> GetNumbering() =>
+        Ok(new { success = true, data = await service.GetNumberingAsync() });
+
+    [HttpPut("numbering")]
+    public async Task<IActionResult> SaveNumbering([FromBody] SaveTasafNumberingDto dto)
+    {
+        var (numbering, error) = await service.SaveNumberingAsync(dto);
+        if (error is not null)
+            return BadRequest(new { success = false, message = error });
+
+        return Ok(new { success = true, data = numbering });
+    }
+
     [HttpGet("approval-rules")]
     public async Task<IActionResult> GetRules() =>
         Ok(new { success = true, data = await service.GetRulesAsync() });
