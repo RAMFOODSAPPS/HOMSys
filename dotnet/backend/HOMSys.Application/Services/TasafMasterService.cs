@@ -10,7 +10,7 @@ namespace HOMSys.Application.Services;
 public record TasafMasterDef(
     string Key, string Label, Type EntityType,
     string? ParentKey = null, string? ParentLabel = null,
-    string? UserLabel = null, string? AmountLabel = null);
+    string? UserLabel = null, string? AmountLabel = null, string? TextLabel = null);
 
 public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccessor http)
 {
@@ -21,7 +21,8 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
     public static readonly IReadOnlyList<TasafMasterDef> Masters =
     [
         new("sales-groups",    "Sales Groups",     typeof(TasafSalesGroup)),
-        new("chains",          "Customers / Chains", typeof(TasafChain),       ParentKey: "sales-groups", ParentLabel: "Sales Group"),
+        new("chains",          "Customers / Chains", typeof(TasafChain),       ParentKey: "sales-groups", ParentLabel: "Sales Group",
+            TextLabel: "Customer name keywords (comma-separated; blank = all customers)"),
         new("areas",           "Areas",            typeof(TasafArea)),
         new("program-types",   "Program Types",    typeof(TasafProgramType),
             ParentKey: "approval-types", ParentLabel: "Approval Type",
@@ -49,7 +50,8 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         ParentKey   = m.ParentKey,
         ParentLabel = m.ParentLabel,
         UserLabel   = m.UserLabel,
-        AmountLabel = m.AmountLabel
+        AmountLabel = m.AmountLabel,
+        TextLabel   = m.TextLabel
     });
 
     // ── Approval rules (approval type × role → always / over amount / not required) ──
@@ -224,6 +226,7 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         if (dto.Name.Length > 150) return "Name must be 150 characters or fewer.";
         if (dto.Code.Length > 20) return "Code must be 20 characters or fewer.";
         if (dto.Amount is < 0) return "Amount cannot be negative.";
+        if ((dto.Text ?? "").Length > 500) return "Text must be 500 characters or fewer.";
         if (def.EntityType == typeof(TasafProgramType) && dto.Amount is > 100) return "Max CTS % cannot be over 100.";
 
         if (await repo.ExistsAsync(def.EntityType, dto.Name, dto.Code, excludeId))
@@ -253,6 +256,7 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         if (e is ITasafParentLookup p) p.ParentId = dto.ParentId;
         if (e is ITasafUserLookup u)   u.UserId   = dto.UserId;
         if (e is ITasafAmountLookup a) a.Amount   = dto.Amount;
+        if (e is ITasafTextLookup t)   t.Text     = (dto.Text ?? "").Trim();
     }
 
     private async Task<List<TasafLookupDto>> MapAsync(TasafMasterDef def, IEnumerable<TasafLookup> rows)
@@ -283,6 +287,7 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
                 UserId      = userId,
                 UserName    = userId is int uid ? userNames.GetValueOrDefault(uid) : null,
                 Amount      = (e as ITasafAmountLookup)?.Amount,
+                Text        = (e as ITasafTextLookup)?.Text,
                 CreatedAt   = e.CreatedAt,
                 CreatedBy   = e.CreatedBy,
                 UpdatedAt   = e.UpdatedAt,

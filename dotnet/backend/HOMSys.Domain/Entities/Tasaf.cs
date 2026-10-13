@@ -17,10 +17,9 @@ public class Tasaf
 
     // ── Program ───────────────────────────────────────────────
     public string Title { get; set; } = string.Empty;
-    public int? StartMonth { get; set; }
-    public int? StartYear { get; set; }
-    public int? EndMonth { get; set; }
-    public int? EndYear { get; set; }
+    /// <summary>Program duration (inclusive).</summary>
+    public DateOnly? StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
 
     public int? SalesGroupId { get; set; }
     public TasafSalesGroup? SalesGroup { get; set; }

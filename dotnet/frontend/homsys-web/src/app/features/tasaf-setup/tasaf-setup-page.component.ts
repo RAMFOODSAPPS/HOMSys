@@ -198,6 +198,7 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
                 @if (m.parentLabel) { <th pSortableColumn="parentName">{{ m.parentLabel }} <p-sortIcon field="parentName" /></th> }
                 @if (m.userLabel) { <th pSortableColumn="userName">{{ m.userLabel }} <p-sortIcon field="userName" /></th> }
                 @if (m.amountLabel) { <th pSortableColumn="amount" class="num">{{ shortLabel(m.amountLabel) }} <p-sortIcon field="amount" /></th> }
+                @if (m.textLabel) { <th>{{ shortLabel(m.textLabel) }}</th> }
                 <th>Description</th>
                 <th pSortableColumn="isActive" style="width:6rem">Status <p-sortIcon field="isActive" /></th>
               </tr>
@@ -220,6 +221,7 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
                     @else { {{ r.amount | number:'1.2-2' }} }
                   </td>
                 }
+                @if (m.textLabel) { <td class="kw">{{ r.text || '— all customers —' }}</td> }
                 <td>{{ r.description || '—' }}</td>
                 <td><p-tag [value]="r.isActive ? 'Active' : 'Inactive'" [severity]="r.isActive ? 'success' : 'danger'" /></td>
               </tr>
@@ -276,6 +278,14 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
               [min]="0" styleClass="w-full" inputStyleClass="w-full" />
           </div>
         }
+        @if (current()?.textLabel; as tl) {
+          <div class="field">
+            <label>{{ tl }}</label>
+            <input pInputText formControlName="text" class="w-full" maxlength="500"
+              placeholder="e.g. PUREGOLD  or  SUPERVALUE, SAVEMORE" />
+            <small class="optional-label">Stores whose customer name contains any of these appear in the TASAF Cust Key dropdown for this chain. Use % as a wildcard.</small>
+          </div>
+        }
         <div class="field">
           <label>Description <span class="optional-label">(optional)</span></label>
           <textarea pTextarea formControlName="description" rows="2" class="w-full" maxlength="500"></textarea>
@@ -306,6 +316,7 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
     .field-row { display: grid; grid-template-columns: 1fr 8rem; gap: 0.75rem; }
     .field-inline { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
     .form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+    td.kw { font-size: 0.8rem; color: var(--p-text-muted-color); max-width: 22rem; }
     .num-card { background: var(--p-surface-card); border: 1px solid var(--p-surface-border); border-radius: 8px;
       padding: 1rem 1.25rem; max-width: 640px; display: flex; flex-direction: column; gap: 0.9rem; }
     .num-row { display: grid; grid-template-columns: 170px 1fr; align-items: center; gap: 1rem; font-size: 0.875rem; }
@@ -406,7 +417,8 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     isActive:    [true],
     parentId:    [null as number | null],
     userId:      [null as number | null],
-    amount:      [null as number | null]
+    amount:      [null as number | null],
+    text:        [""]
   });
 
   ngOnInit() {
@@ -638,7 +650,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     this.editing.set(null);
     this.apiError.set(null);
     const nextOrder = Math.max(0, ...this.rows().map(r => r.sortOrder)) + 1;
-    this.form.reset({ name: '', code: '', sortOrder: nextOrder, description: '', isActive: true, parentId: null, userId: null, amount: null });
+    this.form.reset({ name: '', code: '', sortOrder: nextOrder, description: '', isActive: true, parentId: null, userId: null, amount: null, text: '' });
     this.dialogVisible = true;
   }
 
@@ -651,7 +663,8 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     }
     this.form.reset({
       name: r.name, code: r.code, sortOrder: r.sortOrder, description: r.description,
-      isActive: r.isActive, parentId: r.parentId ?? null, userId: r.userId ?? null, amount: r.amount ?? null
+      isActive: r.isActive, parentId: r.parentId ?? null, userId: r.userId ?? null, amount: r.amount ?? null,
+      text: r.text ?? ''
     });
     this.dialogVisible = true;
   }
@@ -667,7 +680,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     const dto = {
       name: v.name ?? '', code: v.code ?? '', description: v.description ?? '',
       sortOrder: v.sortOrder ?? 0, isActive: v.isActive ?? true,
-      parentId: v.parentId, userId: v.userId, amount: v.amount
+      parentId: v.parentId, userId: v.userId, amount: v.amount, text: v.text ?? ''
     };
     const editing = this.editing();
     this.saving.set(true);

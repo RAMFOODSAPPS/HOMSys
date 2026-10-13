@@ -30,10 +30,8 @@ public class TasafCostDto
 public class SaveTasafDto
 {
     public string Title { get; set; } = string.Empty;
-    public int? StartMonth { get; set; }
-    public int? StartYear { get; set; }
-    public int? EndMonth { get; set; }
-    public int? EndYear { get; set; }
+    public DateOnly? StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
     public int? SalesGroupId { get; set; }
     public int? AreaId { get; set; }
     public int? ChainId { get; set; }
@@ -173,10 +171,8 @@ public class TasafListItemDto
     public string? ChainName { get; set; }
     public string? CustomerName { get; set; }
     public string? ProgramTypeName { get; set; }
-    public int? StartMonth { get; set; }
-    public int? StartYear { get; set; }
-    public int? EndMonth { get; set; }
-    public int? EndYear { get; set; }
+    public DateOnly? StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
     public decimal TotalCost { get; set; }
     public string ProponentName { get; set; } = string.Empty;
     /// <summary>Role code / approver of the step it is waiting on (For Approval only).</summary>

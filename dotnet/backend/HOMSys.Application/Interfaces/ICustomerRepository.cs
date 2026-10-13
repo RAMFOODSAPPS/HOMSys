@@ -6,6 +6,9 @@ namespace HOMSys.Application.Interfaces;
 /// <summary>Just enough per-customer info to group and pick a representative — see GroupedPricelistService.</summary>
 public record CustomerGroupingInfo(string CustKey, string CusName, DateOnly? FirstOrder);
 
+/// <summary>A store picked by name keywords (TASAF Cust Key dropdown for a chain).</summary>
+public record CustomerMatchInfo(string CustKey, string CusName, string Branch, string Address);
+
 public interface ICustomerRepository
 {
     Task<Customer?> GetByCustKeyAsync(string custKey);
@@ -26,6 +29,12 @@ public interface ICustomerRepository
     /// like "hon" covers more than one real branch), and Inactive customers
     /// are excluded.
     /// </summary>
+    /// <summary>
+    /// Active customers whose name contains ANY of the fragments (SQL LIKE pieces, so %/_ work),
+    /// one row per CustKey, by name. Used to list a TASAF chain's stores.
+    /// </summary>
+    Task<List<CustomerMatchInfo>> MatchByNameAsync(IReadOnlyList<string> fragments, int take);
+
     Task<IEnumerable<CustomerSuggestionDto>> SearchAsync(
         string term, int take = 50, string? pricingFolder = null, IReadOnlyCollection<int>? whseNos = null);
 }

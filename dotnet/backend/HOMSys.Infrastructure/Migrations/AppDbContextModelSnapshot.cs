@@ -2375,11 +2375,8 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<DateTime?>("DecidedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("EndMonth")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("EndYear")
-                        .HasColumnType("int");
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("date");
 
                     b.Property<decimal?>("IncrementalSales")
                         .HasPrecision(18, 2)
@@ -2469,11 +2466,8 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<int?>("SalesGroupId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("StartMonth")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("StartYear")
-                        .HasColumnType("int");
+                    b.Property<DateOnly?>("StartDate")
+                        .HasColumnType("date");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -3473,6 +3467,11 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("CustomerMatch")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -3519,6 +3518,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "SVI",
@@ -3530,6 +3530,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "Waltermart",
@@ -3541,6 +3542,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "Puregold",
@@ -3552,6 +3554,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "Landmark",
@@ -3563,6 +3566,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "Robinson",
@@ -3574,6 +3578,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "Suysing",
@@ -3585,6 +3590,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "Super 8",
@@ -3596,6 +3602,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "CSI",
@@ -3607,6 +3614,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "RCS Chain",
@@ -3618,6 +3626,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "Savewise",
@@ -3629,6 +3638,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "LCC",
@@ -3640,6 +3650,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "Citi Mart",
@@ -3651,6 +3662,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "Prince",
@@ -3662,6 +3674,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "Metro Gaisano",
@@ -3673,6 +3686,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "NCCC",
@@ -3684,6 +3698,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "KCC",
@@ -3695,6 +3710,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "Gaisano Grand",
@@ -3706,6 +3722,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "Gaisano Capital",
@@ -3717,6 +3734,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "Gaisano Mall",
@@ -3728,6 +3746,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "LKA Others",
@@ -3739,6 +3758,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            CustomerMatch = "",
                             Description = "",
                             IsActive = true,
                             Name = "RDP Others",

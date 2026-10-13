@@ -40,6 +40,7 @@ internal static class TasafModel
             e.Property(x => x.UpdatedBy).HasMaxLength(100);
         });
 
+        mb.Entity<TasafChain>().Property(x => x.CustomerMatch).HasMaxLength(500);
         mb.Entity<TasafChain>()
             .HasOne(x => x.SalesGroup).WithMany()
             .HasForeignKey(x => x.SalesGroupId)

@@ -13,6 +13,7 @@ public class TasafLookupDto
     public int? UserId { get; set; }
     public string? UserName { get; set; }
     public decimal? Amount { get; set; }
+    public string? Text { get; set; }
     public DateTime CreatedAt { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime? UpdatedAt { get; set; }
@@ -29,6 +30,7 @@ public class SaveTasafLookupDto
     public int? ParentId { get; set; }
     public int? UserId { get; set; }
     public decimal? Amount { get; set; }
+    public string? Text { get; set; }
 }
 
 /// <summary>Describes one master list to the setup page (which optional fields it shows).</summary>
@@ -40,6 +42,8 @@ public class TasafMasterMetaDto
     public string? ParentLabel { get; set; }
     public string? UserLabel { get; set; }
     public string? AmountLabel { get; set; }
+    /// <summary>Label of the optional text field (chains: customer-name keywords).</summary>
+    public string? TextLabel { get; set; }
 }
 
 /// <summary>Approval rules: approval types × roles → not required / always / over amount.</summary>

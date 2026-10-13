@@ -186,9 +186,7 @@ export class TasafListPageComponent implements OnInit, OnDestroy {
   }
 
   duration(t: TasafListItem) {
-    const s = formatPeriod(t.startMonth, t.startYear);
-    const e = formatPeriod(t.endMonth, t.endYear);
-    return s && e && s !== e ? `${s} – ${e}` : s || e;
+    return formatPeriod(t.startDate, t.endDate);
   }
 
   open(t: TasafListItem) {

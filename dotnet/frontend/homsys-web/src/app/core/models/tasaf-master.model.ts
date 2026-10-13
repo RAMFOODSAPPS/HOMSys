@@ -6,6 +6,7 @@ export interface TasafMasterMeta {
   parentLabel?: string | null;
   userLabel?: string | null;
   amountLabel?: string | null;
+  textLabel?: string | null;
 }
 
 /** Approval rules: approval types × roles → not required / always (overAmount null) / over amount. */
@@ -48,6 +49,8 @@ export interface TasafLookupDto {
   userId?: number | null;
   userName?: string | null;
   amount?: number | null;
+  /** Chains: customer-name keywords for the TASAF Cust Key dropdown. */
+  text?: string | null;
   createdAt: string;
   createdBy: string;
   updatedAt?: string;
@@ -63,6 +66,7 @@ export interface SaveTasafLookupDto {
   parentId?: number | null;
   userId?: number | null;
   amount?: number | null;
+  text?: string | null;
 }
 
 export interface TasafUserOption {

@@ -19,15 +19,16 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { GlobalToolbarService } from '../../../core/services/global-toolbar.service';
 import { TabBarService } from '../../../core/services/tab-bar.service';
-import { TasafCustomerSuggestion, TasafProductSuggestion, TasafService } from '../../../core/services/tasaf.service';
+import { TasafChainCustomer, TasafCustomerSuggestion, TasafProductSuggestion, TasafService } from '../../../core/services/tasaf.service';
 import { DialogModule } from 'primeng/dialog';
+import { DatePickerModule } from 'primeng/datepicker';
 import { AuthService } from '../../../core/services/auth.service';
 import { FormLayoutService } from '../../../core/services/form-layout.service';
 import { FormLayoutItem, cellStyle, defaultItems, mergeLayout } from '../../../core/models/form-layout.model';
 import { FormDesignerComponent } from '../../../shared/form-designer/form-designer.component';
 import { TASAF_FIELDS, TASAF_FORM_KEY } from './tasaf-layout';
 import {
-  MONTHS, SaveTasafDto, TASAF_STATUS_SEVERITY, utc, TasafBranch, TasafDialogAction, TasafDto, TasafFormOptions, TasafOption, TasafProduct
+  SaveTasafDto, TASAF_STATUS_SEVERITY, utc, parseIsoDate, programDuration, toIsoDate, TasafBranch, TasafDialogAction, TasafDto, TasafFormOptions, TasafOption, TasafProduct
 } from '../../../core/models/tasaf.model';
 
 type PayKey = 'payInvDeductionAp' | 'payInvDeductionSalesman' | 'payCheckAp' | 'payCheckSalesman'
@@ -44,7 +45,7 @@ const TAB = '/tasafs';
 
 function blankModel(): SaveTasafDto {
   return {
-    title: '', startMonth: null, startYear: null, endMonth: null, endYear: null,
+    title: '', startDate: null, endDate: null,
     salesGroupId: null, areaId: null, chainId: null, custKey: null,
     programTypeId: null, programTypeOther: '', objectiveId: null, objectiveOther: '',
     targetMarketId: null, targetMarketOther: '', channelId: null,
@@ -69,7 +70,7 @@ function blankProduct(): TasafProduct {
   imports: [
     FormsModule, DatePipe, DecimalPipe, PercentPipe, InputTextModule, InputNumberModule, SelectModule,
     MultiSelectModule, AutoCompleteModule, TextareaModule, ButtonModule, TagModule, MessageModule,
-    ToastModule, TooltipModule, ConfirmDialogModule, DialogModule, FormDesignerComponent
+    ToastModule, TooltipModule, ConfirmDialogModule, DialogModule, DatePickerModule, FormDesignerComponent
   ],
   template: `
     <p-toast position="top-right" />
@@ -128,19 +129,23 @@ function blankProduct(): TasafProduct {
           @case ('start') {
             <div class="field">
               <label>{{ cap(it) }}</label>
-              <div class="pair">
-                <p-select [(ngModel)]="m.startMonth" [options]="months" optionLabel="label" optionValue="value" placeholder="Month" [showClear]="true" [disabled]="readonly()" />
-                <p-select [(ngModel)]="m.startYear" [options]="years" placeholder="Year" [showClear]="true" [disabled]="readonly()" />
-              </div>
+              <p-datepicker [(ngModel)]="startDate" dateFormat="M d, yy" placeholder="Select start date" [showIcon]="true"
+                [showButtonBar]="true" [maxDate]="endDate" appendTo="body" styleClass="w-full" inputStyleClass="w-full"
+                [disabled]="readonly()" />
             </div>
           }
           @case ('end') {
             <div class="field">
               <label>{{ cap(it) }}</label>
-              <div class="pair">
-                <p-select [(ngModel)]="m.endMonth" [options]="months" optionLabel="label" optionValue="value" placeholder="Month" [showClear]="true" [disabled]="readonly()" />
-                <p-select [(ngModel)]="m.endYear" [options]="years" placeholder="Year" [showClear]="true" [disabled]="readonly()" />
-              </div>
+              <p-datepicker [(ngModel)]="endDate" dateFormat="M d, yy" placeholder="Select end date" [showIcon]="true"
+                [showButtonBar]="true" [minDate]="startDate" appendTo="body" styleClass="w-full" inputStyleClass="w-full"
+                [disabled]="readonly()" />
+            </div>
+          }
+          @case ('duration') {
+            <div class="field">
+              <label>{{ cap(it) }}</label>
+              <div class="duration" [class.muted]="!duration()">{{ duration() ?? 'Pick the start and end dates' }}</div>
             </div>
           }
           @case ('salesGroup') {
@@ -160,19 +165,37 @@ function blankProduct(): TasafProduct {
           @case ('chain') {
             <div class="field">
               <label>{{ cap(it) }}</label>
-              <p-select [(ngModel)]="m.chainId" [options]="chainOptions()" optionLabel="name" optionValue="id"
+              <p-select [ngModel]="m.chainId" (ngModelChange)="onChain($event)" [options]="chainOptions()" optionLabel="name" optionValue="id"
                 [showClear]="true" [filter]="true" filterBy="name" placeholder="Select" styleClass="w-full" [disabled]="readonly()" />
             </div>
           }
           @case ('custKey') {
             <div class="field">
               <label>{{ cap(it) }} <span class="opt">(customer master, optional)</span></label>
-              <p-autoComplete [(ngModel)]="customer" [suggestions]="customerHits()" optionLabel="cusName" [forceSelection]="true"
-                [minLength]="2" [delay]="600" (completeMethod)="searchCustomer($event.query)" (onSelect)="onCustomer()"
-                (onClear)="onCustomer()" [showClear]="true" appendTo="body" styleClass="w-full" [inputStyle]="{ width: '100%' }"
-                placeholder="Type cust key or name" [disabled]="readonly()">
-                <ng-template let-c pTemplate="item">{{ c.custKey }} — {{ c.cusName }}</ng-template>
-              </p-autoComplete>
+              @if (chainCustomers().length) {
+                <!-- The chain's stores (TASAF Setup › Customers / Chains › customer name keywords). -->
+                <p-select [ngModel]="customer?.custKey ?? null" (ngModelChange)="pickChainCustomer($event)"
+                  [options]="chainCustomers()" optionValue="custKey" optionLabel="cusName" [filter]="true"
+                  filterBy="custKey,cusName,address,branch" [showClear]="true" [virtualScroll]="true" [virtualScrollItemSize]="44"
+                  [placeholder]="'Select from ' + chainCustomers().length + ' ' + chainName() + ' stores'" appendTo="body"
+                  styleClass="w-full" [disabled]="readonly()" [loading]="chainLoading()">
+                  <ng-template let-c pTemplate="item">
+                    <div class="cust-opt">
+                      <span><strong>{{ c.custKey }}</strong> — {{ c.cusName }}</span>
+                      <small class="muted">{{ c.branch }}@if (c.address) { · {{ c.address }} }</small>
+                    </div>
+                  </ng-template>
+                  <ng-template let-c pTemplate="selectedItem">{{ c.custKey }} — {{ c.cusName }}</ng-template>
+                </p-select>
+              } @else {
+                <p-autoComplete [(ngModel)]="customer" [suggestions]="customerHits()" optionLabel="cusName" [forceSelection]="true"
+                  [minLength]="2" [delay]="600" (completeMethod)="searchCustomer($event.query)" (onSelect)="onCustomer()"
+                  (onClear)="onCustomer()" [showClear]="true" appendTo="body" styleClass="w-full" [inputStyle]="{ width: '100%' }"
+                  placeholder="Type cust key or name" [disabled]="readonly()">
+                  <ng-template let-c pTemplate="item">{{ c.custKey }} — {{ c.cusName }}</ng-template>
+                </p-autoComplete>
+                @if (chainNoMatch()) { <small class="muted">No stores match {{ chainName() }}'s keywords — search all customers.</small> }
+              }
               @if (m.custKey) { <small class="muted">Cust Key {{ m.custKey }}</small> }
             </div>
           }
@@ -514,7 +537,10 @@ function blankProduct(): TasafProduct {
     .field { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.75rem; min-width: 0; }
     .field.full { grid-column: 1 / -1; }
     .field label { font-weight: 500; font-size: 0.85rem; }
-    .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    .duration { display: flex; align-items: center; min-height: 2.5rem; padding: 0 0.75rem; border-radius: 6px;
+      background: rgba(128, 0, 0, 0.05); color: #800000; font-weight: 600; font-size: 0.875rem; }
+    .duration.muted { color: var(--p-text-muted-color); font-weight: 400; }
+    .cust-opt { display: flex; flex-direction: column; line-height: 1.25; }
     .req { color: var(--p-red-500, #ef4444); }
     .opt, .muted { font-weight: 400; font-size: 0.75rem; color: var(--p-text-muted-color); }
     fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
@@ -567,8 +593,6 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   private navSub?: Subscription;
   private snapshot = '';
 
-  protected readonly months  = MONTHS.map((label, i) => ({ label, value: i + 1 }));
-  protected readonly years   = (() => { const y = new Date().getFullYear(); return [y - 1, y, y + 1, y + 2]; })();
   protected readonly payRows = PAY_ROWS;
   protected readonly utc     = utc;
 
@@ -617,6 +641,15 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   protected m: SaveTasafDto = blankModel();
   protected customer: TasafCustomerSuggestion | null = null;
   protected branchSel: TasafBranch[] = [];
+  /** Stores of the selected chain (empty = use the free customer search). */
+  protected chainCustomers = signal<TasafChainCustomer[]>([]);
+  protected chainLoading   = signal(false);
+  protected chainNoMatch   = signal(false);
+  private chainReq = 0;
+  /** Program duration pickers (Date); sent as 'yyyy-MM-dd'. */
+  protected startDate: Date | null = null;
+  protected endDate: Date | null = null;
+  duration() { return programDuration(this.startDate, this.endDate); }
 
   ngOnInit() {
     this.api.getOptions().subscribe(res => this.options.set(res.data ?? null));
@@ -701,12 +734,17 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     } as SaveTasafDto;
     this.branchSel = (src.branches ?? []).map(x => ({ ...x }));
     this.customer = customer;
+    this.startDate = parseIsoDate(src.startDate);
+    this.endDate = parseIsoDate(src.endDate);
+    this.loadChainCustomers(this.m.chainId, false);
     this.snapshot = JSON.stringify(this.payload());
   }
 
   private payload(): SaveTasafDto {
     return {
       ...this.m,
+      startDate: toIsoDate(this.startDate),
+      endDate: toIsoDate(this.endDate),
       custKey: this.customer?.custKey ?? null,
       branches: this.branchSel.map(b => ({ siteId: b.siteId ?? null, name: b.name })),
     };
@@ -818,6 +856,47 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   onCustomer() {
     this.m.custKey = this.customer?.custKey ?? null;
   }
+
+  // ── Cust Key per chain ─────────────────────────────────────
+  /** User picked a chain: load its stores; drop a Cust Key that isn't one of them. */
+  onChain(chainId: number | null) {
+    this.m.chainId = chainId;
+    this.loadChainCustomers(chainId, true);
+  }
+
+  private loadChainCustomers(chainId: number | null, clearIfNotInList: boolean) {
+    const req = ++this.chainReq;
+    this.chainCustomers.set([]);
+    this.chainNoMatch.set(false);
+    if (!chainId) return;
+    this.chainLoading.set(true);
+    this.api.chainCustomers(chainId).subscribe({
+      next: res => {
+        if (req !== this.chainReq) return; // a newer chain was picked meanwhile
+        this.chainLoading.set(false);
+        let list = res.data?.customers ?? [];
+        // A saved Cust Key that no longer matches the keywords still shows as selected.
+        const cur = this.customer;
+        if (!clearIfNotInList && cur && list.length && !list.some(c => c.custKey === cur.custKey))
+          list = [{ custKey: cur.custKey, cusName: cur.cusName, branch: '', address: '' }, ...list];
+        this.chainCustomers.set(list);
+        this.chainNoMatch.set(!!res.data?.filtered && list.length === 0);
+        if (clearIfNotInList && list.length && this.customer && !list.some(c => c.custKey === this.customer!.custKey)) {
+          this.customer = null;
+          this.onCustomer();
+        }
+      },
+      error: () => { if (req === this.chainReq) this.chainLoading.set(false); }
+    });
+  }
+
+  pickChainCustomer(custKey: string | null) {
+    const c = custKey ? this.chainCustomers().find(x => x.custKey === custKey) : null;
+    this.customer = c ? { custKey: c.custKey, cusName: c.cusName } : null;
+    this.onCustomer();
+  }
+
+  chainName() { return this.list('chains').find(o => o.id === this.m.chainId)?.name ?? ''; }
 
   searchProduct(term: string) {
     this.api.searchProducts(term).subscribe(res => this.productHits.set(res.data ?? []));

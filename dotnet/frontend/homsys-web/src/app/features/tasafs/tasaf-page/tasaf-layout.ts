@@ -9,8 +9,9 @@ export const TASAF_FORM_KEY = 'tasaf';
  */
 export const TASAF_FIELDS: FormFieldDef[] = [
   { key: 'title',             label: 'Activity Title',          kind: 'field', required: true, minW: 4, col: 1, row: 1,  w: 12, h: 1 },
-  { key: 'start',             label: 'Start',                   kind: 'field', required: true, minW: 3, col: 1, row: 2,  w: 6,  h: 1 },
-  { key: 'end',               label: 'End',                     kind: 'field', required: true, minW: 3, col: 7, row: 2,  w: 6,  h: 1 },
+  { key: 'start',             label: 'Start Date',              kind: 'field', required: true, minW: 3, col: 1, row: 2,  w: 4,  h: 1 },
+  { key: 'end',               label: 'End Date',                kind: 'field', required: true, minW: 3, col: 5, row: 2,  w: 4,  h: 1 },
+  { key: 'duration',          label: 'Program Duration',        kind: 'field', hint: 'Calculated from the start and end dates', minW: 3, col: 9, row: 2, w: 4, h: 1 },
   { key: 'salesGroup',        label: 'Sales Group',             kind: 'field', required: true,          col: 1, row: 3,  w: 6,  h: 1 },
   { key: 'area',              label: 'Area',                    kind: 'field', required: true,          col: 7, row: 3,  w: 6,  h: 1 },
   { key: 'chain',             label: 'Customer / Chain',        kind: 'field', required: true,          col: 1, row: 4,  w: 6,  h: 1 },

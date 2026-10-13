@@ -22,16 +22,23 @@ public abstract class TasafLookup
 public interface ITasafParentLookup { int? ParentId { get; set; } }
 public interface ITasafUserLookup   { int? UserId   { get; set; } }
 public interface ITasafAmountLookup { decimal? Amount { get; set; } }
+public interface ITasafTextLookup   { string Text { get; set; } }
 
 /// <summary>NKA / RKA / LKA / GT. Its approvers per role are in TasafApprover (the approval matrix).</summary>
 public class TasafSalesGroup : TasafLookup { }
 
 /// <summary>Customer chain/account (SVI, Puregold, RCS Chain ...).</summary>
-public class TasafChain : TasafLookup, ITasafParentLookup
+public class TasafChain : TasafLookup, ITasafParentLookup, ITasafTextLookup
 {
     public int? SalesGroupId { get; set; }
     public TasafSalesGroup? SalesGroup { get; set; }
     int? ITasafParentLookup.ParentId { get => SalesGroupId; set => SalesGroupId = value; }
+    /// <summary>
+    /// Customer-name keywords (comma-separated, SQL LIKE fragments) that pick this chain's stores
+    /// from the customer master for the TASAF Cust Key dropdown. Empty = no filter (search all).
+    /// </summary>
+    public string CustomerMatch { get; set; } = string.Empty;
+    string ITasafTextLookup.Text { get => CustomerMatch; set => CustomerMatch = value; }
 }
 
 public class TasafArea : TasafLookup { }

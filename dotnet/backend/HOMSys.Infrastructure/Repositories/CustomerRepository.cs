@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using HOMSys.Application.DTOs.SalesOrders;
 using HOMSys.Application.Interfaces;
 using HOMSys.Domain.Entities;
@@ -8,6 +9,41 @@ namespace HOMSys.Infrastructure.Repositories;
 
 public class CustomerRepository(AppDbContext db) : ICustomerRepository
 {
+    public async Task<List<CustomerMatchInfo>> MatchByNameAsync(IReadOnlyList<string> fragments, int take)
+    {
+        if (fragments.Count == 0) return [];
+
+        // CusName LIKE '%f1%' OR CusName LIKE '%f2%' ... built as an expression so EF
+        // translates it to one parameterised WHERE (fragments are values, never SQL text).
+        var c = Expression.Parameter(typeof(Customer), "c");
+        var name = Expression.Property(c, nameof(Customer.CusName));
+        var like = typeof(DbFunctionsExtensions).GetMethod(nameof(DbFunctionsExtensions.Like),
+            [typeof(DbFunctions), typeof(string), typeof(string)])!;
+        Expression? any = null;
+        foreach (var f in fragments)
+        {
+            var call = Expression.Call(like, Expression.Constant(EF.Functions), name, Expression.Constant($"%{f}%"));
+            any = any is null ? call : Expression.OrElse(any, call);
+        }
+        var predicate = Expression.Lambda<Func<Customer, bool>>(any!, c);
+
+        var rows = await db.Customers.AsNoTracking()
+            .Where(x => !x.Inactive)
+            .Where(predicate)
+            .OrderBy(x => x.CusName)
+            .Select(x => new { x.CustKey, x.CusName, x.Branch, x.AddrLn1, x.AddrLn2, x.Id })
+            .Take(take * 2) // a CustKey can sit in more than one branch file — dedupe below
+            .ToListAsync();
+
+        return rows
+            .GroupBy(x => x.CustKey)
+            .Select(g => g.OrderByDescending(x => x.Id).First())
+            .Take(take)
+            .Select(x => new CustomerMatchInfo(x.CustKey.Trim(), x.CusName.Trim(), x.Branch,
+                $"{x.AddrLn1.Trim()} {x.AddrLn2.Trim()}".Trim()))
+            .ToList();
+    }
+
     // CustKey lives in exactly one branch's file in practice — take the most
     // recently imported row if that ever isn't true, rather than throwing.
     public async Task<Customer?> GetByCustKeyAsync(string custKey) =>

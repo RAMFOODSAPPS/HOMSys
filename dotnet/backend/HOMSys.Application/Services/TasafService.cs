@@ -72,10 +72,8 @@ public class TasafService(
                 ChainName       = t.Chain?.Name,
                 CustomerName    = t.CustomerName,
                 ProgramTypeName = t.ProgramType?.Name,
-                StartMonth      = t.StartMonth,
-                StartYear       = t.StartYear,
-                EndMonth        = t.EndMonth,
-                EndYear         = t.EndYear,
+                StartDate       = t.StartDate,
+                EndDate         = t.EndDate,
                 TotalCost       = t.TotalCost,
                 ProponentName   = t.ProponentName,
                 CreatedAt       = t.CreatedAt,
@@ -89,6 +87,22 @@ public class TasafService(
         if (t is null) return (null, NotFound);
         if (!CanView(t)) return (null, Forbidden);
         return (Map(t), null);
+    }
+
+    /// <summary>
+    /// A chain's stores from the customer master, by its customer-name keywords (TASAF Setup ›
+    /// Customers / Chains). filtered = false when the chain has no keywords (search everything).
+    /// </summary>
+    public async Task<(List<CustomerMatchInfo> customers, bool filtered)> GetChainCustomersAsync(int chainId)
+    {
+        if (await lookups.GetByIdAsync(typeof(TasafChain), chainId) is not TasafChain chain) return ([], false);
+        var fragments = chain.CustomerMatch
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(f => f.Length >= 2)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (fragments.Count == 0) return ([], false);
+        return (await customers.MatchByNameAsync(fragments, take: 2000), true);
     }
 
     public async Task<TasafProductLookupDto?> LookupProductAsync(string cProdNo)
@@ -429,8 +443,8 @@ public class TasafService(
     private static List<string> MissingForSubmit(Tasaf t)
     {
         var m = new List<string>();
-        if (t.StartMonth is null || t.StartYear is null) m.Add("Start month/year");
-        if (t.EndMonth is null || t.EndYear is null) m.Add("End month/year");
+        if (t.StartDate is null) m.Add("Program start date");
+        if (t.EndDate is null) m.Add("Program end date");
         if (t.SalesGroupId is null) m.Add("Sales Group");
         if (t.AreaId is null) m.Add("Area");
         if (t.ChainId is null) m.Add("Customer / Chain");
@@ -500,13 +514,9 @@ public class TasafService(
         if (dto.Title.Length == 0) return "Activity Title is required.";
         if (dto.Title.Length > 200) return "Activity Title must be 200 characters or fewer.";
 
-        foreach (var (m, y, label) in new[] { (dto.StartMonth, dto.StartYear, "Start"), (dto.EndMonth, dto.EndYear, "End") })
-        {
-            if (m is not null and (< 1 or > 12)) return $"{label} month is invalid.";
-            if (y is not null and (< 2000 or > 2100)) return $"{label} year is invalid.";
-        }
-        if (dto is { StartMonth: int sm, StartYear: int sy, EndMonth: int em, EndYear: int ey }
-            && ey * 12 + em < sy * 12 + sm)
+        foreach (var (d, label) in new[] { (dto.StartDate, "Start"), (dto.EndDate, "End") })
+            if (d is { Year: < 2000 or > 2100 }) return $"{label} date is invalid.";
+        if (dto is { StartDate: DateOnly start, EndDate: DateOnly end } && end < start)
             return "End date cannot be before the start date.";
 
         // Every picked lookup must exist (inactive is allowed, so an older draft still saves).
@@ -546,10 +556,8 @@ public class TasafService(
 
         // Header
         t.Title             = dto.Title;
-        t.StartMonth        = dto.StartMonth;
-        t.StartYear         = dto.StartYear;
-        t.EndMonth          = dto.EndMonth;
-        t.EndYear           = dto.EndYear;
+        t.StartDate         = dto.StartDate;
+        t.EndDate           = dto.EndDate;
         t.SalesGroupId      = dto.SalesGroupId;
         t.AreaId            = dto.AreaId;
         t.ChainId           = dto.ChainId;
@@ -642,10 +650,8 @@ public class TasafService(
             RefNo             = t.RefNo,
             Status            = t.Status,
             Title             = t.Title,
-            StartMonth        = t.StartMonth,
-            StartYear         = t.StartYear,
-            EndMonth          = t.EndMonth,
-            EndYear           = t.EndYear,
+            StartDate         = t.StartDate,
+            EndDate           = t.EndDate,
             SalesGroupId      = t.SalesGroupId,
             SalesGroupName    = t.SalesGroup?.Name,
             AreaId            = t.AreaId,
