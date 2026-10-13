@@ -119,6 +119,30 @@ export const routes: Routes = [
         data: { permission: 'legacy-monitoring' },
         loadComponent: () =>
           import('./features/legacy-monitoring/legacy-monitoring-page.component').then(m => m.LegacyMonitoringPageComponent)
+      },
+      {
+        path: 'products',
+        data: { permission: 'products' },
+        loadComponent: () =>
+          import('./features/products/products-page.component').then(m => m.ProductsPageComponent)
+      },
+      {
+        path: 'customers',
+        data: { permission: 'customers' },
+        loadComponent: () =>
+          import('./features/customers/customers-page.component').then(m => m.CustomersPageComponent)
+      },
+      {
+        path: 'tasafs',
+        data: { permission: 'tasaf' },
+        loadChildren: () =>
+          import('./features/tasafs/tasaf.routes').then(m => m.tasafRoutes)
+      },
+      {
+        path: 'tasaf-setup',
+        data: { permission: 'tasaf-masters' },
+        loadComponent: () =>
+          import('./features/tasaf-setup/tasaf-setup-page.component').then(m => m.TasafSetupPageComponent)
       }
     ]
   },

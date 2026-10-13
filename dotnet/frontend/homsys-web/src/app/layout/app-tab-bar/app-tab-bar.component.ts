@@ -31,8 +31,8 @@ import { AppTab, TabBarService } from '../../core/services/tab-bar.service';
     .tab-bar {
       display: flex;
       align-items: stretch;
-      background: var(--p-surface-card);
-      border-bottom: 1px solid #d1d5db;
+      background: #f3e6e6;
+      border-bottom: 1px solid #e2cccc;
       height: 34px;
       overflow-x: auto;
       overflow-y: hidden;
@@ -50,7 +50,7 @@ import { AppTab, TabBarService } from '../../core/services/tab-bar.service';
       font-weight: 500;
       color: var(--p-text-muted-color);
       cursor: pointer;
-      border-right: 1px solid #e5e7eb;
+      border-right: 1px solid #e2cccc;
       border-bottom: 2px solid transparent;
       white-space: nowrap;
       transition: background 0.13s, color 0.13s;
@@ -58,12 +58,12 @@ import { AppTab, TabBarService } from '../../core/services/tab-bar.service';
       min-width: 0;
     }
 
-    .tab:hover { background: var(--p-surface-hover); color: var(--p-text-color); }
+    .tab:hover { background: rgba(255, 255, 255, 0.55); color: var(--p-text-color); }
 
     .tab.active {
       color: #800000;
       border-bottom-color: #800000;
-      background: rgba(128, 0, 0, 0.05);
+      background: #fff;
       font-weight: 600;
     }
 

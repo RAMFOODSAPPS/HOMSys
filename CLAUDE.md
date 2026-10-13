@@ -410,6 +410,79 @@ Logs to `%LOCALAPPDATA%\HOMSys\legacy_master_watcher.log`.
 default 30s was observed failing mid-batch on the ~105k-row `ZoneAddOn`
 truncate+reload under load.
 
+## Products / Customers pages (read-only master data)
+
+`/products` (`ProductCatalogService`, permission `products` 19) and `/customers`
+(`CustomerMasterService`, permission `customers` 20) only *view* the synced BMS
+masters — never edit them (the next sync would overwrite). Customers holds every
+branch folder's cust4win (~236k rows, ~10.6k active), so `/api/customers` is
+server-side paged/searched/sorted (sort fields whitelisted; export capped at 20,000).
+Product status: Delisted = category group "Delisted", else Phased Out = `PhOut`.
+
+## TASAF module (Trade Activity Spend Approval Form)
+
+Web version of `TASA Form_MT version template 2026.xlsx` (trade marketing; source:
+OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
+
+- **Masters** (`TasafLookups.cs`, mapping + seed from the workbook's DATA sheet in
+  `Infrastructure\Data\TasafModel.cs`): 11 tables sharing `TasafLookup`, all served by
+  one `TasafMasterService`/`TasafMastersController` (`api/tasaf-masters/{key}`) and one
+  page `/tasaf-setup`. Adding a list = entity + DbSet + entry in
+  `TasafMasterService.Masters` + `TasafLookupRepository.Sets`. Referenced rows can't be
+  deleted (FK Restrict) — deactivate instead.
+- **Form** (`Tasaf` + Branches/Products/Costs/Actions, `TasafService`, `/tasafs`).
+  Branches = active Sites + "ALL BRANCHES/LUZON/VISAYAS/MINDANAO" (SiteId null).
+  Server recomputes TotalCost, product PromotedValue (vol × LSP), and promoted /
+  incremental sales from products when any are listed.
+- **Workflow** ("Simplified Approval Matrix", `Data Fields for IT.xlsx` › TASAF):
+  Draft → For Approval → Approved, signed **sequentially** by a chain built at submit
+  into `TasafApprovalStep`s. Two approval matrices = `TasafApprovalType` (1 Promo /
+  Near Ex Moveout, 2 Listing Fees, Conventions, Other Account Support); each
+  `TasafProgramType.ApprovalTypeId` picks one. `TasafApprovalRule` (type × role, setup ›
+  Approval Rules) says when a role signs: `OverAmount` null = always, else only when
+  the total is **more than** it (Promo: GKAM, TMM, NSM >20k, NSD >50k, COO >100k;
+  Support: GKAM, TMM, NSM >20k, NSD + COO always). No rule = not required. Signing
+  order = role `SortOrder`. The person per role is per sales group in `TasafApprover`
+  (setup › Approval Matrix); a vacant cell = step `Skipped`.
+  Any approver can Return (→ Returned, editable; resubmit rebuilds the chain) or
+  Reject; both need a comment. Submit requires payment grid total = TotalCost and
+  CTS ≤ the program type's `MaxCtsPercent` (8% on PROMO- types).
+  RefNo `YEAR-SG-INITIALS-NN` (workbook GUIDE sheet, e.g. `2025-RKA-ER-03`) assigned on first
+  submit and kept through returns/resubmits (`TasafRepository.SubmitAsync` retries on the
+  unique index). YEAR = Manila date at submit; SG = sales group Code; INITIALS = first letter
+  of the proponent's FirstName + LastName (`Juan Dela Cruz Jr.` → `JD`); NN = ONE continuous
+  series across all TASAFs (every year, sales group and proponent), never resets, no 99 cap
+  (`2026-RKA-ER-01`, `2026-NKA-MV-02`, … `2027-RKA-ER-58`, … `100`). The form header previews `2026-RKA-ER-NN` before submit.
+- **Access**: `tasaf` (17) create/see own + those you review/approve; `tasaf-view-all`
+  (18); `tasaf-masters` (16). GKAMs and approvers also need `tasaf` to open the page.
+  **Delete is Admin-only** (`[Authorize(Roles = "Admin")]` + `TasafService.CanDelete`), and
+  **Approved / Cancelled are never deleted** (kept for the record). Mistakes are fixed with:
+  - **Revert** (Admin, `POST {id}/revert`, reason required): For Approval / Approved / Rejected →
+    Returned to the proponent; signed steps stay as history, resubmit rebuilds the chain.
+  - **Cancel** (proponent or Admin, `POST {id}/cancel`, reason required): any status except
+    Approved (revert first) → **Cancelled**, terminal; unsigned steps become Skipped.
+  Both log a `TasafAction` and notify the proponent, the waiting approver and everyone who signed.
+- **Notifications**: generic `Notification` table + `NotificationService.SendAsync`
+  (any module), `api/notifications`, topbar bell polls every 60 s. A notification's
+  `Link` is navigated with state `{ <EntityType>Id: EntityId }`.
+
+## Form Designer (admin-arranged form layouts)
+
+VB-style designer on a 12-column snap grid: move/resize fields, relabel, hide optional
+ones, set tab order. **Admin only** (toolbar `design` action, set by the page only for `isAdmin()`;
+`PUT/DELETE api/form-layouts/{formKey}` are `[Authorize(Roles = "Admin")]`, GET is any
+signed-in user). One `FormLayouts` row per form (`LayoutJson`, shape owned by the
+frontend); no row = the built-in default. Only the TASAF form uses it so far.
+
+- Frontend: `core/models/form-layout.model.ts` (types, `mergeLayout`, push-down
+  collision resolve), `shared/form-designer/` (the designer), `FormLayoutService`.
+- Converting a form: declare its `FormFieldDef[]` with default positions (see
+  `tasafs/tasaf-page/tasaf-layout.ts`; `required` = can't be hidden — keep it in sync
+  with the server's submit checks), render `@for (it of shown()) <div class="fl-cell"
+  [style]="cellStyle(it)">@switch (it.key) …`. Items render in tab order, so DOM/Tab
+  order follows the layout; under 800px it falls back to one column. Renaming a field
+  key orphans its saved placement (it reappears at the bottom with defaults).
+
 ## Working with DBF files
 
 `Infrastructure\Data\Dbf\DbfReader.cs` handles reads. Two traps already paid for:

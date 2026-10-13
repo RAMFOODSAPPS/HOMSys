@@ -44,7 +44,11 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("customer-search", p => p.RequireClaim("permission", "sales-orders", "pricelist-export"))
     .AddPolicy("legacy-monitoring", p => p.RequireClaim("permission", "legacy-monitoring"))
     .AddPolicy("data-analytics", p => p.RequireClaim("permission", "data-analytics"))
-    .AddPolicy("offshore-encode", p => p.RequireClaim("permission", "offshore-encode"));
+    .AddPolicy("offshore-encode", p => p.RequireClaim("permission", "offshore-encode"))
+    .AddPolicy("tasaf-masters", p => p.RequireClaim("permission", "tasaf-masters"))
+    .AddPolicy("tasaf", p => p.RequireClaim("permission", "tasaf"))
+    .AddPolicy("products", p => p.RequireClaim("permission", "products"))
+    .AddPolicy("customers", p => p.RequireClaim("permission", "customers"));
 
 // CORS — allow specific origins and credentials (required for HttpOnly cookie)
 builder.Services.AddCors(options =>

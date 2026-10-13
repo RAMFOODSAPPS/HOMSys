@@ -1,4 +1,5 @@
 using HOMSys.Application.DTOs.Pricing;
+using HOMSys.Application.DTOs.Products;
 using HOMSys.Application.Interfaces;
 using HOMSys.Domain.Entities;
 using HOMSys.Infrastructure.Data;
@@ -8,6 +9,46 @@ namespace HOMSys.Infrastructure.Repositories;
 
 public class ProductRepository(AppDbContext db) : IProductRepository
 {
+    public async Task<List<ProductCatalogDto>> GetCatalogAsync() =>
+        await (from p in db.Products.AsNoTracking()
+               join c in db.ProductCategories.AsNoTracking() on p.Category equals c.CategoryCode into cj
+               from c in cj.DefaultIfEmpty()
+               orderby c == null ? 999 : c.GroupNo, c == null ? 999 : c.SeqNo, p.ProdNo
+               select new ProductCatalogDto
+               {
+                   Id          = p.Id,
+                   ProdNo      = p.ProdNo,
+                   CProdNo     = p.CProdNo,
+                   ProdDesc    = p.ProdDesc,
+                   PackSize    = p.PackSize,
+                   Pieces      = p.Pieces,
+                   Um          = p.Um,
+                   NewPrice    = p.NewPrice,
+                   PriceFrom   = p.PriceFrom,
+                   OldPrice1   = p.OldPrice1,
+                   Srp         = p.Srp,
+                   TaxRate     = p.TaxRate,
+                   Category    = p.Category,
+                   GroupDesc   = c == null ? null : c.GroupDesc,
+                   SubCat      = c == null ? null : c.SubCat,
+                   GroupNo     = c == null ? 999 : c.GroupNo,
+                   SeqNo       = c == null ? 999 : c.SeqNo,
+                   Brand       = p.Brand,
+                   SBrand      = p.SBrand,
+                   Barcode     = p.Barcode,
+                   CaseBarcode = p.CaseBarcode,
+                   PriceList   = p.PriceList,
+                   PhOut       = p.PhOut,
+                   ImportedAt  = p.ImportedAt
+               })
+            .ToListAsync();
+
+    public async Task<List<PriceHistory>> GetPriceHistoryAsync(int prodNo) =>
+        await db.PriceHistories.AsNoTracking()
+            .Where(h => h.ProdNo == prodNo)
+            .OrderByDescending(h => h.Effective).ThenByDescending(h => h.RecNo)
+            .ToListAsync();
+
     public async Task<Product?> GetByCProdNoAsync(string cProdNo) =>
         await db.Products.AsNoTracking()
             .FirstOrDefaultAsync(p => p.CProdNo == cProdNo);

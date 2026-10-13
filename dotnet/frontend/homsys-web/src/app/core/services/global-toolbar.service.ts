@@ -23,6 +23,16 @@ export interface ExportConfig {
 export interface ToolbarConfig {
   title?:   string;
   save?:    ToolbarHandler;
+  /** Workflow submit (send icon next to Save); label is the tooltip, e.g. TASAF "Submit" / "Resubmit". */
+  submit?:  ToolbarHandler & { label: string };
+  /** Workflow decisions for the current approver (tooltip = label). */
+  approve?: ToolbarHandler & { label: string };
+  return?:  ToolbarHandler;
+  reject?:  ToolbarHandler;
+  /** Admin: undo an approval (back to the proponent). */
+  revert?:  ToolbarHandler;
+  /** Withdraw the document (kept, status Cancelled) — not the same as `cancel` (discard edits). */
+  cancelDoc?: ToolbarHandler & { label: string };
   cancel?:  ToolbarHandler;
   add?:     ToolbarHandler;
   edit?:    ToolbarHandler;
@@ -36,6 +46,8 @@ export interface ToolbarConfig {
   export?: ExportConfig;
   import?: ToolbarHandler;
   importByName?: ToolbarHandler;
+  /** Form Designer — pages only set this for Admins. */
+  design?: ToolbarHandler;
 }
 
 @Injectable({ providedIn: 'root' })

@@ -27,6 +27,13 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
               [disabled]="cfg().save!.disabled ? cfg().save!.disabled!() : false"
               (onClick)="cfg().save!.onClick()" />
           }
+          @if (cfg().submit) {
+            <p-button icon="pi pi-send" [pTooltip]="cfg().submit!.label" tooltipPosition="bottom"
+              [text]="true"
+              [loading]="cfg().submit!.loading ? cfg().submit!.loading!() : false"
+              [disabled]="cfg().submit!.disabled ? cfg().submit!.disabled!() : false"
+              (onClick)="cfg().submit!.onClick()" />
+          }
           @if (cfg().cancel) {
             <p-button icon="pi pi-times" pTooltip="Cancel" tooltipPosition="bottom"
               [text]="true" severity="secondary"
@@ -76,6 +83,43 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
               (onClick)="cfg().find!.onClick()" />
           }
         </div>
+
+        <!-- Workflow decisions (current approver only) -->
+        @if (cfg().approve || cfg().return || cfg().reject || cfg().revert || cfg().cancelDoc) {
+          <p-divider layout="vertical" />
+          <div class="action-group">
+            @if (cfg().approve) {
+              <p-button icon="pi pi-check" [pTooltip]="cfg().approve!.label" tooltipPosition="bottom"
+                [text]="true" severity="success"
+                [disabled]="cfg().approve!.disabled ? cfg().approve!.disabled!() : false"
+                (onClick)="cfg().approve!.onClick()" />
+            }
+            @if (cfg().return) {
+              <p-button icon="pi pi-undo" pTooltip="Return to proponent" tooltipPosition="bottom"
+                [text]="true" severity="secondary"
+                [disabled]="cfg().return!.disabled ? cfg().return!.disabled!() : false"
+                (onClick)="cfg().return!.onClick()" />
+            }
+            @if (cfg().reject) {
+              <p-button icon="pi pi-ban" pTooltip="Reject" tooltipPosition="bottom"
+                [text]="true" severity="danger"
+                [disabled]="cfg().reject!.disabled ? cfg().reject!.disabled!() : false"
+                (onClick)="cfg().reject!.onClick()" />
+            }
+            @if (cfg().revert) {
+              <p-button icon="pi pi-history" pTooltip="Revert (Admin) — back to the proponent" tooltipPosition="bottom"
+                [text]="true" severity="warn"
+                [disabled]="cfg().revert!.disabled ? cfg().revert!.disabled!() : false"
+                (onClick)="cfg().revert!.onClick()" />
+            }
+            @if (cfg().cancelDoc) {
+              <p-button icon="pi pi-times-circle" [pTooltip]="cfg().cancelDoc!.label" tooltipPosition="bottom"
+                [text]="true" severity="danger"
+                [disabled]="cfg().cancelDoc!.disabled ? cfg().cancelDoc!.disabled!() : false"
+                (onClick)="cfg().cancelDoc!.onClick()" />
+            }
+          </div>
+        }
 
         <!-- Search box (live filter — list pages only) -->
         @if (cfg().search) {
@@ -135,6 +179,19 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
           </div>
         }
 
+        <!-- Form Designer (Admin) -->
+        @if (cfg().design) {
+          <p-divider layout="vertical" />
+          <div class="action-group">
+            <span class="tooltip-wrap" pTooltip="Design Layout" tooltipPosition="bottom">
+              <p-button icon="pi pi-objects-column"
+                [text]="true"
+                [disabled]="cfg().design!.disabled ? cfg().design!.disabled!() : false"
+                (onClick)="cfg().design!.onClick()" />
+            </span>
+          </div>
+        }
+
       </div>
     }
   `,
@@ -143,8 +200,8 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
       display: flex;
       align-items: center;
       padding: 0 0.75rem;
-      background: var(--p-surface-card);
-      border-bottom: 1px solid var(--p-surface-border);
+      background: #faf3f3;
+      border-bottom: 1px solid #ecdcdc;
       flex-shrink: 0;
       min-height: 36px;
       gap: 0.15rem;
@@ -216,7 +273,7 @@ export class PageToolbarComponent {
 
   protected hasAnyAction() {
     const c = this.cfg();
-    return c.save || c.cancel || c.add || c.edit || c.delete || c.refresh || c.find || c.search || c.print || c.export || c.import || c.importByName;
+    return c.save || c.submit || c.approve || c.return || c.reject || c.revert || c.cancelDoc || c.cancel || c.add || c.edit || c.delete || c.refresh || c.find || c.search || c.print || c.export || c.import || c.importByName || c.design;
   }
 
   protected exportMenuItems(): MenuItem[] {

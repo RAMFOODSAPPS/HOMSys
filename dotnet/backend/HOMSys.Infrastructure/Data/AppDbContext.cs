@@ -68,8 +68,45 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     // Data Analytics saved reports + dashboards (dashboards embed widget specs).
     public DbSet<SavedReport> SavedReports => Set<SavedReport>();
 
+    // TASAF (Trade Activity Spend Approval Form) master lists — see TasafModel.
+    public DbSet<TasafSalesGroup> TasafSalesGroups => Set<TasafSalesGroup>();
+    public DbSet<TasafChain> TasafChains => Set<TasafChain>();
+    public DbSet<TasafArea> TasafAreas => Set<TasafArea>();
+    public DbSet<TasafProgramType> TasafProgramTypes => Set<TasafProgramType>();
+    public DbSet<TasafObjective> TasafObjectives => Set<TasafObjective>();
+    public DbSet<TasafTargetMarket> TasafTargetMarkets => Set<TasafTargetMarket>();
+    public DbSet<TasafChannel> TasafChannels => Set<TasafChannel>();
+    public DbSet<TasafProductGroup> TasafProductGroups => Set<TasafProductGroup>();
+    public DbSet<TasafCategory> TasafCategories => Set<TasafCategory>();
+    public DbSet<TasafCostType> TasafCostTypes => Set<TasafCostType>();
+    public DbSet<TasafApprovalRole> TasafApprovalRoles => Set<TasafApprovalRole>();
+    public DbSet<TasafApprover> TasafApprovers => Set<TasafApprover>();
+    public DbSet<TasafApprovalType> TasafApprovalTypes => Set<TasafApprovalType>();
+    public DbSet<TasafApprovalRule> TasafApprovalRules => Set<TasafApprovalRule>();
+    public DbSet<TasafApprovalStep> TasafApprovalSteps => Set<TasafApprovalStep>();
+    public DbSet<Tasaf> Tasafs => Set<Tasaf>();
+    public DbSet<TasafBranch> TasafBranches => Set<TasafBranch>();
+    public DbSet<TasafProduct> TasafProducts => Set<TasafProduct>();
+    public DbSet<TasafCost> TasafCosts => Set<TasafCost>();
+    public DbSet<TasafAction> TasafActions => Set<TasafAction>();
+
+    // In-app notifications (topbar bell) — see NotificationService.
+    public DbSet<Notification> Notifications => Set<Notification>();
+
+    // Form Designer layouts (admin-arranged form fields) — see FormLayoutService.
+    public DbSet<FormLayout> FormLayouts => Set<FormLayout>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        TasafModel.Configure(modelBuilder);
+
+        modelBuilder.Entity<FormLayout>(e =>
+        {
+            e.HasIndex(x => x.FormKey).IsUnique();
+            e.Property(x => x.FormKey).HasMaxLength(50);
+            e.Property(x => x.UpdatedBy).HasMaxLength(100);
+        });
+
         modelBuilder.Entity<UserRole>()
             .HasKey(ur => new { ur.UserId, ur.RoleId });
 
@@ -227,7 +264,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new Permission { Id = 12, Key = "pricelist-zone-export", Name = "Pricelist by Zone",  Description = "Generate branch pricelist Excel exports by zone" },
             new Permission { Id = 13, Key = "data-analytics", Name = "Data Analytics",           Description = "Build, view and share analytics reports and dashboards" },
             new Permission { Id = 14, Key = "data-analytics-admin", Name = "Data Analytics Admin", Description = "Publish system analytics templates and manage all shared analytics" },
-            new Permission { Id = 15, Key = "offshore-encode", Name = "Offshore Encoding", Description = "Encode sales orders For Branch — processed at this branch's BMS, then handed off to the selected branch" }
+            new Permission { Id = 15, Key = "offshore-encode", Name = "Offshore Encoding", Description = "Encode sales orders For Branch — processed at this branch's BMS, then handed off to the selected branch" },
+            new Permission { Id = 16, Key = "tasaf-masters", Name = "TASAF Setup", Description = "Maintain TASAF master lists, GKAM reviewers and the approval matrix" },
+            new Permission { Id = 17, Key = "tasaf", Name = "TASAF", Description = "Create and submit own Trade Activity Spend Approval Forms" },
+            new Permission { Id = 18, Key = "tasaf-view-all", Name = "TASAF View All", Description = "View every TASAF, not only your own (also needs TASAF)" },
+            new Permission { Id = 19, Key = "products", Name = "Products", Description = "View the product master (read-only, synced from BMS)" },
+            new Permission { Id = 20, Key = "customers", Name = "Customers", Description = "View the customer master (read-only, synced from each branch's BMS)" }
         );
 
         // Admin gets all permissions by default
@@ -246,7 +288,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new RolePermission { RoleId = 1, PermissionId = 12 },
             new RolePermission { RoleId = 1, PermissionId = 13 },
             new RolePermission { RoleId = 1, PermissionId = 14 },
-            new RolePermission { RoleId = 1, PermissionId = 15 }
+            new RolePermission { RoleId = 1, PermissionId = 15 },
+            new RolePermission { RoleId = 1, PermissionId = 16 },
+            new RolePermission { RoleId = 1, PermissionId = 17 },
+            new RolePermission { RoleId = 1, PermissionId = 18 },
+            new RolePermission { RoleId = 1, PermissionId = 19 },
+            new RolePermission { RoleId = 1, PermissionId = 20 }
         );
 
         // Seed default admin user (password: Admin@1234)

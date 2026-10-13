@@ -2,11 +2,12 @@ import { Component, computed, inject } from '@angular/core';
 import { AuthService } from '../../core/services/auth.service';
 import { LayoutService } from '../../core/services/layout.service';
 import { TabBarService } from '../../core/services/tab-bar.service';
+import { NotificationBellComponent } from './notification-bell.component';
 
 @Component({
   selector: 'app-topbar',
   standalone: true,
-  imports: [],
+  imports: [NotificationBellComponent],
   template: `
     <header class="topbar" [class.sb-open]="layout.sidebarVisible()">
 
@@ -35,6 +36,7 @@ import { TabBarService } from '../../core/services/tab-bar.service';
 
       <!-- User info -->
       <div class="topbar-right">
+        <app-notification-bell />
         <div class="user-avatar">{{ initials() }}</div>
         <div class="user-info">
           <span class="user-name">{{ auth.user()?.firstName }} {{ auth.user()?.lastName }}</span>
