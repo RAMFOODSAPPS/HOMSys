@@ -374,3 +374,8 @@ body.rc-resizing { cursor: col-resize !important; user-select: none; }
 }
 .lsp-mixed { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.5rem; padding: 0.4rem 0.6rem;
   border: 1px solid #fcd34d; background: #fffbeb; border-radius: 4px; font-size: 0.8rem; color: #92400e; }
+
+/* Company page logo (company-page.component). */
+.logo-box { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; padding: 0.5rem; border: 1px dashed #d9d9d9; border-radius: 6px; }
+.logo-preview { max-height: 56px; max-width: 220px; object-fit: contain; background: #fff; }
+.logo-meta { font-size: 0.8rem; color: #6b7280; }

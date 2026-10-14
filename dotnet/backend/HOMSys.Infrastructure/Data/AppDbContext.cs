@@ -186,6 +186,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasIndex(c => c.Code).IsUnique()
             .HasFilter("[Code] != ''");
 
+        modelBuilder.Entity<Company>(e =>
+        {
+            e.Property(c => c.LogoBlob).HasMaxLength(200);
+            e.Property(c => c.LogoContentType).HasMaxLength(50);
+        });
+
         modelBuilder.Entity<Department>()
             .HasOne(d => d.Company)
             .WithMany()

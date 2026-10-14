@@ -835,6 +835,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
 
   private loadTasaf(t: TasafDto) {
     this.current.set(t);
+    this.prefetchLogo(t.id); // Export › PDF is then instant
     this.apiError.set(null);
     this.setModel(t);
     this.tabBar.unregisterDirtyChecker(this.currentTabKey);
@@ -970,7 +971,21 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     const t = this.current();
     if (!t) return;
     this.warnUnsaved();
-    buildTasafPdf(t).save(`${t.refNo ?? 'TASAF-draft'}.pdf`);
+    const save = (logo: string | null) => buildTasafPdf(t, logo).save(`${t.refNo ?? 'TASAF-draft'}.pdf`);
+    // Logo prefetched when the TASAF opened → instant. Otherwise fetch it (no logo / an error still gives the PDF).
+    if (this.logoFor.has(t.id)) { save(this.logoFor.get(t.id) ?? null); return; }
+    this.messageSvc.add({ severity: 'info', summary: 'PDF', detail: 'Preparing PDF…', life: 2000 });
+    this.api.document(t.id).subscribe({
+      next: res => { this.logoFor.set(t.id, res.data?.logo ?? null); save(res.data?.logo ?? null); },
+      error: () => save(null)
+    });
+  }
+
+  /** Company logo per TASAF (data: URI or null), loaded in the background when the TASAF opens. */
+  private logoFor = new Map<number, string | null>();
+  private prefetchLogo(id: number) {
+    if (this.logoFor.has(id)) return;
+    this.api.document(id).subscribe({ next: res => this.logoFor.set(id, res.data?.logo ?? null), error: () => {} });
   }
 
   /** Print / PDF use the saved version. */

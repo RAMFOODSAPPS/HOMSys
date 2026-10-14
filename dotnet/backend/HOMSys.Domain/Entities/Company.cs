@@ -10,6 +10,12 @@ public class Company
     public string Email { get; set; } = string.Empty;
     public string ContactPerson { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
+    /// <summary>Logo file in blob container "company-logos" (null = none). PNG / JPEG, resized in the browser.</summary>
+    public string? LogoBlob { get; set; }
+    public string? LogoContentType { get; set; }
+    /// <summary>Bytes (shown in KB).</summary>
+    public int? LogoSize { get; set; }
+    public DateTime? LogoUpdatedAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime? UpdatedAt { get; set; }

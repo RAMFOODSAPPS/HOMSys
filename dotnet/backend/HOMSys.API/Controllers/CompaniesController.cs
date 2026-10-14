@@ -49,6 +49,37 @@ public class CompaniesController(CompanyService companyService) : ControllerBase
         return Ok(new { success = true, data = company });
     }
 
+    /// <summary>
+    /// The company logo image. Anonymous so an &lt;img&gt; can load it (a logo isn't secret); cached a
+    /// day — the page adds ?v=LogoVersion so a new upload shows at once.
+    /// </summary>
+    [HttpGet("{id:int}/logo")]
+    [AllowAnonymous]
+    [ResponseCache(Duration = 86400, Location = ResponseCacheLocation.Any)]
+    public async Task<IActionResult> GetLogo(int id) =>
+        await companyService.GetLogoAsync(id) is var (data, type) ? File(data, type) : NotFound();
+
+    /// <summary>Upload / replace the logo (multipart "file"; PNG or JPG, resized in the browser, ≤ 300 KB).</summary>
+    [HttpPost("{id:int}/logo")]
+    [RequestSizeLimit(1024 * 1024)]
+    public async Task<IActionResult> UploadLogo(int id, IFormFile file)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { success = false, message = "Choose an image file." });
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        var (company, error) = await companyService.SaveLogoAsync(id, ms.ToArray());
+        if (error == "Company not found.") return NotFound(new { success = false, message = error });
+        return error is not null ? BadRequest(new { success = false, message = error }) : Ok(new { success = true, data = company });
+    }
+
+    [HttpDelete("{id:int}/logo")]
+    public async Task<IActionResult> RemoveLogo(int id)
+    {
+        var (company, error) = await companyService.RemoveLogoAsync(id);
+        return error is not null ? NotFound(new { success = false, message = error }) : Ok(new { success = true, data = company });
+    }
+
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {

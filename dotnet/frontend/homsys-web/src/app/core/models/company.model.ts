@@ -7,6 +7,10 @@ export interface CompanyDto {
   email: string;
   contactPerson: string;
   isActive: boolean;
+  /** Logo stored in Azure Blob Storage; shown via CompanyService.logoUrl() (cache-busted by logoVersion). */
+  hasLogo?: boolean;
+  logoSizeKb?: number | null;
+  logoVersion?: number | null;
   createdAt: string;
   createdBy: string;
   updatedAt?: string;

@@ -22,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<IPermissionRepository, PermissionRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<ICompanyRepository, CompanyRepository>();
+        services.AddSingleton<IFileStorage, HOMSys.Infrastructure.Storage.BlobFileStorage>();
         services.AddScoped<IDepartmentRepository, DepartmentRepository>();
         services.AddHttpContextAccessor();
         services.AddScoped<ISiteRepository, SiteRepository>();

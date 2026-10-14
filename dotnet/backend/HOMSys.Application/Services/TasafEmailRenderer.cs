@@ -19,18 +19,30 @@ public static class TasafEmailRenderer
     private const string Web = "{{WEB}}";
     private static readonly CultureInfo En = CultureInfo.GetCultureInfo("en-US");
 
-    public static string Render(TasafDto d, string intro, string? decisionToken)
+    /// <param name="logoDataUri">Company logo (data: URI) for print; null = the text "HOMSys" header.</param>
+    public static string Render(TasafDto d, string intro, string? decisionToken, string? logoDataUri = null)
     {
         var support = TasafService.IsSupportProgram(d.ProgramTypeName ?? "");
         var sb = new StringBuilder();
         sb.Append($"""<div style="font-family:Segoe UI,Arial,sans-serif;font-size:13px;color:#1f1f1f;max-width:760px">""");
 
-        // Header (like the form's title block)
-        sb.Append($"""
-            <div style="border-top:4px solid {Brand};padding:10px 0 6px;color:{Brand};font-weight:700">HOMSys</div>
-            <div style="font-size:17px;font-weight:700;margin:4px 0 2px">TRADE ACTIVITY SPEND APPROVAL FORM</div>
-            <div style="font-size:15px;margin:0 0 10px">{E(d.Title)}</div>
-            """);
+        // Header (like the form's title block). With a logo: logo + form name on one line (table, email-safe), activity title below.
+        if (logoDataUri is null)
+            sb.Append($"""
+                <div style="border-top:4px solid {Brand};padding:10px 0 6px;color:{Brand};font-weight:700">HOMSys</div>
+                <div style="font-size:17px;font-weight:700;margin:4px 0 2px">TRADE ACTIVITY SPEND APPROVAL FORM</div>
+                <div style="font-size:15px;margin:0 0 10px">{E(d.Title)}</div>
+                """);
+        else
+            sb.Append($"""
+                <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;border-top:4px solid {Brand};margin:0 0 6px">
+                  <tr>
+                    <td style="padding:10px 16px 6px 0;width:1%;vertical-align:middle"><img src="{E(logoDataUri)}" alt="logo" style="max-height:56px;max-width:200px;display:block"></td>
+                    <td style="padding:10px 0 6px;vertical-align:middle;font-size:17px;font-weight:700">TRADE ACTIVITY SPEND APPROVAL FORM</td>
+                  </tr>
+                </table>
+                <div style="font-size:15px;margin:0 0 10px">{E(d.Title)}</div>
+                """);
         if (intro.Length > 0)
             sb.Append($"""<div style="background:#fdf2f2;border-left:4px solid {Brand};padding:8px 12px;margin:0 0 12px">{E(intro)}</div>""");
         sb.Append(Grid([

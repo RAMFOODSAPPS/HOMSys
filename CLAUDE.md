@@ -431,6 +431,17 @@ branch folder's cust4win (~236k rows, ~10.6k active), so `/api/customers` is
 server-side paged/searched/sorted (sort fields whitelisted; export capped at 20,000).
 Product status: Delisted = category group "Delisted", else Phased Out = `PhOut`.
 
+## File storage (Azure Blob) and company logos
+
+`IFileStorage` → `Infrastructure\Storage\BlobFileStorage` on storage account **`sthomsyssea`** (rg-homsys-sea,
+private containers, created 2026-10-14). Connection string = App Service setting `Storage__ConnectionString` (local:
+`appsettings.Development.json`, never committed). `Storage:ContainerSuffix` (`-dev` locally) keeps a test API on a
+live-DB copy from overwriting live files. **Company logo** (`Company.LogoBlob/ContentType/Size/UpdatedAt`, migration
+`CompanyLogo`, container `company-logos`): PNG/JPG only (checked by magic bytes), shrunk in the browser first
+(`core/utils/image-shrink.ts`, ≤600×240, usually a few KB; size shown in KB), server cap 300 KB.
+`GET api/companies/{id}/logo` is anonymous (for `<img>`, `?v=LogoVersion`). Used on the TASAF print / PDF header:
+the proponent's company, else the first active company (`CompanyService.LogoDataUriForUserAsync`).
+
 ## TASAF module (Trade Activity Spend Approval Form)
 
 Web version of `TASA Form_MT version template 2026.xlsx` (trade marketing; source:

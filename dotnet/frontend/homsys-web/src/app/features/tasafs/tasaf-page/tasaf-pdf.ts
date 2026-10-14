@@ -27,7 +27,8 @@ export function isSupportProgram(name: string | null | undefined): boolean {
   return n.startsWith('ACCOUNT SUPPORT') || n === 'CONVENTION';
 }
 
-export function buildTasafPdf(t: TasafDto): jsPDF {
+/** @param logo Company logo (data: URI, PNG / JPEG) from GET tasafs/{id}/document; null = "HOMSys" text. */
+export function buildTasafPdf(t: TasafDto, logo?: string | null): jsPDF {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
@@ -35,14 +36,35 @@ export function buildTasafPdf(t: TasafDto): jsPDF {
   let y = M;
   const lastY = () => (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
 
-  // Title block
-  doc.setTextColor(...BRAND).setFont('helvetica', 'bold').setFontSize(10).text('HOMSys', M, y + 2);
+  // Title block. With the company logo (max 16 mm high / 55 mm wide, aspect kept): logo, then the
+  // form name and activity title on the same line to its right. Without: "HOMSys" above the name.
   doc.setDrawColor(...BRAND).setLineWidth(0.8).line(M, y - 3, W - M, y - 3);
-  doc.setTextColor(20).setFontSize(14).text('TRADE ACTIVITY SPEND APPROVAL FORM', M, y + 10);
-  doc.setFont('helvetica', 'normal').setFontSize(11);
-  const titleLines = doc.splitTextToSize(t.title || '', W - 2 * M);
-  doc.text(titleLines, M, y + 16);
-  y += 16 + titleLines.length * 5;
+  let logoBox: { w: number; h: number } | null = null;
+  if (logo) {
+    try {
+      const p = doc.getImageProperties(logo);
+      const s = Math.min(16 / p.height, 55 / p.width);
+      logoBox = { w: p.width * s, h: p.height * s };
+      doc.addImage(logo, p.fileType, M, y, logoBox.w, logoBox.h);
+    } catch { logoBox = null; /* unreadable image: fall back to the text header */ }
+  }
+  if (logoBox) {
+    // Form name beside the logo (vertically centred); the activity title on its own line below.
+    doc.setTextColor(20).setFont('helvetica', 'bold').setFontSize(14)
+      .text('TRADE ACTIVITY SPEND APPROVAL FORM', M + logoBox.w + 6, y + logoBox.h / 2 + 1.8);
+    y += logoBox.h + 6;
+    doc.setFont('helvetica', 'normal').setFontSize(11);
+    const lines = doc.splitTextToSize(t.title || '', W - 2 * M);
+    doc.text(lines, M, y);
+    y += lines.length * 5;
+  } else {
+    doc.setTextColor(...BRAND).setFont('helvetica', 'bold').setFontSize(10).text('HOMSys', M, y + 2);
+    doc.setTextColor(20).setFontSize(14).text('TRADE ACTIVITY SPEND APPROVAL FORM', M, y + 10);
+    doc.setFont('helvetica', 'normal').setFontSize(11);
+    const titleLines = doc.splitTextToSize(t.title || '', W - 2 * M);
+    doc.text(titleLines, M, y + 16);
+    y += 16 + titleLines.length * 5;
+  }
 
   autoTable(doc, {
     startY: y, theme: 'plain', margin: { left: M, right: M },

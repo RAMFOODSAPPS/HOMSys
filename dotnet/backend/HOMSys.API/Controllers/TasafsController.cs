@@ -9,7 +9,7 @@ namespace HOMSys.API.Controllers;
 [ApiController]
 [Route("api/tasafs")]
 [Authorize(Policy = "tasaf")]
-public class TasafsController(TasafService service, SalesOrderService salesOrderService) : ControllerBase
+public class TasafsController(TasafService service, SalesOrderService salesOrderService, CompanyService companies) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll() =>
@@ -75,7 +75,7 @@ public class TasafsController(TasafService service, SalesOrderService salesOrder
         return Ok(new { success = true, data = tasaf });
     }
 
-    /// <summary>Print: the TASAF as an HTML document (same layout as the approval email).</summary>
+    /// <summary>Print / PDF: the TASAF as an HTML document (approval-email layout) + the company logo (data: URI or null).</summary>
     [HttpGet("{id:int}/document")]
     public async Task<IActionResult> Document(int id)
     {
@@ -85,7 +85,9 @@ public class TasafsController(TasafService service, SalesOrderService salesOrder
         if (error is not null)
             return StatusCode(403, new { success = false, message = error });
 
-        return Ok(new { success = true, data = new { html = TasafEmailRenderer.Render(tasaf!, "", null) } });
+        // Logo of the proponent's company (TASAF print / PDF header); the PDF builder reuses it.
+        var logo = await companies.LogoDataUriForUserAsync(tasaf!.ProponentUserId);
+        return Ok(new { success = true, data = new { html = TasafEmailRenderer.Render(tasaf, "", null, logo), logo } });
     }
 
     [HttpPost]
