@@ -15,9 +15,12 @@ public class NotificationService(INotificationRepository repo, IUserRepository u
     private int CurrentUserId =>
         int.TryParse(http.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
 
-    /// <summary>One notification per distinct recipient; null ids are skipped.</summary>
+    /// <summary>
+    /// One notification per distinct recipient; null ids are skipped. emailHtml replaces the email body;
+    /// emailRef (e.g. a TASAF number) leads the email subject only: "2026-NKA-SA-01 — TASAF for your approval".
+    /// </summary>
     public async Task SendAsync(IEnumerable<int?> userIds, string title, string message,
-        string link, string entityType, int? entityId)
+        string link, string entityType, int? entityId, string? emailHtml = null, string? emailRef = null)
     {
         var rows = userIds.Where(u => u is > 0).Select(u => u!.Value).Distinct()
             .Select(u => new Notification
@@ -36,7 +39,8 @@ public class NotificationService(INotificationRepository repo, IUserRepository u
         var path = entityId is int eid ? $"{link}?id={eid}" : link;
         foreach (var r in rows)
             if (await users.GetByIdAsync(r.UserId) is { IsActive: true } u && !string.IsNullOrWhiteSpace(u.Email))
-                email.Enqueue(new NotificationEmail(u.Email.Trim(), DisplayName(u), r.Title, r.Message, path));
+                email.Enqueue(new NotificationEmail(u.Email.Trim(), DisplayName(u),
+                    string.IsNullOrWhiteSpace(emailRef) ? r.Title : $"{emailRef} — {r.Title}", r.Message, path, emailHtml));
     }
 
     public async Task<NotificationFeedDto> GetFeedAsync(int take = 30) => new()

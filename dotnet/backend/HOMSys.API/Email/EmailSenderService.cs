@@ -67,7 +67,7 @@ public class EmailSenderService(EmailQueue queue, IOptions<EmailOptions> options
                 var content = new EmailContent(subject)
                 {
                     PlainText = $"{m.Title}\n\n{m.Message}" + (m.LinkPath is null ? "" : $"\n\nOpen in HOMSys: {Url(o, m.LinkPath)}"),
-                    Html = Html(o, m)
+                    Html = m.Html is not null ? m.Html.Replace("{{WEB}}", o.WebUrl.TrimEnd('/')) : Html(o, m)
                 };
                 var to = redirect.Length > 0 ? new EmailAddress(redirect) : new EmailAddress(m.To, m.ToName);
                 var email = new EmailMessage(o.FromAddress, new EmailRecipients([to]), content);

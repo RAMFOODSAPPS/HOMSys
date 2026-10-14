@@ -16,14 +16,14 @@ import { NotificationBellComponent } from './notification-bell.component';
         <button class="hamburger" (click)="layout.toggleSidebar()" aria-label="Toggle menu">
           <i class="pi pi-bars"></i>
         </button>
-        <!-- HO split through the middle by a band carrying "Management System" -->
-        <svg class="app-logo" viewBox="0 0 120 38" width="79" height="25" role="img" aria-label="Head Office Management System">
+        <!-- "HO", then "Management" with "System" below it -->
+        <svg class="app-logo" viewBox="0 0 152 38" width="128" height="32" role="img" aria-label="Head Office Management System">
           <title>Head Office Management System</title>
-          <text x="60" y="38" text-anchor="middle" textLength="120" lengthAdjust="spacingAndGlyphs"
-                font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="53" fill="#fff">HO</text>
-          <rect x="0" y="14" width="120" height="10" fill="#800000"/>
-          <text x="60" y="22.4" text-anchor="middle" textLength="116" lengthAdjust="spacingAndGlyphs"
-                font-family="Arial, sans-serif" font-weight="700" font-size="9.5" fill="#fff">MANAGEMENT SYSTEM</text>
+          <text x="0" y="33" textLength="58" lengthAdjust="spacingAndGlyphs"
+                font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="40" fill="#fff">HO</text>
+          <text x="65" y="16" textLength="86" lengthAdjust="spacingAndGlyphs"
+                font-family="Arial, sans-serif" font-weight="700" font-size="15" fill="#fff">Management</text>
+          <text x="65" y="33" font-family="Arial, sans-serif" font-weight="700" font-size="15" fill="#fff">System</text>
         </svg>
       </div>
 

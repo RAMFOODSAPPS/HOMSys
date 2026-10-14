@@ -144,6 +144,12 @@ public class TasafApprovalStep
     public string Status { get; set; } = TasafStepStatus.Pending;
     public DateTime? ActedAt { get; set; }
     public string Comment { get; set; } = string.Empty;
+    /// <summary>
+    /// SHA-256 (hex) of the one-time secret in this approver's email Approve / Reject links; the
+    /// secret itself is never stored. Valid only while this step is the current pending one.
+    /// </summary>
+    public string? EmailTokenHash { get; set; }
+    public DateTime? EmailTokenExpires { get; set; }
 }
 
 /// <summary>Approval history row — one per submit / review / decision.</summary>

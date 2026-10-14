@@ -135,6 +135,8 @@ internal static class TasafModel
             e.Property(x => x.UserName).HasMaxLength(150);
             e.Property(x => x.Status).HasMaxLength(20);
             e.Property(x => x.Comment).HasMaxLength(1000);
+            e.Property(x => x.EmailTokenHash).HasMaxLength(64);
+            e.HasIndex(x => x.EmailTokenHash).HasFilter("[EmailTokenHash] IS NOT NULL");
         });
 
         mb.Entity<TasafAction>(e =>

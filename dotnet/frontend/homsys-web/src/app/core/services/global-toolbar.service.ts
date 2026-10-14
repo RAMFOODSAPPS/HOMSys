@@ -38,6 +38,8 @@ export interface ToolbarConfig {
   clearForm?: ToolbarHandler;
   add?:     ToolbarHandler;
   edit?:    ToolbarHandler;
+  /** Document history (e.g. TASAF approval history) — the page opens its own dialog. */
+  history?: ToolbarHandler;
   delete?:  ToolbarHandler;
   refresh?: ToolbarHandler;
   list?:    ToolbarHandler;

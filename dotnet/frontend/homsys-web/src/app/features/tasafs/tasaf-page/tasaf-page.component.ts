@@ -86,9 +86,9 @@ function blankProduct(): TasafProduct {
           <span>Document No.</span>
           @if (current()?.refNo) { <strong>{{ current()!.refNo }}</strong> }
           @else if (refPreview()) {
-            <strong class="ref-preview" pTooltip="YEAR - Sales Group - Proponent Initials - Proposal No. The proposal number is one continuous series across all TASAFs, assigned when you submit.">{{ refPreview() }}</strong>
+            <strong class="ref-preview" pTooltip="YEAR - Sales Group - Proponent Initials - Proposal No. The proposal number is one continuous series across all TASAFs, assigned when you first save (with a Sales Group).">{{ refPreview() }}</strong>
           }
-          @else { <strong class="ref-preview">assigned on submit</strong> }
+          @else { <strong class="ref-preview">assigned on save</strong> }
           <span>Date</span><strong>{{ current() ? (utc(current()!.createdAt) | date:'dd MMM yyyy h:mm a') : 'today' }}</strong>
           <span>Status</span><p-tag [value]="current()?.status ?? 'New'" [severity]="severity()" />
         </div>
@@ -565,30 +565,36 @@ function blankProduct(): TasafProduct {
             Listing fees, conventions and other account support always go to NSD and COO.</p>
         }
 
-        @if (current()?.actions?.length) {
-          <h3 class="mt">History</h3>
-          <table class="lines">
-            <thead><tr><th>When</th><th>Action</th><th>By</th><th>Comment</th></tr></thead>
-            <tbody>
-              @for (a of current()!.actions; track $index) {
-                <tr>
-                  <td>{{ utc(a.at) | date:'dd MMM yyyy h:mm a' }}</td>
-                  <td><p-tag [value]="a.action" [severity]="sev(a.toStatus)" /></td>
-                  <td>{{ a.byName }} <span class="muted">({{ a.role }})</span></td>
-                  <td>{{ a.comment || '—' }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        }
       </section>
     </div>
+
+    <!-- Approval history (toolbar History button). -->
+    <p-dialog [(visible)]="historyVisible" [modal]="true" [dismissableMask]="true" [style]="{ width: '760px', maxWidth: '95vw' }"
+      [header]="'History — ' + (current()?.refNo ?? current()?.title ?? '')">
+      @if (current()?.actions?.length) {
+        <table class="lines">
+          <thead><tr><th>When</th><th>Action</th><th>By</th><th>Comment</th></tr></thead>
+          <tbody>
+            @for (a of current()!.actions; track $index) {
+              <tr>
+                <td style="white-space: nowrap">{{ utc(a.at) | date:'dd MMM yyyy h:mm a' }}</td>
+                <td><p-tag [value]="a.action" [severity]="sev(a.toStatus)" /></td>
+                <td>{{ a.byName }} <span class="muted">({{ a.role }})</span></td>
+                <td>{{ a.comment || '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <p class="muted">No history yet — it starts when the TASAF is submitted.</p>
+      }
+    </p-dialog>
 
     <p-dialog [(visible)]="decisionVisible" [modal]="true" [style]="{ width: '460px' }" [header]="decisionTitle()">
       @if (decisionHint()) { <p class="muted dlg-hint">{{ decisionHint() }}</p> }
       <div class="field full">
         <label>{{ decision() === 'approve' ? 'Comment' : 'Reason' }}
-          @if (decision() !== 'approve') { <span class="req">*</span> } @else { <span class="opt">(optional)</span> }</label>
+          <span class="req">*</span></label>
         <textarea pTextarea [(ngModel)]="decisionComment" rows="4" [autoResize]="true" class="w-full" maxlength="1000"
           [placeholder]="decisionPlaceholder()"></textarea>
       </div>
@@ -703,7 +709,12 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   protected productOptions = signal<TasafProductOption[]>([]);
   protected productLoading = signal(false);
   private productReq = 0;
-  protected readonly     = computed(() => !!this.current() && !this.current()!.canEdit);
+  /**
+   * A saved TASAF opens read-only; Edit (toolbar) unlocks it while it is still the proponent's
+   * Draft / Returned, until the next Save or Cancel. A new, unsaved TASAF is always editable.
+   */
+  protected editing      = signal(false);
+  protected readonly     = computed(() => !!this.current() && (!this.current()!.canEdit || !this.editing()));
   protected cannotDelete = computed(() => !this.current()?.canDelete);
   protected severity     = computed(() => this.sev(this.current()?.status ?? 'Draft'));
   protected submitting   = signal(false);
@@ -737,6 +748,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   } as const)[this.decision()]);
   protected decisionVisible = false;
   protected decisionComment = '';
+  protected historyVisible = false;
 
   // Editable model (ngModel). Totals below are plain methods so they follow every keystroke.
   protected m: SaveTasafDto = blankModel();
@@ -833,6 +845,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       state: { tasafId: t.id }
     });
     this.tabBar.registerDirtyChecker(this.currentTabKey, () => this.isDirty());
+    this.editing.set(false); // saved / opened: read-only until Edit
     this.syncToolbar();
   }
 
@@ -884,7 +897,10 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     this.toolbar.set({
       title:   t ? `TASAF ${t.refNo ?? '(Draft)'} — ${t.title}` : 'New TASAF',
       save:    { onClick: () => this.save(), loading: this.saving, disabled: this.readonly },
-      ...(!this.readonly() ? { submit: {
+      // Edit unlocks a saved Draft / Returned TASAF (it opens read-only).
+      ...(t?.canEdit && !this.editing() ? { edit: { onClick: () => this.startEdit(), disabled: this.designing } } : {}),
+      // Submit: the proponent's own Draft / Returned TASAF, read-only or being edited.
+      ...(!t || t.canEdit ? { submit: {
         label: !t ? 'Save the TASAF first, then submit' : t.status === 'Returned' ? 'Resubmit for approval' : 'Submit for approval',
         onClick: () => this.confirmSubmit(), loading: this.submitting, disabled: this.submitBlocked
       } } : {}),
@@ -902,6 +918,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       // Delete is Admin-only (also enforced by the API).
       ...(this.auth.isAdmin() ? { delete: { onClick: () => this.confirmDelete(), disabled: this.cannotDelete, loading: this.deleting } } : {}),
       refresh: { onClick: () => this.refresh(), loading: this.refreshing },
+      // Approval history of a saved TASAF (dialog).
+      ...(t ? { history: { onClick: () => (this.historyVisible = true), disabled: this.designing } } : {}),
       list:    { onClick: () => this.router.navigate(['/tasafs/list']) },
       print:   { onClick: () => window.print() },
       ...(this.auth.isAdmin() ? { design: { onClick: () => this.designing.set(true), disabled: this.designing } } : {}),
@@ -909,8 +927,27 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   }
 
   /** Cancel: leave the designer, else discard changes and go back to a blank New TASAF. */
+  /** Toolbar Edit: unlock the saved TASAF until the next Save / Cancel. */
+  private startEdit() {
+    this.editing.set(true);
+    this.syncToolbar();
+    this.schedulePrices();
+  }
+
   private cancel() {
     if (this.designing()) { this.designing.set(false); return; }
+    // Editing a saved TASAF: Cancel drops the edits and locks it again (stays on it).
+    const t = this.current();
+    if (t && this.editing()) {
+      if (!this.isDirty()) { this.editing.set(false); this.syncToolbar(); return; }
+      this.confirmSvc.confirm({
+        header: 'Discard changes',
+        message: 'Discard your unsaved changes to this TASAF?',
+        icon: 'pi pi-exclamation-triangle',
+        accept: () => this.loadTasaf(t)
+      });
+      return;
+    }
     if (!this.isDirty()) { this.newTasaf(); return; }
     this.confirmSvc.confirm({
       header: 'Discard changes',
@@ -951,8 +988,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * RefNo preview before submit (GUIDE sheet): YEAR-SG-INITIALS-NN, e.g. 2026-RKA-ER-NN.
-   * Only for the proponent's own unsubmitted TASAF; the server assigns the real NN.
+   * RefNo preview before the first save (GUIDE sheet): YEAR-SG-INITIALS-NN, e.g. 2026-RKA-ER-NN.
+   * Only for the proponent's own TASAF not numbered yet; the server assigns the real NN on save.
    */
   refPreview(): string | null {
     const u = this.auth.user();
@@ -1504,8 +1541,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     const t = this.current();
     const d = this.decision();
     if (!t) return;
-    if (d !== 'approve' && !this.decisionComment.trim()) {
-      this.messageSvc.add({ severity: 'warn', summary: 'Reason required', detail: 'Please give a reason.' });
+    if (!this.decisionComment.trim()) { // always required, approve included
+      this.messageSvc.add({ severity: 'warn', summary: 'Comment required', detail: d === 'approve' ? 'Please enter a comment.' : 'Please give a reason.' });
       return;
     }
     const comment = this.decisionComment.trim();

@@ -276,3 +276,17 @@ public class TasafProductOptionDto
     /// <summary>prod4win.NEWPRICE (ex-VAT) — prefilled as LSP/Case.</summary>
     public decimal? LspPerCase { get; set; }
 }
+
+/// <summary>The no-login decision page opened from an approval email's Approve / Reject button.</summary>
+public class TasafEmailDecisionDto
+{
+    public string? RefNo { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string ApproverName { get; set; } = string.Empty;
+    public string RoleCode { get; set; } = string.Empty;
+    /// <summary>False once decided / no longer this approver's turn / expired — Message says why.</summary>
+    public bool CanDecide { get; set; }
+    public string? Message { get; set; }
+    /// <summary>The whole TASAF, same layout as the email (server-rendered, every value HTML-encoded).</summary>
+    public string Html { get; set; } = string.Empty;
+}

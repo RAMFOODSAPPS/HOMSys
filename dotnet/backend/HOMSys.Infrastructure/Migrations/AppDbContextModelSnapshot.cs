@@ -2843,6 +2843,13 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<DateTime?>("EmailTokenExpires")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EmailTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("RoleCode")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -2876,6 +2883,9 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasColumnType("nvarchar(150)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EmailTokenHash")
+                        .HasFilter("[EmailTokenHash] IS NOT NULL");
 
                     b.HasIndex("TasafId");
 

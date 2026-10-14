@@ -62,16 +62,17 @@ public class TasafRepository(AppDbContext db) : ITasafRepository
         db.ChangeTracker.Clear();
     }
 
-    public async Task SubmitAsync(Tasaf tasaf, string refNoPrefix)
+    public async Task SaveWithRefNoAsync(Tasaf tasaf, string? refNoPrefix, bool isNew = false)
     {
-        var assign = tasaf.RefNo is null;
+        if (isNew) db.Tasafs.Add(tasaf);
+        var assign = refNoPrefix is not null && tasaf.RefNo is null;
         for (var attempt = 1; ; attempt++)
         {
             if (assign)
             {
                 // Proposal number = ONE continuous series across every TASAF (all years, sales
                 // groups, proponents); never resets, no 99 cap. Start/padding come from TASAF
-                // Setup › Numbering. RefSeq's unique index makes concurrent submits retry.
+                // Setup › Numbering. RefSeq's unique index makes concurrent saves retry.
                 var setting = await db.TasafNumberings.FirstAsync(x => x.Id == 1);
                 var maxSeq  = await db.Tasafs.MaxAsync(t => t.RefSeq) ?? 0;
                 var next    = Math.Max(maxSeq + 1, setting.NextNumber);
@@ -86,10 +87,19 @@ public class TasafRepository(AppDbContext db) : ITasafRepository
             }
             catch (DbUpdateException) when (assign && attempt < 5)
             {
-                // Unique RefNo index: another submit took this number first — take the next one.
+                // Unique RefNo index: another save took this number first — take the next one.
             }
         }
         db.ChangeTracker.Clear();
+    }
+
+    public async Task<Tasaf?> GetByEmailTokenAsync(string tokenHash)
+    {
+        var id = await db.TasafApprovalSteps.AsNoTracking()
+            .Where(s => s.EmailTokenHash == tokenHash)
+            .Select(s => (int?)s.TasafId)
+            .FirstOrDefaultAsync();
+        return id is int i ? await GetByIdAsync(i) : null;
     }
 
     public async Task DeleteAsync(Tasaf tasaf)

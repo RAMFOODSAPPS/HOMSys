@@ -250,7 +250,7 @@ public class TasafService(
         var error = await ApplyAsync(t, dto);
         if (error is not null) return (null, error);
 
-        await repo.CreateAsync(t);
+        await repo.SaveWithRefNoAsync(t, await PrepareRefNoAsync(t), isNew: true);
         return (Map((await repo.GetByIdAsync(t.Id))!), null);
     }
 
@@ -265,7 +265,7 @@ public class TasafService(
 
         t.UpdatedAt = DateTime.UtcNow;
         t.UpdatedBy = CurrentUser;
-        await repo.UpdateAsync(t);
+        await repo.SaveWithRefNoAsync(t, await PrepareRefNoAsync(t));
         return (Map((await repo.GetByIdAsync(id))!), null);
     }
 
@@ -392,20 +392,91 @@ public class TasafService(
         t.DecidedAt             = null;
         t.Actions.Add(NewAction(resubmit ? "Resubmitted" : "Submitted", from, t.Status, "KAM", "", t.ProponentName));
 
-        // RefNo series: YEAR - Sales Group - Proponent Initials - NN (GUIDE sheet).
-        // Assigned once (first submit) and kept through returns/resubmits. NN = one continuous
-        // series across all TASAFs (never resets, no 99 cap) — see TasafRepository.SubmitAsync.
-        var proponent = await users.GetByIdAsync(t.ProponentUserId);
-        var initials = Initials(proponent?.FirstName ?? "", proponent?.LastName ?? "", t.ProponentName);
-        var prefix = $"{TodayPh().Year}-{(sg.Code.Length > 0 ? sg.Code : sg.Name).ToUpperInvariant()}-{initials}-";
-        await repo.SubmitAsync(t, prefix);
+        // One-time secret for the first approver's email Approve / Reject links.
+        var token = NewEmailToken(first);
 
-        await notifications.SendAsync([first.UserId],
-            "TASAF for your approval",
-            $"{t.RefNo} — {t.Title} ({t.TotalCost:N2}) from {t.ProponentName}{(resubmit ? ", resubmitted" : "")}. You sign as {first.RoleCode}.",
-            "/tasafs", "tasaf", t.Id);
+        // RefNo is normally assigned on the first save (PrepareRefNoAsync); a TASAF saved before
+        // that existed gets it now.
+        await repo.SaveWithRefNoAsync(t, t.RefNo is null ? await RefPrefixAsync(t, TodayPh().Year) : null);
+
+        await NotifyApproverAsync(id, first.UserId, token,
+            $"{t.RefNo} — {t.Title} ({t.TotalCost:N2}) from {t.ProponentName}{(resubmit ? ", resubmitted" : "")}. You sign as {first.RoleCode}.");
 
         return (Map((await repo.GetByIdAsync(id))!), null);
+    }
+
+    /// <summary>
+    /// "TASAF for your approval" to the approver whose turn it is: bell + an email holding the whole
+    /// TASAF and Approve / Reject buttons (TasafEmailRenderer).
+    /// </summary>
+    private async Task NotifyApproverAsync(int tasafId, int? userId, string token, string message)
+    {
+        var dto = Map((await repo.GetByIdAsync(tasafId))!);
+        await notifications.SendAsync([userId], "TASAF for your approval", message, "/tasafs", "tasaf", tasafId,
+            emailHtml: TasafEmailRenderer.Render(dto, message, token), emailRef: dto.RefNo);
+    }
+
+    // ── Email decisions (no login) ────────────────────────────
+    /// <summary>How long an approver's email Approve / Reject links stay usable.</summary>
+    private static readonly TimeSpan EmailTokenLife = TimeSpan.FromDays(30);
+
+    /// <summary>New 256-bit secret for this step's email links; only its SHA-256 is stored.</summary>
+    private static string NewEmailToken(TasafApprovalStep step)
+    {
+        var token = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        step.EmailTokenHash = HashToken(token);
+        step.EmailTokenExpires = DateTime.UtcNow.Add(EmailTokenLife);
+        return token;
+    }
+
+    private static string HashToken(string token) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token)));
+
+    /// <summary>The TASAF + step an email link belongs to, and why it can't be used (null = usable).</summary>
+    private async Task<(Tasaf? t, TasafApprovalStep? step, string? notUsable)> FromEmailTokenAsync(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token) || token.Length > 100) return (null, null, null);
+        var hash = HashToken(token.Trim());
+        var t = await repo.GetByEmailTokenAsync(hash);
+        var step = t?.Steps.FirstOrDefault(s => s.EmailTokenHash == hash);
+        if (t is null || step is null) return (null, null, null);
+        string? why = null;
+        if (step.Status != TasafStepStatus.Pending)
+            why = $"You already {step.Status.ToLowerInvariant()} this TASAF{(step.ActedAt is DateTime a ? $" on {a.AddHours(8):MMM d, yyyy h:mm tt}" : "")}.";
+        else if (t.Status != TasafStatus.ForApproval || t.CurrentStepSeq != step.Seq)
+            why = $"This TASAF is no longer waiting for your approval (status: {t.Status}).";
+        else if (step.EmailTokenExpires is DateTime exp && exp < DateTime.UtcNow)
+            why = "This link has expired. Please open the TASAF in HOMSys to approve or reject it.";
+        return (t, step, why);
+    }
+
+    /// <summary>GET tasaf-email/{token}: the TASAF for the no-login decision page.</summary>
+    public async Task<(TasafEmailDecisionDto? dto, string? error)> GetEmailDecisionAsync(string token)
+    {
+        var (t, step, why) = await FromEmailTokenAsync(token);
+        if (t is null || step is null) return (null, "This link is not valid.");
+        return (new TasafEmailDecisionDto
+        {
+            RefNo = t.RefNo, Title = t.Title, ApproverName = step.UserName, RoleCode = step.RoleCode,
+            CanDecide = why is null, Message = why,
+            Html = TasafEmailRenderer.Render(Map(t), "", null)
+        }, null);
+    }
+
+    /// <summary>POST tasaf-email/{token}/decide: approve / return / reject as the step's approver (comment required).</summary>
+    public async Task<(TasafEmailDecisionDto? dto, string? error)> EmailDecideAsync(string token, TasafDecisionDto dto)
+    {
+        var (t, step, why) = await FromEmailTokenAsync(token);
+        if (t is null || step is null) return (null, "This link is not valid.");
+        if (why is not null) return (null, why);
+        if (dto.Decision.Trim().ToLowerInvariant() is not ("approve" or "return" or "reject")) return (null, "Choose Approve, Return or Reject.");
+
+        var error = await DecideCoreAsync(t, step, dto, step.UserName.Length > 0 ? step.UserName : "(email)", viaEmail: true);
+        if (error is not null) return (null, error);
+        // The hash is kept, so the page now shows "You already approved …".
+        var (after, _) = await GetEmailDecisionAsync(token);
+        return (after, null);
     }
 
     public async Task<(TasafDto? dto, string? error)> DecideAsync(int id, TasafDecisionDto dto)
@@ -416,15 +487,25 @@ public class TasafService(
         var step = CurrentStep(t);
         if (MyAction(t) is null || step is null) return (null, "This TASAF is not waiting for your action.");
 
+        var error = await DecideCoreAsync(t, step, dto, step.UserName.Length > 0 ? step.UserName : CurrentUser, viaEmail: false);
+        return error is not null ? (null, error) : (Map((await repo.GetByIdAsync(id))!), null);
+    }
+
+    /// <summary>
+    /// Approve / return / reject the current step — from the app (DecideAsync) or an email link
+    /// (EmailDecideAsync). A comment is always required. Returns an error, or null when saved.
+    /// </summary>
+    private async Task<string?> DecideCoreAsync(Tasaf t, TasafApprovalStep step, TasafDecisionDto dto, string myName, bool viaEmail)
+    {
         var decision = dto.Decision.Trim().ToLowerInvariant();
         var comment = dto.Comment.Trim();
-        if (decision is not ("approve" or "return" or "reject")) return (null, "Unknown decision.");
-        if (decision != "approve" && comment.Length == 0) return (null, "Please give a reason when returning or rejecting.");
-        if (comment.Length > 1000) return (null, "Comment must be 1000 characters or fewer.");
+        if (decision is not ("approve" or "return" or "reject")) return "Unknown decision.";
+        if (comment.Length == 0) return "Please enter a comment.";
+        if (comment.Length > 1000) return "Comment must be 1000 characters or fewer.";
 
         var from = t.Status;
-        var myName = step.UserName.Length > 0 ? step.UserName : CurrentUser;
         var head = $"{t.RefNo} — {t.Title}";
+        var how = viaEmail ? " via email" : "";
         // Everyone who already signed, for return/reject/final notices.
         var signed = t.Steps.Where(s => s.Status == TasafStepStatus.Approved).Select(s => s.UserId).ToList();
 
@@ -440,14 +521,14 @@ public class TasafService(
                 {
                     t.CurrentStepSeq = next.Seq;
                     t.CurrentApproverUserId = next.UserId;
-                    t.Actions.Add(NewAction("Approved", from, t.Status, step.RoleCode, comment, myName));
+                    t.Actions.Add(NewAction($"Approved{how}", from, t.Status, step.RoleCode, comment, myName));
+                    var nextToken = NewEmailToken(next);
                     await repo.UpdateAsync(t);
-                    await notifications.SendAsync([next.UserId], "TASAF for your approval",
-                        $"{head} ({t.TotalCost:N2}) from {t.ProponentName}, approved by {myName} ({step.RoleCode}). You sign as {next.RoleCode}.",
-                        "/tasafs", "tasaf", t.Id);
+                    await NotifyApproverAsync(t.Id, next.UserId, nextToken,
+                        $"{head} ({t.TotalCost:N2}) from {t.ProponentName}, approved by {myName} ({step.RoleCode}). You sign as {next.RoleCode}.");
                     await notifications.SendAsync([t.ProponentUserId], "TASAF approval progress",
-                        $"{head} was approved by {myName} ({step.RoleCode}) and is now with {next.UserName} ({next.RoleCode}).",
-                        "/tasafs", "tasaf", t.Id);
+                        $"{head} was approved by {myName} ({step.RoleCode}): \"{comment}\". Now with {next.UserName} ({next.RoleCode}).",
+                        "/tasafs", "tasaf", t.Id, emailRef: t.RefNo);
                 }
                 else
                 {
@@ -455,10 +536,10 @@ public class TasafService(
                     t.CurrentStepSeq = null;
                     t.CurrentApproverUserId = null;
                     t.DecidedAt = DateTime.UtcNow;
-                    t.Actions.Add(NewAction("Approved", from, t.Status, step.RoleCode, comment, myName));
+                    t.Actions.Add(NewAction($"Approved{how}", from, t.Status, step.RoleCode, comment, myName));
                     await repo.UpdateAsync(t);
                     await notifications.SendAsync([t.ProponentUserId, .. signed], "TASAF approved",
-                        $"{head} is fully approved (final sign-off by {myName}, {step.RoleCode}).", "/tasafs", "tasaf", t.Id);
+                        $"{head} is fully approved (final sign-off by {myName}, {step.RoleCode}): \"{comment}\".", "/tasafs", "tasaf", t.Id, emailRef: t.RefNo);
                 }
                 break;
 
@@ -467,10 +548,10 @@ public class TasafService(
                 t.Status = TasafStatus.Returned;
                 t.CurrentStepSeq = null;
                 t.CurrentApproverUserId = null;
-                t.Actions.Add(NewAction("Returned", from, t.Status, step.RoleCode, comment, myName));
+                t.Actions.Add(NewAction($"Returned{how}", from, t.Status, step.RoleCode, comment, myName));
                 await repo.UpdateAsync(t);
                 await notifications.SendAsync([t.ProponentUserId, .. signed], "TASAF returned",
-                    $"{head} was returned by {myName} ({step.RoleCode}): {comment}", "/tasafs", "tasaf", t.Id);
+                    $"{head} was returned by {myName} ({step.RoleCode}): {comment}", "/tasafs", "tasaf", t.Id, emailRef: t.RefNo);
                 break;
 
             default: // reject
@@ -479,14 +560,14 @@ public class TasafService(
                 t.CurrentStepSeq = null;
                 t.CurrentApproverUserId = null;
                 t.DecidedAt = DateTime.UtcNow;
-                t.Actions.Add(NewAction("Rejected", from, t.Status, step.RoleCode, comment, myName));
+                t.Actions.Add(NewAction($"Rejected{how}", from, t.Status, step.RoleCode, comment, myName));
                 await repo.UpdateAsync(t);
                 await notifications.SendAsync([t.ProponentUserId, .. signed], "TASAF rejected",
-                    $"{head} was rejected by {myName} ({step.RoleCode}): {comment}", "/tasafs", "tasaf", t.Id);
+                    $"{head} was rejected by {myName} ({step.RoleCode}): {comment}", "/tasafs", "tasaf", t.Id, emailRef: t.RefNo);
                 break;
         }
 
-        return (Map((await repo.GetByIdAsync(id))!), null);
+        return null;
     }
 
     /// <summary>
@@ -516,7 +597,7 @@ public class TasafService(
 
         await notifications.SendAsync([t.ProponentUserId, waiting, .. signed], "TASAF reverted",
             $"{t.RefNo} — {t.Title} ({from}) was reverted by an Admin and returned to {t.ProponentName}: {comment}",
-            "/tasafs", "tasaf", t.Id);
+            "/tasafs", "tasaf", t.Id, emailRef: t.RefNo);
         return (Map((await repo.GetByIdAsync(id))!), null);
     }
 
@@ -558,7 +639,7 @@ public class TasafService(
 
         await notifications.SendAsync([byProponent ? null : t.ProponentUserId, waiting, .. signed], "TASAF cancelled",
             $"{t.RefNo ?? "(draft)"} — {t.Title} was cancelled by {(byProponent ? t.ProponentName : "an Admin")}: {comment}",
-            "/tasafs", "tasaf", t.Id);
+            "/tasafs", "tasaf", t.Id, emailRef: t.RefNo);
         return (Map((await repo.GetByIdAsync(id))!), null);
     }
 
@@ -639,6 +720,34 @@ public class TasafService(
     /// surname — "Elwin Ramos" → "ER", "Ma. Teresa Araneta" → "MA", "Juan Dela Cruz Jr." → "JD".
     /// Falls back to the display name when the user record has no first/last name.
     /// </summary>
+    /// <summary>
+    /// RefNo prefix "YEAR-SG-INITIALS-" (GUIDE sheet), e.g. "2026-RKA-ER-"; null while the TASAF has
+    /// no sales group yet. INITIALS = the proponent's first-name + last-name initials.
+    /// </summary>
+    private async Task<string?> RefPrefixAsync(Tasaf t, int year)
+    {
+        if (t.SalesGroupId is not int sgId || await lookups.GetByIdAsync(typeof(TasafSalesGroup), sgId) is not { } sg)
+            return null;
+        var proponent = await users.GetByIdAsync(t.ProponentUserId);
+        var initials = Initials(proponent?.FirstName ?? "", proponent?.LastName ?? "", t.ProponentName);
+        return $"{year}-{(sg.Code.Length > 0 ? sg.Code : sg.Name).ToUpperInvariant()}-{initials}-";
+    }
+
+    /// <summary>
+    /// Before a save. RefNo = YEAR-SG-INITIALS-NN, taken on the FIRST save that has a sales group:
+    /// returns the prefix for the repository to add the next NN (one continuous series, never
+    /// resets — TasafRepository.SaveWithRefNoAsync). Once numbered, YEAR and NN never change; a
+    /// changed sales group just re-labels the SG part while the TASAF is still editable.
+    /// </summary>
+    private async Task<string?> PrepareRefNoAsync(Tasaf t)
+    {
+        if (t.RefNo is null) return await RefPrefixAsync(t, TodayPh().Year);
+        var parts = t.RefNo.Split('-');
+        if (parts.Length >= 4 && int.TryParse(parts[0], out var year) && await RefPrefixAsync(t, year) is string prefix)
+            t.RefNo = prefix + parts[^1];
+        return null;
+    }
+
     private static string Initials(string firstName, string lastName, string fallbackName)
     {
         static char? Lead(string s) => s.FirstOrDefault(char.IsLetter) is var c && c != default ? char.ToUpperInvariant(c) : null;

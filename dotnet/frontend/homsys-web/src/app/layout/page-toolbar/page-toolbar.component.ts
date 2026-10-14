@@ -75,6 +75,12 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
               [disabled]="cfg().refresh!.disabled ? cfg().refresh!.disabled!() : false"
               (onClick)="cfg().refresh!.onClick()" />
           }
+          @if (cfg().history) {
+            <p-button icon="pi pi-history" pTooltip="History" tooltipPosition="bottom"
+              [text]="true"
+              [disabled]="cfg().history!.disabled ? cfg().history!.disabled!() : false"
+              (onClick)="cfg().history!.onClick()" />
+          }
           @if (cfg().list) {
             <p-button icon="pi pi-list" pTooltip="List" tooltipPosition="bottom"
               [text]="true"
@@ -113,7 +119,7 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
                 (onClick)="cfg().reject!.onClick()" />
             }
             @if (cfg().revert) {
-              <p-button icon="pi pi-history" pTooltip="Revert (Admin) — back to the proponent" tooltipPosition="bottom"
+              <p-button icon="pi pi-replay" pTooltip="Revert (Admin) — back to the proponent" tooltipPosition="bottom"
                 [text]="true" severity="warn"
                 [disabled]="cfg().revert!.disabled ? cfg().revert!.disabled!() : false"
                 (onClick)="cfg().revert!.onClick()" />
@@ -286,7 +292,7 @@ export class PageToolbarComponent {
 
   protected hasAnyAction() {
     const c = this.cfg();
-    return c.save || c.submit || c.approve || c.return || c.reject || c.revert || c.cancelDoc || c.cancel || c.clearForm || c.add || c.edit || c.delete || c.refresh || c.find || c.search || c.print || c.export || c.import || c.importByName || c.design;
+    return c.save || c.submit || c.approve || c.return || c.reject || c.revert || c.cancelDoc || c.cancel || c.clearForm || c.add || c.edit || c.history || c.delete || c.refresh || c.find || c.search || c.print || c.export || c.import || c.importByName || c.design;
   }
 
   protected exportMenuItems(): MenuItem[] {

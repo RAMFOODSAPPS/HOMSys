@@ -14,6 +14,12 @@ export const routes: Routes = [
       import('./features/auth/change-password/change-password.component').then(m => m.ChangePasswordComponent)
   },
   {
+    // Approval email's Approve / Reject button — no login (the link's token is the approver's key).
+    path: 'tasaf-decision',
+    loadComponent: () =>
+      import('./features/tasafs/tasaf-decision/tasaf-decision-page.component').then(m => m.TasafDecisionPageComponent)
+  },
+  {
     path: '',
     canActivate: [authGuard],
     // routeRoleGuard auto-applies to every child route.

@@ -442,7 +442,8 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   page `/tasaf-setup`. Adding a list = entity + DbSet + entry in
   `TasafMasterService.Masters` + `TasafLookupRepository.Sets`. Referenced rows can't be
   deleted (FK Restrict) — deactivate instead.
-- **Form** (`Tasaf` + Branches/Products/Costs/Actions, `TasafService`, `/tasafs`).
+- **Form** (`Tasaf` + Branches/Products/Costs/Actions, `TasafService`, `/tasafs`). A saved TASAF opens read-only;
+  the toolbar **Edit** unlocks it (proponent, Draft / Returned only) until the next Save or Cancel (`editing` signal).
   Branches = active Sites + "ALL BRANCHES/LUZON/VISAYAS/MINDANAO" (SiteId null).
   Area is MULTI-select (`TasafAreaLinks` child rows → `AreaIds`/`AreaNames`; migration `TasafMultipleAreas`).
   Channel likewise (`TasafChannelLinks` → `ChannelIds`/`ChannelNames`; migration `TasafMultipleChannels`).
@@ -492,12 +493,13 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   requires exactly one payment type, payment total = TotalCost and
   CTS ≤ the program type's `MaxCtsPercent` (8% on PROMO- types) — or, when over it, a `CtsJustification`
   (textarea under Computation, shown to approvers; migration `TasafCtsJustification`).
-  RefNo `YEAR-SG-INITIALS-NN` (workbook GUIDE sheet, e.g. `2025-RKA-ER-03`) assigned on first
-  submit and kept through returns/resubmits (`TasafRepository.SubmitAsync` retries on the
-  unique index). YEAR = Manila date at submit; SG = sales group Code; INITIALS = first letter
+  RefNo `YEAR-SG-INITIALS-NN` (workbook GUIDE sheet, e.g. `2025-RKA-ER-03`) assigned on the FIRST
+  SAVE that has a Sales Group (user decision 2026-10-14; was first submit) and kept for good
+  (`TasafService.PrepareRefNoAsync` → `TasafRepository.SaveWithRefNoAsync`, retries on the
+  unique index; a changed Sales Group only re-labels SG while editable). YEAR = Manila date at first save; SG = sales group Code; INITIALS = first letter
   of the proponent's FirstName + LastName (`Juan Dela Cruz Jr.` → `JD`); NN = ONE continuous
   series across all TASAFs (every year, sales group and proponent), never resets, no 99 cap
-  (`2026-RKA-ER-01`, `2026-NKA-MV-02`, … `2027-RKA-ER-58`, … `100`). The form header previews `2026-RKA-ER-NN` before submit.
+  (`2026-RKA-ER-01`, `2026-NKA-MV-02`, … `2027-RKA-ER-58`, … `100`). The form header previews `2026-RKA-ER-NN` before the first save. Deleted drafts leave gaps in the series.
   The number is stored in `Tasaf.RefSeq` (unique index → concurrent submits retry) and comes from
   **TASAF Setup › Numbering** (`TasafNumbering`, single row Id 1, `api/tasaf-masters/numbering`):
   next = max(NextNumber, highest RefSeq + 1), zero-padded to MinDigits (default 2). Admins can
@@ -511,6 +513,7 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   - **Cancel** (proponent or Admin, `POST {id}/cancel`, reason required): any status except
     Approved (revert first) → **Cancelled**, terminal; unsigned steps become Skipped.
   Both log a `TasafAction` and notify the proponent, the waiting approver and everyone who signed.
+- **Email approval (no login)**: the "TASAF for your approval" email is the whole TASAF (`TasafEmailRenderer`, form  order) with ONE **Review & Decide** button → `/tasaf-decision?t=` (Approve / Return / Reject + comment there, nothing pre-selected; public route, `TasafEmailController`  `api/tasaf-email`, `[AllowAnonymous]`). The token is a one-time 256-bit secret per approval step; only its SHA-256  is stored (`TasafApprovalStep.EmailTokenHash`/`EmailTokenExpires`, 30 days, migration `TasafStepEmailToken`) and it  works only while that step is the current pending one. GET never decides (mail scanners open links); the POST  needs a comment. Logged as "Approved / Returned / Rejected via email". A comment is required for EVERY decision  (app and email, `DecideCoreAsync`); the approve comment is quoted in the proponent's progress / approved message.
 - **Notifications**: generic `Notification` table + `NotificationService.SendAsync` (also queues an email per active
   recipient with an Email — `IEmailQueue` → `HOMSys.API/Email/EmailSenderService` via Azure Communication Services;
   off until `Email:Enabled`/`ConnectionString`/`FromAddress` are set as App Service settings `Email__…`; the link is
