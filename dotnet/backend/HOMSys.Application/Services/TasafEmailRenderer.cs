@@ -26,12 +26,11 @@ public static class TasafEmailRenderer
         var sb = new StringBuilder();
         sb.Append($"""<div style="font-family:Segoe UI,Arial,sans-serif;font-size:13px;color:#1f1f1f;max-width:760px">""");
 
-        // Header (like the form's title block). With a logo: logo + form name on one line (table, email-safe), activity title below.
+        // Header: logo + form name on one line (table, email-safe), else "HOMSys" above the form name.
         if (logoDataUri is null)
             sb.Append($"""
                 <div style="border-top:4px solid {Brand};padding:10px 0 6px;color:{Brand};font-weight:700">HOMSys</div>
-                <div style="font-size:17px;font-weight:700;margin:4px 0 2px">TRADE ACTIVITY SPEND APPROVAL FORM</div>
-                <div style="font-size:15px;margin:0 0 10px">{E(d.Title)}</div>
+                <div style="font-size:17px;font-weight:700;margin:4px 0 10px">TRADE ACTIVITY SPEND APPROVAL FORM</div>
                 """);
         else
             sb.Append($"""
@@ -41,13 +40,13 @@ public static class TasafEmailRenderer
                     <td style="padding:10px 0 6px;vertical-align:middle;font-size:17px;font-weight:700">TRADE ACTIVITY SPEND APPROVAL FORM</td>
                   </tr>
                 </table>
-                <div style="font-size:15px;margin:0 0 10px">{E(d.Title)}</div>
                 """);
         if (intro.Length > 0)
             sb.Append($"""<div style="background:#fdf2f2;border-left:4px solid {Brand};padding:8px 12px;margin:0 0 12px">{E(intro)}</div>""");
-        sb.Append(Grid([
-            ("Document No.", d.RefNo ?? "—"), ("Status", d.Status),
-            ("Date", Manila(d.CreatedAt)), ("Proponent", d.ProponentName),
+        // Info block, 3 columns: Title / Proponent · Document No. / Date Created · Status
+        sb.Append(Grid(3, [
+            ("Title", d.Title), ("Document No.", d.RefNo ?? "—"), ("Status", d.Status),
+            ("Proponent", d.ProponentName), ("Date Created", Manila(d.CreatedAt)), ("", ""),
         ]));
 
         // Details
@@ -178,14 +177,14 @@ public static class TasafEmailRenderer
     }
 
     /// <summary>Two label/value pairs per row (the header block).</summary>
-    private static string Grid(IReadOnlyList<(string Label, string Value)> cells)
+    private static string Grid(int perRow, IReadOnlyList<(string Label, string Value)> cells)
     {
         var sb = new StringBuilder("""<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;background:#faf3f3">""");
-        for (var i = 0; i < cells.Count; i += 2)
+        for (var i = 0; i < cells.Count; i += perRow)
         {
             sb.Append("<tr>");
-            foreach (var (label, value) in cells.Skip(i).Take(2))
-                sb.Append($"""<td style="padding:6px 10px;color:#555;width:110px">{E(label)}</td><td style="padding:6px 10px;font-weight:600">{E(value)}</td>""");
+            foreach (var (label, value) in cells.Skip(i).Take(perRow))
+                sb.Append($"""<td style="padding:6px 8px 6px 10px;color:#555;white-space:nowrap;vertical-align:top">{E(label)}</td><td style="padding:6px 10px 6px 0;font-weight:600;vertical-align:top">{E(value)}</td>""");
             sb.Append("</tr>");
         }
         return sb.Append("</table>").ToString();

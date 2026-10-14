@@ -49,30 +49,28 @@ export function buildTasafPdf(t: TasafDto, logo?: string | null): jsPDF {
     } catch { logoBox = null; /* unreadable image: fall back to the text header */ }
   }
   if (logoBox) {
-    // Form name beside the logo (vertically centred); the activity title on its own line below.
+    // Form name beside the logo (vertically centred).
     doc.setTextColor(20).setFont('helvetica', 'bold').setFontSize(14)
       .text('TRADE ACTIVITY SPEND APPROVAL FORM', M + logoBox.w + 6, y + logoBox.h / 2 + 1.8);
-    y += logoBox.h + 6;
-    doc.setFont('helvetica', 'normal').setFontSize(11);
-    const lines = doc.splitTextToSize(t.title || '', W - 2 * M);
-    doc.text(lines, M, y);
-    y += lines.length * 5;
+    y += logoBox.h + 3;
   } else {
     doc.setTextColor(...BRAND).setFont('helvetica', 'bold').setFontSize(10).text('HOMSys', M, y + 2);
     doc.setTextColor(20).setFontSize(14).text('TRADE ACTIVITY SPEND APPROVAL FORM', M, y + 10);
-    doc.setFont('helvetica', 'normal').setFontSize(11);
-    const titleLines = doc.splitTextToSize(t.title || '', W - 2 * M);
-    doc.text(titleLines, M, y + 16);
-    y += 16 + titleLines.length * 5;
+    y += 14;
   }
 
+  // Info block, 3 columns: Title / Proponent · Document No. / Date Created · Status
   autoTable(doc, {
     startY: y, theme: 'plain', margin: { left: M, right: M },
-    styles: { fontSize: 9, cellPadding: 1.8, fillColor: [250, 243, 243] },
-    columnStyles: { 0: { textColor: 90, cellWidth: 28 }, 1: { fontStyle: 'bold' }, 2: { textColor: 90, cellWidth: 24 }, 3: { fontStyle: 'bold' } },
+    styles: { fontSize: 9, cellPadding: 1.8, fillColor: [250, 243, 243], valign: 'top' },
+    columnStyles: {
+      0: { textColor: 90, cellWidth: 19 }, 1: { fontStyle: 'bold', cellWidth: 58 },
+      2: { textColor: 90, cellWidth: 25 }, 3: { fontStyle: 'bold', cellWidth: 38 },
+      4: { textColor: 90, cellWidth: 13 }, 5: { fontStyle: 'bold' },
+    },
     body: [
-      ['Document No.', t.refNo ?? '-', 'Status', t.status],
-      ['Date', when(t.createdAt), 'Proponent', t.proponentName],
+      ['Title', t.title, 'Document No.', t.refNo ?? '-', 'Status', t.status],
+      ['Proponent', t.proponentName, 'Date Created', when(t.createdAt), '', ''],
     ],
   });
   y = lastY();
