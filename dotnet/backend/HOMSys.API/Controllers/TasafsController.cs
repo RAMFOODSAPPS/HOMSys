@@ -75,6 +75,19 @@ public class TasafsController(TasafService service, SalesOrderService salesOrder
         return Ok(new { success = true, data = tasaf });
     }
 
+    /// <summary>Print: the TASAF as an HTML document (same layout as the approval email).</summary>
+    [HttpGet("{id:int}/document")]
+    public async Task<IActionResult> Document(int id)
+    {
+        var (tasaf, error) = await service.GetByIdAsync(id);
+        if (error == TasafService.NotFound)
+            return NotFound(new { success = false, message = error });
+        if (error is not null)
+            return StatusCode(403, new { success = false, message = error });
+
+        return Ok(new { success = true, data = new { html = TasafEmailRenderer.Render(tasaf!, "", null) } });
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] SaveTasafDto dto)
     {

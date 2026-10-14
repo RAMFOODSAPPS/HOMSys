@@ -28,6 +28,7 @@ import { FormLayoutItem, cellStyle, defaultItems, mergeLayout } from '../../../c
 import { FormDesignerComponent } from '../../../shared/form-designer/form-designer.component';
 import { ResizableColumnsDirective } from '../../../shared/resizable-columns.directive';
 import { TASAF_FIELDS, TASAF_FORM_KEY } from './tasaf-layout';
+import { buildTasafPdf } from './tasaf-pdf';
 import {
   SaveTasafDto, TASAF_STATUS_SEVERITY, utc, parseIsoDate, programDuration, toIsoDate, TasafBranch, TasafDialogAction, TasafDto, TasafFormOptions, TasafCustomerRef, TasafOption, TasafProduct, TasafSkuPrice
 } from '../../../core/models/tasaf.model';
@@ -546,7 +547,8 @@ function blankProduct(): TasafProduct {
               <strong>{{ s.userName || 'Vacant' }}</strong>
               <span class="muted">{{ s.roleCode }}</span>
               @switch (s.status) {
-                @case ('Approved') { <span class="ok">Approved {{ utc(s.actedAt) | date:'dd MMM yyyy h:mm a' }}</span> }
+                @case ('Approved') { <span class="ok">Approved {{ utc(s.actedAt) | date:'dd MMM yyyy h:mm a' }}</span>
+                  <span class="muted" style="font-style: italic; font-size: 0.75rem">Electronically approved</span> }
                 @case ('Returned') { <span class="bad">Returned {{ utc(s.actedAt) | date:'dd MMM yyyy h:mm a' }}</span> }
                 @case ('Rejected') { <span class="bad">Rejected {{ utc(s.actedAt) | date:'dd MMM yyyy h:mm a' }}</span> }
                 @case ('Skipped')  { <span class="muted">{{ s.comment || 'Skipped' }}</span> }
@@ -921,12 +923,62 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       // Approval history of a saved TASAF (dialog).
       ...(t ? { history: { onClick: () => (this.historyVisible = true), disabled: this.designing } } : {}),
       list:    { onClick: () => this.router.navigate(['/tasafs/list']) },
-      print:   { onClick: () => window.print() },
+      // Print / PDF: the saved TASAF as a document (same layout as the approval email).
+      print:   { onClick: () => this.printTasaf() },
+      ...(t ? { export: { pdf: () => this.exportPdf() } } : {}),
       ...(this.auth.isAdmin() ? { design: { onClick: () => this.designing.set(true), disabled: this.designing } } : {}),
     });
   }
 
   /** Cancel: leave the designer, else discard changes and go back to a blank New TASAF. */
+  /**
+   * Toolbar Print: the saved TASAF as a clean document (server layout, same as the approval email)
+   * printed from a hidden frame — the browser's print dialog also offers "Save as PDF". An unsaved
+   * new TASAF has no document yet, so that prints the screen.
+   */
+  private printTasaf() {
+    const t = this.current();
+    if (!t) { window.print(); return; }
+    this.warnUnsaved();
+    this.api.document(t.id).subscribe({
+      next: res => {
+        const html = res.data?.html;
+        if (!html) return;
+        const title = (t.refNo ?? t.title).replace(/[<>&"]/g, '');
+        const frame = document.createElement('iframe');
+        frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+        document.body.appendChild(frame);
+        const d = frame.contentDocument!;
+        d.open();
+        d.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>
+          @page { size: A4; margin: 12mm; } body { margin: 0; }
+          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } tr { page-break-inside: avoid; }
+          </style></head><body>${html}</body></html>`);
+        d.close();
+        setTimeout(() => {
+          frame.contentWindow?.focus();
+          frame.contentWindow?.print();
+          setTimeout(() => frame.remove(), 1000);
+        }, 300);
+      },
+      error: err => this.messageSvc.add({ severity: 'error', summary: 'Print', detail: err?.error?.message ?? 'Failed to load the TASAF for printing.' })
+    });
+  }
+
+  /** Toolbar Export › PDF: the saved TASAF as an A4 PDF (tasaf-pdf.ts, same sections as print). */
+  private exportPdf() {
+    const t = this.current();
+    if (!t) return;
+    this.warnUnsaved();
+    buildTasafPdf(t).save(`${t.refNo ?? 'TASAF-draft'}.pdf`);
+  }
+
+  /** Print / PDF use the saved version. */
+  private warnUnsaved() {
+    if (this.isDirty())
+      this.messageSvc.add({ severity: 'warn', summary: 'Unsaved changes', detail: 'This uses the saved version — save first to include your changes.' });
+  }
+
   /** Toolbar Edit: unlock the saved TASAF until the next Save / Cancel. */
   private startEdit() {
     this.editing.set(true);

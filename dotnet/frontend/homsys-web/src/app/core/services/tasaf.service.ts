@@ -28,6 +28,8 @@ export class TasafService {
 
   getAll()            { return this.http.get<ApiResponse<TasafListItem[]>>(this.base); }
   getById(id: number) { return this.http.get<ApiResponse<TasafDto>>(`${this.base}/${id}`); }
+  /** Print: the TASAF as an HTML document (server TasafEmailRenderer, same layout as the approval email). */
+  document(id: number) { return this.http.get<ApiResponse<{ html: string }>>(`${this.base}/${id}/document`); }
   create(dto: SaveTasafDto)             { return this.http.post<ApiResponse<TasafDto>>(this.base, dto); }
   update(id: number, dto: SaveTasafDto) { return this.http.put<ApiResponse<TasafDto>>(`${this.base}/${id}`, dto); }
   delete(id: number)  { return this.http.delete<ApiResponse<null>>(`${this.base}/${id}`); }

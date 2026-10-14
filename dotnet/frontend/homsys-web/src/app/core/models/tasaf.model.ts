@@ -89,6 +89,16 @@ export interface TasafDto extends SaveTasafDto {
   status: string;
   salesGroupName?: string | null;
   chainName?: string | null;
+  /** Display names of the picked lookups (comma-separated for the multi-selects). */
+  areaNames?: string | null;
+  programTypeName?: string | null;
+  objectiveName?: string | null;
+  targetMarketName?: string | null;
+  channelNames?: string | null;
+  productGroupName?: string | null;
+  productGroup2Name?: string | null;
+  categoryName?: string | null;
+  category2Name?: string | null;
   totalCost: number;
   promotedVsPrePromo: number | null;
   incrementalVsPrePromo: number | null;

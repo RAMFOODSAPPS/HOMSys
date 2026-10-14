@@ -120,7 +120,8 @@ public static class TasafEmailRenderer
             sb.Append(Table(["#", "Role", "Approver", "Status", "Date", "Comment"], [false, false, false, false, false, false],
                 d.Steps.Select(s => new[]
                 {
-                    s.Seq.ToString(), s.RoleCode, s.UserName.Length > 0 ? s.UserName : "(vacant)", s.Status,
+                    s.Seq.ToString(), s.RoleCode, s.UserName.Length > 0 ? s.UserName : "(vacant)",
+                    s.Status == "Approved" ? "Approved\nElectronically approved" : s.Status,
                     s.ActedAt is DateTime a ? Manila(a) : "", s.Comment
                 }).ToList(), null));
         }
@@ -181,7 +182,7 @@ public static class TasafEmailRenderer
     private static string Table(string[] head, bool[] right, List<string[]> rows, string[]? total)
     {
         string Cell(string v, bool r, bool th, bool bold) =>
-            $"""<{(th ? "th" : "td")} style="padding:5px 8px;border:1px solid #e5e5e5;text-align:{(r ? "right" : "left")};{(th ? "background:#f3e6e6;font-weight:600;" : "")}{(bold ? "font-weight:700;background:#faf3f3;" : "")}white-space:{(r ? "nowrap" : "normal")}">{E(v)}</{(th ? "th" : "td")}>""";
+            $"""<{(th ? "th" : "td")} style="padding:5px 8px;border:1px solid #e5e5e5;text-align:{(r ? "right" : "left")};{(th ? "background:#f3e6e6;font-weight:600;" : "")}{(bold ? "font-weight:700;background:#faf3f3;" : "")}white-space:{(r ? "nowrap" : "normal")}">{Multi(v)}</{(th ? "th" : "td")}>""";
         var sb = new StringBuilder("""<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:12px">""");
         sb.Append("<tr>").Append(string.Concat(head.Select((h, i) => Cell(h, right[i], true, false)))).Append("</tr>");
         if (rows.Count == 0)
