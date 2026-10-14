@@ -463,9 +463,7 @@ function blankProduct(): TasafProduct {
                 }
                 <tr class="hl">
                   <td>CTS ({{ sup ? 'Annual Projected Sales' : 'Promoted Value' }}) @if (ctsLimit() != null) { <span class="muted">— must be within {{ ctsLimit() }}%</span> }</td>
-                  <!-- Green = within the program type's CTS limit, red = over it. -->
-                  <td class="num" [style.color]="ctsLimit() != null && ratio(totalCost(), promotedValue()) != null
-                      ? (ctsOver() ? 'var(--p-red-600, #dc2626)' : 'var(--p-green-600, #16a34a)') : null">
+                  <td class="num" [style.color]="ctsColor()">
                     {{ (ratio(totalCost(), promotedValue()) | percent:'1.2-2') ?? '—' }}</td>@if (!sup) { <td></td> }
                 </tr>
               </tbody>
@@ -1156,6 +1154,17 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     const lim = this.ctsLimit();
     const cts = this.ratio(this.totalCost(), this.promotedValue());
     return lim != null && cts != null && cts * 100 > lim;
+  }
+  /**
+   * CTS value colour: green = within the program type's CTS limit, red = over it. Account Support &
+   * Convention types have no limit, so their CTS (vs Annual Projected Sales) is just green at 8% or less.
+   */
+  ctsColor() {
+    const cts = this.ratio(this.totalCost(), this.promotedValue());
+    if (cts == null) return null;
+    const green = 'var(--p-green-600, #16a34a)';
+    if (this.ctsLimit() != null) return this.ctsOver() ? 'var(--p-red-600, #dc2626)' : green;
+    return this.isSupport() && cts * 100 <= 8 ? green : null;
   }
   // ── Mode of Payment: ONE payment type per TASAF, carrying the whole Total Cost ──
   /** The picked type (its payXxxAp field); payload() puts the Total Cost there. */
