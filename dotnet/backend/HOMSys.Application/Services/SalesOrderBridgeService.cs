@@ -459,6 +459,11 @@ public class SalesOrderBridgeService(
     /// moment. A CProdNo missing from the new set (already deleted as a
     /// full stockout) is simply not re-inserted; see SalesOrderService's
     /// ApplyOosStatus for how that absence is reported.
+    ///
+    /// oowkdet can carry the same CPRODNO on two lines of one S.O. (Lucena
+    /// 79016519/79016543, 2026-10-13). OosSyncLines is unique on (SoId, CProdNo),
+    /// so those are summed into one row -- inserting both threw a 500 that held
+    /// up the branch's whole outbox. Mixed STKFLAGs read as partial (1).
     /// </summary>
     public async Task<string?> SyncOosStatusAsync(int soId, BridgeOosStatusDto dto)
     {
@@ -466,14 +471,14 @@ public class SalesOrderBridgeService(
         if (order is null)
             return $"Sales order {soId} not found.";
 
-        var rows = dto.Lines.Select(l => new OosSyncLine
+        var rows = dto.Lines.GroupBy(l => l.CProdNo).Select(g => new OosSyncLine
         {
             SoId = soId,
-            CProdNo = l.CProdNo,
-            AllocatedQtyCs = l.QtyCs,
-            AllocatedQtyPc = l.QtyPc,
-            StkFlag = l.StkFlag,
-            NetAmt = l.NetAmt,
+            CProdNo = g.Key,
+            AllocatedQtyCs = g.Sum(l => l.QtyCs),
+            AllocatedQtyPc = g.Sum(l => l.QtyPc),
+            StkFlag = g.Select(l => l.StkFlag).Distinct().Count() == 1 ? g.First().StkFlag : 1,
+            NetAmt = g.All(l => l.NetAmt is null) ? null : g.Sum(l => l.NetAmt),
             SyncedAt = DateTime.UtcNow
         });
 
