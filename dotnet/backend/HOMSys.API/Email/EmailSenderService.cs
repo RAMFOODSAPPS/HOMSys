@@ -18,6 +18,8 @@ public class EmailOptions
     public string FromAddress { get; set; } = string.Empty;
     /// <summary>HOMSys site address for the email's "Open in HOMSys" link.</summary>
     public string WebUrl { get; set; } = "https://homsys.ramfoods.com";
+    /// <summary>Testing only: send EVERY email to this address instead (subject names the real recipient). Blank in production.</summary>
+    public string RedirectTo { get; set; } = string.Empty;
 
     public bool IsConfigured => Enabled && ConnectionString.Length > 0 && FromAddress.Length > 0;
 }
@@ -59,12 +61,16 @@ public class EmailSenderService(EmailQueue queue, IOptions<EmailOptions> options
         {
             try
             {
-                var content = new EmailContent($"HOMSys: {m.Title}")
+                // Test setups (a copy of live with real addresses) send everything to RedirectTo instead.
+                var redirect = o.RedirectTo.Trim();
+                var subject = redirect.Length > 0 ? $"HOMSys [for {m.ToName} <{m.To}>]: {m.Title}" : $"HOMSys: {m.Title}";
+                var content = new EmailContent(subject)
                 {
                     PlainText = $"{m.Title}\n\n{m.Message}" + (m.LinkPath is null ? "" : $"\n\nOpen in HOMSys: {Url(o, m.LinkPath)}"),
                     Html = Html(o, m)
                 };
-                var email = new EmailMessage(o.FromAddress, new EmailRecipients([new EmailAddress(m.To, m.ToName)]), content);
+                var to = redirect.Length > 0 ? new EmailAddress(redirect) : new EmailAddress(m.To, m.ToName);
+                var email = new EmailMessage(o.FromAddress, new EmailRecipients([to]), content);
                 // Started: ACS queues it; we don't wait for final delivery.
                 await client.SendAsync(WaitUntil.Started, email, stoppingToken);
             }
