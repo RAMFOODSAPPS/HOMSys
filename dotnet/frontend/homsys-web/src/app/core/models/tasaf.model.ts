@@ -7,6 +7,8 @@ export interface TasafCustomerRef {
 export interface TasafBranch {
   siteId?: number | null;
   name: string;
+  /** Site code (form options only), matched against an area's branchCodes. */
+  code?: string | null;
 }
 
 export interface TasafProduct {
@@ -17,7 +19,16 @@ export interface TasafProduct {
   promotedVolCs: number;
   incrVolCs: number;
   lspPerCase: number;
+  /** Server-computed price of the picked stores (read-only); null = none picked / mixed prices. */
+  lspComputed?: number | null;
   promotedValue: number;
+}
+
+/** LSP / case of one SKU for the picked stores, grouped by price (POST tasafs/product-prices). */
+export interface TasafSkuPrice {
+  cProdNo: string;
+  hasPrice: boolean;
+  groups: { price: number; custKeys: string[] }[];
 }
 
 export interface TasafCost {
@@ -174,6 +185,8 @@ export interface TasafOption {
   parentId?: number | null;
   /** Program types: Max CTS %. */
   amount?: number | null;
+  /** Areas: comma-separated Site codes (blank = all branches). */
+  branchCodes?: string | null;
 }
 
 export interface TasafFormOptions {

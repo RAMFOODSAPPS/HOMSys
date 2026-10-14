@@ -366,3 +366,11 @@ table.rc-table.rc-fixed td .p-inputtext { width: 100%; min-width: 0; }
   &:hover { border-right-color: #800000; }
 }
 body.rc-resizing { cursor: col-resize !important; user-select: none; }
+
+/* TASAF LSP / Case: note under the input, and the mixed-price bar under Participating Products. */
+.lsp-note { display: block; font-size: 0.7rem; color: #6b7280; text-align: right; margin-top: 2px; white-space: nowrap;
+  &.warn { color: #b45309; }
+  &.link { cursor: pointer; text-decoration: underline dotted; }
+}
+.lsp-mixed { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.5rem; padding: 0.4rem 0.6rem;
+  border: 1px solid #fcd34d; background: #fffbeb; border-radius: 4px; font-size: 0.8rem; color: #92400e; }

@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { DatePipe, DecimalPipe, PercentPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router } from '@angular/router';
@@ -29,7 +29,7 @@ import { FormDesignerComponent } from '../../../shared/form-designer/form-design
 import { ResizableColumnsDirective } from '../../../shared/resizable-columns.directive';
 import { TASAF_FIELDS, TASAF_FORM_KEY } from './tasaf-layout';
 import {
-  SaveTasafDto, TASAF_STATUS_SEVERITY, utc, parseIsoDate, programDuration, toIsoDate, TasafBranch, TasafDialogAction, TasafDto, TasafFormOptions, TasafCustomerRef, TasafOption, TasafProduct
+  SaveTasafDto, TASAF_STATUS_SEVERITY, utc, parseIsoDate, programDuration, toIsoDate, TasafBranch, TasafDialogAction, TasafDto, TasafFormOptions, TasafCustomerRef, TasafOption, TasafProduct, TasafSkuPrice
 } from '../../../core/models/tasaf.model';
 
 type PayKey = 'payInvDeductionAp' | 'payInvDeductionSalesman' | 'payCheckAp' | 'payCheckSalesman'
@@ -130,7 +130,7 @@ function blankProduct(): TasafProduct {
           @case ('start') {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
-              <p-datepicker [(ngModel)]="startDate" dateFormat="M d, yy" placeholder="Select start date" [showIcon]="true"
+              <p-datepicker [ngModel]="startDate" (ngModelChange)="startDate = $event; schedulePrices()" dateFormat="M d, yy" placeholder="Select start date" [showIcon]="true"
                 [showButtonBar]="true" [maxDate]="endDate" appendTo="body" styleClass="w-full" inputStyleClass="w-full"
                 [disabled]="readonly()" />
             </div>
@@ -216,8 +216,8 @@ function blankProduct(): TasafProduct {
           @case ('branches') {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
-              <p-multiSelect #branchMs [focusOnHover]="false" [(ngModel)]="branchSel" [options]="options()?.branches ?? []" optionLabel="name" dataKey="name"
-                [filter]="true" display="chip" [maxSelectedLabels]="100000" placeholder="Select one or more branches" styleClass="w-full chips-wrap"
+              <p-multiSelect #branchMs [focusOnHover]="false" [ngModel]="branchSel" (ngModelChange)="onBranches($event)" [options]="branchOptions()" optionLabel="name" dataKey="name"
+                [filter]="true" display="chip" [maxSelectedLabels]="100000" [placeholder]="areaCodes() ? 'Select branches of the chosen area' : 'Select one or more branches'" styleClass="w-full chips-wrap"
                 appendTo="body" [disabled]="readonly()">
                 <ng-template pTemplate="footer">
                   <div class="ms-footer"><span>{{ branchSel.length }} selected</span><p-button label="Done" size="small" (onClick)="branchMs.hide()" /></div>
@@ -354,7 +354,7 @@ function blankProduct(): TasafProduct {
               <h3>{{ cap(it) }}</h3>
               <span class="muted">Skip if not applicable (e.g. sotex / moveout).</span>
               <i class="pi pi-info-circle muted" style="cursor: help" tooltipPosition="top"
-                pTooltip="Every column except SPLY is required on submit (enter 0 when there were no sales). LSP / Case is prefilled from the product's current list price (ex-VAT) — adjust if needed."></i>
+                pTooltip="Every column except SPLY is required on submit (enter 0 when there were no sales). LSP / Case is the picked Cust Keys' price with VAT as of the start date (list price + zone add-ons, as in Sales Orders); all picked stores must share one price. You can change it — approvers see the computed price."></i>
               @if (!readonly()) { <p-button label="Add SKU" icon="pi pi-plus" size="small" [text]="true" (onClick)="addProduct()" /> }
             </div>
             @if (m.products.length) {
@@ -390,13 +390,33 @@ function blankProduct(): TasafProduct {
                       <td><p-inputNumber [(ngModel)]="p.splyCs" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /></td>
                       <td><p-inputNumber [(ngModel)]="p.promotedVolCs" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /></td>
                       <td><p-inputNumber [(ngModel)]="p.incrVolCs" [maxFractionDigits]="2" inputStyleClass="numin" [disabled]="readonly()" /></td>
-                      <td><p-inputNumber [(ngModel)]="p.lspPerCase" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" /></td>
+                      <td>
+                        <p-inputNumber [(ngModel)]="p.lspPerCase" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="readonly()" />
+                        @if (lspNote(p); as n) {
+                          <small class="lsp-note" [class.warn]="n.warn" [class.link]="n.reset" [pTooltip]="n.tip" tooltipPosition="top"
+                            (click)="n.reset && p.lspComputed != null && (p.lspPerCase = p.lspComputed)">{{ n.text }}</small>
+                        }
+                      </td>
                       <td class="num">{{ (p.promotedVolCs || 0) * (p.lspPerCase || 0) | number:'1.2-2' }}</td>
                       <td>@if (!readonly()) { <p-button icon="pi pi-trash" [text]="true" severity="danger" size="small" (onClick)="m.products.splice(i, 1)" /> }</td>
                     </tr>
                   }
                 </tbody>
               </table>
+              <!-- Every picked store must have one price per SKU: offer to keep the stores of one price. -->
+              @if (!readonly()) {
+                @for (x of mixedSkus(); track x.cProdNo) {
+                  <div class="lsp-mixed">
+                    <i class="pi pi-exclamation-triangle"></i>
+                    <span><strong>{{ x.cProdNo }}</strong>: the picked stores have different prices — keep only one price:</span>
+                    @for (g of x.groups; track g.price) {
+                      <p-button size="small" [outlined]="true" severity="warn" (onClick)="keepStoresAt(g)"
+                        [label]="(g.price | number:'1.2-2') + ' (' + g.custKeys.length + ' store' + (g.custKeys.length === 1 ? '' : 's') + ')'"
+                        [pTooltip]="g.custKeys.slice(0, 30).join(', ') + (g.custKeys.length > 30 ? '…' : '')" tooltipPosition="top" />
+                    }
+                  </div>
+                }
+              }
             }
           }
           @case ('costs') {
@@ -687,6 +707,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   protected cannotDelete = computed(() => !this.current()?.canDelete);
   protected severity     = computed(() => this.sev(this.current()?.status ?? 'Draft'));
   protected submitting   = signal(false);
+  /** Submit only once the TASAF has been saved (unsaved edits after that are saved on submit). */
+  protected submitBlocked = computed(() => this.designing() || !this.current());
   protected deciding     = signal(false);
   protected decision     = signal<TasafDialogAction>('approve');
   protected decisionTitle = computed(() => {
@@ -727,6 +749,9 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   protected chainLoading   = signal(false);
   protected chainNoMatch   = signal(false);
   private chainReq = 0;
+  /** Stores per chain in the picked branches / areas (chain-store-counts); null = no filter. */
+  protected chainCounts = signal<Record<number, number> | null>(null);
+  private countsReq = 0;
   /** Program duration pickers (Date); sent as 'yyyy-MM-dd'. */
   protected startDate: Date | null = null;
   protected endDate: Date | null = null;
@@ -823,6 +848,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     this.startDate = parseIsoDate(src.startDate);
     this.endDate = parseIsoDate(src.endDate);
     this.loadCustomerOptions(false);
+    this.loadChainCounts(false);
     this.loadProductOptions();
     this.snapshot = JSON.stringify(this.payload());
   }
@@ -853,8 +879,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       title:   t ? `TASAF ${t.refNo ?? '(Draft)'} — ${t.title}` : 'New TASAF',
       save:    { onClick: () => this.save(), loading: this.saving, disabled: this.readonly },
       ...(!this.readonly() ? { submit: {
-        label: t?.status === 'Returned' ? 'Resubmit for approval' : 'Submit for approval',
-        onClick: () => this.confirmSubmit(), loading: this.submitting, disabled: this.designing
+        label: !t ? 'Save the TASAF first, then submit' : t.status === 'Returned' ? 'Resubmit for approval' : 'Submit for approval',
+        onClick: () => this.confirmSubmit(), loading: this.submitting, disabled: this.submitBlocked
       } } : {}),
       ...(t?.myAction ? {
         approve: { label: `Approve as ${t.currentRoleCode ?? ''}`.trim(), onClick: () => this.openDecision('approve'), disabled: this.designing },
@@ -948,10 +974,26 @@ export class TasafPageComponent implements OnInit, OnDestroy {
 
   list(key: string): TasafOption[] { return this.options()?.lists[key] ?? []; }
 
+  /**
+   * Customer / Chain dropdown: chains of the picked sales group; with branches / areas picked, only
+   * chains that have stores there, labelled with the count. Chains with no name keywords (e.g. "LKA
+   * Others") can't be counted and are always offered, as is the chain already picked.
+   */
+  private chainOptsCache: { key: string; list: TasafOption[] } | null = null;
   chainOptions(): TasafOption[] {
     const sg = this.m.salesGroupId;
     const all = this.list('chains');
-    return sg ? all.filter(c => !c.parentId || c.parentId === sg) : all;
+    const counts = this.chainCounts();
+    const key = `${sg}|${this.m.chainId}|${JSON.stringify(counts)}|${all.length}`;
+    if (this.chainOptsCache?.key === key) return this.chainOptsCache.list;
+    let list = sg ? all.filter(c => !c.parentId || c.parentId === sg) : all;
+    if (counts) {
+      list = list
+        .filter(c => counts[c.id] === undefined || counts[c.id] > 0 || c.id === this.m.chainId)
+        .map(c => counts[c.id] === undefined ? c : { ...c, name: `${c.name} (${counts[c.id].toLocaleString()} stores)` });
+    }
+    this.chainOptsCache = { key, list };
+    return list;
   }
 
   categoryOptions(groupId: number | null): TasafOption[] {
@@ -996,7 +1038,99 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   /** Areas changed: the Cust Key list narrows to the areas' branches (TASAF Setup › Areas). */
   onAreas(areaIds: number[] | null) {
     this.m.areaIds = areaIds ?? [];
+    // Branches outside the picked areas no longer apply.
+    const codes = this.areaCodes();
+    if (codes) {
+      const before = this.branchSel.length;
+      this.branchSel = this.branchSel.filter(b => b.siteId != null && this.inAreas(b, codes));
+      const cleared = before - this.branchSel.length;
+      if (cleared) this.messageSvc.add({ severity: 'info', summary: 'Branch',
+        detail: `${cleared} branch${cleared === 1 ? '' : 'es'} removed — not in the chosen area.` });
+    }
     this.loadCustomerOptions(true);
+    this.loadChainCounts(true);
+  }
+
+  /**
+   * Store counts per chain for the picked branches / areas. A chain with no stores there drops out
+   * of the Customer / Chain dropdown; if it was the picked one it is cleared (userChange only — a
+   * saved TASAF keeps its chain).
+   */
+  private loadChainCounts(userChange: boolean) {
+    const req = ++this.countsReq;
+    if (!this.m.areaIds.length && !this.branchSiteIds().length) { this.chainCounts.set(null); return; }
+    this.api.chainStoreCounts(this.m.areaIds, this.branchSiteIds()).subscribe({
+      next: res => {
+        if (req !== this.countsReq) return;
+        const counts = res.data ?? null;
+        this.chainCounts.set(counts);
+        const id = this.m.chainId;
+        if (userChange && id && counts && counts[id] === 0) {
+          const name = this.chainName();
+          this.onChain(null);
+          this.messageSvc.add({ severity: 'info', summary: 'Customer / Chain',
+            detail: `${name} cleared — it has no stores in the chosen ${this.branchSiteIds().length ? 'branches' : 'area'}.` });
+        }
+      },
+      error: () => { if (req === this.countsReq) this.chainCounts.set(null); }
+    });
+  }
+
+  /** Branches changed: the Cust Key list narrows to the picked branches' stores. */
+  onBranches(sel: TasafBranch[] | null) {
+    this.branchSel = sel ?? [];
+    this.loadCustomerOptions(true);
+    this.loadChainCounts(true);
+  }
+
+  /**
+   * Picked branches that narrow the Cust Key list (Site ids). Empty = use the area instead — none
+   * picked, or an "ALL …" scope is among them.
+   */
+  private branchSiteIds(): number[] {
+    if (this.branchSel.some(b => b.siteId == null)) return [];
+    return this.branchSel.map(b => b.siteId!);
+  }
+
+  /**
+   * Site codes of the picked areas (TASAF Setup › Areas), or null = no filter (no area picked, or
+   * one with no branch codes, e.g. Nationwide). Same rule as the Cust Key list on the server.
+   */
+  protected areaCodes(): Set<string> | null {
+    const areas = this.list('areas').filter(a => this.m.areaIds.includes(a.id));
+    if (!areas.length) return null;
+    const codes = new Set<string>();
+    for (const a of areas) {
+      const list = (a.branchCodes ?? '').split(',').map(c => c.trim().toUpperCase()).filter(c => c);
+      if (!list.length) return null;
+      list.forEach(c => codes.add(c));
+    }
+    return codes;
+  }
+
+  private inAreas(b: TasafBranch, codes: Set<string>) {
+    return codes.has((b.code ?? '').toUpperCase()) || codes.has(b.name.toUpperCase());
+  }
+
+  /**
+   * Branch dropdown: with an area picked, only that area's sites (the ALL … scopes don't apply);
+   * otherwise every site plus the scopes. Branches already on the TASAF stay listed. Cached so the
+   * multiselect gets the same array between change-detection runs.
+   */
+  private branchOptsCache: { key: string; all: TasafBranch[] | undefined; list: TasafBranch[] } | null = null;
+  protected branchOptions(): TasafBranch[] {
+    const all = this.options()?.branches;
+    const key = this.m.areaIds.join(',') + '|' + this.branchSel.map(b => b.name).join(',');
+    if (this.branchOptsCache?.key === key && this.branchOptsCache.all === all) return this.branchOptsCache.list;
+    const codes = this.areaCodes();
+    let list = all ?? [];
+    if (codes) {
+      list = list.filter(b => b.siteId != null && this.inAreas(b, codes));
+      const extra = this.branchSel.filter(s => !list.some(b => b.name === s.name));
+      list = [...list, ...extra];
+    }
+    this.branchOptsCache = { key, all, list };
+    return list;
   }
 
   /** Sales group changed: a chain of another group no longer applies. */
@@ -1009,11 +1143,12 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     const req = ++this.chainReq;
     this.chainCustomers.set([]);
     this.chainNoMatch.set(false);
-    if (!this.m.chainId && !this.m.areaIds.length) return;
+    const siteIds = this.branchSiteIds();
+    if (!this.m.chainId && !this.m.areaIds.length && !siteIds.length) return;
     this.chainLoading.set(true);
-    this.api.customerOptions(this.m.chainId, this.m.areaIds).subscribe({
+    this.api.customerOptions(this.m.chainId, this.m.areaIds, siteIds).subscribe({
       next: res => {
-        if (req !== this.chainReq) return; // a newer chain / area was picked meanwhile
+        if (req !== this.chainReq) return; // a newer chain / area / branch was picked meanwhile
         this.chainLoading.set(false);
         let list = res.data?.customers ?? [];
         const inList = new Set(list.map(c => c.custKey));
@@ -1036,10 +1171,12 @@ export class TasafPageComponent implements OnInit, OnDestroy {
 
   chainName() { return this.list('chains').find(o => o.id === this.m.chainId)?.name ?? ''; }
 
-  /** "Puregold · South Luzon, Bicol" — what the Cust Key list is narrowed to. */
+  /** "Puregold · South Luzon, Bicol" (or the picked branches) — what the Cust Key list is narrowed to. */
   scopeName() {
-    const areas = this.list('areas').filter(a => this.m.areaIds.includes(a.id)).map(a => a.name).join(', ');
-    return [this.chainName(), areas].filter(s => s).join(' · ');
+    const where = this.branchSiteIds().length
+      ? this.branchSel.map(b => b.name).join(', ')
+      : this.list('areas').filter(a => this.m.areaIds.includes(a.id)).map(a => a.name).join(', ');
+    return [this.chainName(), where].filter(s => s).join(' · ');
   }
 
   // ── Participating SKUs ─────────────────────────────────────
@@ -1074,13 +1211,93 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Picking a SKU fills SKU name and LSP / Case (current list price, ex-VAT — editable). */
+  /** Picking a SKU fills the SKU name; LSP / Case is then priced for the picked stores. */
   pickProduct(p: TasafProduct, cProdNo: string | null) {
     const o = this.productOptions().find(x => x.cProdNo === cProdNo);
+    if ((cProdNo ?? '') !== p.cProdNo) { p.lspPerCase = 0; p.lspComputed = null; }
     p.cProdNo = cProdNo ?? '';
+    this.schedulePrices();
     if (!o) return;
     p.sku = `${o.prodDesc} ${o.packSize}`.trim();
-    if (o.lspPerCase != null) p.lspPerCase = o.lspPerCase;
+  }
+
+  // ── LSP / Case = the picked stores' price ──────────────────
+  /**
+   * Each SKU's price (with VAT) for the picked Cust Keys as of the start date — base price + the
+   * store's zone add-ons, the same rule as Sales Orders (server: TasafPriceService). All picked
+   * stores must share one price per SKU. LSP stays editable: a changed value is kept (and shown to
+   * approvers next to the computed price); an untouched one follows the stores.
+   */
+  protected skuPrices = signal<Record<string, TasafSkuPrice>>({});
+  private pricesReq = 0;
+  private pricesTimer?: ReturnType<typeof setTimeout>;
+  private pricesOnStores = effect(() => { this.customers(); this.schedulePrices(); });
+
+  schedulePrices() {
+    clearTimeout(this.pricesTimer);
+    this.pricesTimer = setTimeout(() => this.refreshPrices(), 300);
+  }
+
+  private refreshPrices() {
+    const req = ++this.pricesReq;
+    const rows = this.m.products.filter(p => p.cProdNo?.trim());
+    const keys = this.customers().map(c => c.custKey);
+    const edit = !this.readonly();
+    if (!rows.length || !keys.length) {
+      this.skuPrices.set({});
+      // No stores picked: LSP is left blank (unless the proponent typed one).
+      if (edit) for (const p of rows) if (!p.lspPerCase || p.lspPerCase === p.lspComputed) { p.lspPerCase = 0; p.lspComputed = null; }
+      return;
+    }
+    this.api.productPrices([...new Set(rows.map(p => p.cProdNo))], keys, toIsoDate(this.startDate)).subscribe({
+      next: res => {
+        if (req !== this.pricesReq) return;
+        const map: Record<string, TasafSkuPrice> = {};
+        for (const x of res.data ?? []) map[x.cProdNo] = x;
+        this.skuPrices.set(map);
+        if (!edit) return; // approvers see the saved LSP / computed price
+        for (const p of rows) {
+          const g = map[p.cProdNo]?.groups ?? [];
+          const one = g.length === 1 ? g[0].price : null;
+          const untouched = !p.lspPerCase || p.lspPerCase === p.lspComputed;
+          p.lspComputed = one;
+          if (untouched) p.lspPerCase = one ?? 0;
+        }
+      },
+      error: () => { if (req === this.pricesReq) this.skuPrices.set({}); }
+    });
+  }
+
+  /** SKUs on the form whose picked stores have more than one price. */
+  mixedSkus(): TasafSkuPrice[] {
+    const map = this.skuPrices();
+    return Object.values(map).filter(x => x.groups.length > 1 && this.m.products.some(p => p.cProdNo === x.cProdNo));
+  }
+
+  /** Keep only the picked stores at one price (resolves a mixed-price SKU). */
+  keepStoresAt(g: { price: number; custKeys: string[] }) {
+    const keep = new Set(g.custKeys);
+    const before = this.customers().length;
+    this.customers.update(cs => cs.filter(c => keep.has(c.custKey)));
+    const removed = before - this.customers().length;
+    this.messageSvc.add({ severity: 'info', summary: 'Cust Key',
+      detail: `${removed} store${removed === 1 ? '' : 's'} with a different price removed.` });
+  }
+
+  /** Small note under LSP / Case: mixed prices, changed from the computed price, or not priced. */
+  lspNote(p: TasafProduct): { text: string; tip: string; warn: boolean; reset: boolean } | null {
+    if (!p.cProdNo?.trim()) return null;
+    const x = this.skuPrices()[p.cProdNo];
+    const fmt = (n: number) => n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (x && x.groups.length > 1)
+      return { text: `${x.groups.length} different prices`, warn: true, reset: false,
+        tip: x.groups.map(g => `${fmt(g.price)} — ${g.custKeys.length} store(s): ${g.custKeys.slice(0, 10).join(', ')}${g.custKeys.length > 10 ? '…' : ''}`).join('\n') };
+    if (p.lspComputed != null && p.lspPerCase !== p.lspComputed)
+      return { text: `computed ${fmt(p.lspComputed)}`, warn: true, reset: !this.readonly(),
+        tip: `Changed by the proponent. The picked stores' price is ${fmt(p.lspComputed)}.` + (this.readonly() ? '' : ' Click to use it.') };
+    if (x && !x.hasPrice) return { text: 'no price found', warn: true, reset: false, tip: 'No list price for this product as of the start date.' };
+    if (!this.customers().length && !this.readonly()) return { text: 'pick Cust Keys', warn: false, reset: false, tip: 'LSP is the picked stores\' price — pick the Cust Keys first.' };
+    return null;
   }
 
   addProduct() { this.m.products.push(blankProduct()); }
@@ -1224,6 +1441,12 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     if (rows.length) {
       this.messageSvc.add({ severity: 'warn', summary: 'Participating Products', life: 8000,
         detail: `Complete every product column before submitting — ${rows.join('; ')}.` });
+      return;
+    }
+    const mixed = this.isSupport() ? [] : this.mixedSkus();
+    if (mixed.length) {
+      this.messageSvc.add({ severity: 'warn', summary: 'LSP / Case', life: 8000,
+        detail: `The picked Cust Keys have different prices for ${mixed.map(x => x.cProdNo).join(', ')} — keep only stores with the same price (see under Participating Products).` });
       return;
     }
     if (this.ctsOver() && !this.m.ctsJustification.trim()) {

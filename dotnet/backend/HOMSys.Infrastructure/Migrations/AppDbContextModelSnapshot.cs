@@ -4586,6 +4586,10 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<int>("LineNo")
                         .HasColumnType("int");
 
+                    b.Property<decimal?>("LspComputed")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("LspPerCase")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");

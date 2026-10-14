@@ -35,6 +35,8 @@ public interface ICustomerRepository
     /// branches in <paramref name="scope"/> when given (null = every branch).
     /// </summary>
     Task<List<CustomerMatchInfo>> MatchAsync(IReadOnlyList<string> fragments, CustomerBranchScope? scope, int take);
+    /// <summary>How many distinct CustKeys <see cref="MatchAsync"/> would find (no cap).</summary>
+    Task<int> CountMatchAsync(IReadOnlyList<string> fragments, CustomerBranchScope? scope);
 
     /// <summary>
     /// If <paramref name="pricingFolder"/> is given, results are restricted to

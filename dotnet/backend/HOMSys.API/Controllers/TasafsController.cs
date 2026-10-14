@@ -24,13 +24,24 @@ public class TasafsController(TasafService service, SalesOrderService salesOrder
     public async Task<IActionResult> SearchCustomers([FromQuery] string? term) =>
         Ok(new { success = true, data = await salesOrderService.SearchCustomersAsync(term ?? "", take: 50) });
 
-    /// <summary>Cust Key dropdown: stores of the picked chain (name keywords) and areas (branches).</summary>
+    /// <summary>Cust Key dropdown: stores of the picked chain (name keywords) and branches (else areas).</summary>
     [HttpGet("customer-options")]
-    public async Task<IActionResult> CustomerOptions([FromQuery] int? chainId, [FromQuery] int[]? areaIds)
+    public async Task<IActionResult> CustomerOptions([FromQuery] int? chainId, [FromQuery] int[]? areaIds,
+        [FromQuery] int[]? siteIds)
     {
-        var (customers, filtered) = await service.GetCustomerOptionsAsync(chainId, areaIds ?? []);
+        var (customers, filtered) = await service.GetCustomerOptionsAsync(chainId, areaIds ?? [], siteIds ?? []);
         return Ok(new { success = true, data = new { filtered, customers } });
     }
+
+    /// <summary>LSP / case: each SKU's price for the picked stores, grouped by price.</summary>
+    [HttpPost("product-prices")]
+    public async Task<IActionResult> ProductPrices([FromBody] TasafPriceRequest req) =>
+        Ok(new { success = true, data = await service.GetProductPricesAsync(req) });
+
+    /// <summary>Customer / Chain dropdown: stores per chain in the picked branches (else areas); null = no filter.</summary>
+    [HttpGet("chain-store-counts")]
+    public async Task<IActionResult> ChainStoreCounts([FromQuery] int[]? areaIds, [FromQuery] int[]? siteIds) =>
+        Ok(new { success = true, data = await service.GetChainStoreCountsAsync(areaIds ?? [], siteIds ?? []) });
 
     /// <summary>Participating SKU dropdown for the TASAF's product group(s) / category(ies).</summary>
     [HttpGet("product-options")]

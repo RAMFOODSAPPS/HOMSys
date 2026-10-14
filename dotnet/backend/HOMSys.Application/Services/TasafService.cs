@@ -12,6 +12,7 @@ public class TasafService(
     ISiteRepository sites,
     ICustomerRepository customers,
     IProductRepository products,
+    TasafPriceService prices,
     IUserRepository users,
     NotificationService notifications,
     IHttpContextAccessor http)
@@ -42,14 +43,15 @@ public class TasafService(
                 {
                     Id = x.Id, Code = x.Code, Name = x.Name,
                     ParentId = (x as ITasafParentLookup)?.ParentId,
-                    Amount   = (x as ITasafAmountLookup)?.Amount
+                    Amount   = (x as ITasafAmountLookup)?.Amount,
+                    BranchCodes = (x as TasafArea)?.BranchCodes
                 })
                 .ToList();
         }
         dto.Branches = (await sites.GetAllAsync())
             .Where(s => s.IsActive)
             .OrderBy(s => s.Name)
-            .Select(s => new TasafBranchDto { SiteId = s.Id, Name = s.Name })
+            .Select(s => new TasafBranchDto { SiteId = s.Id, Name = s.Name, Code = s.Code })
             .Concat(BranchScopes.Select(b => new TasafBranchDto { Name = b }))
             .ToList();
         return dto;
@@ -98,27 +100,66 @@ public class TasafService(
 
     /// <summary>
     /// Cust Key dropdown: active stores of the picked chain (its customer-name keywords, TASAF
-    /// Setup › Customers / Chains) AND of the picked areas (their branch codes, TASAF Setup ›
-    /// Areas). filtered = false when neither narrows anything (the form searches everything).
+    /// Setup › Customers / Chains) AND of the picked branches (Sites) — or, with no branch picked,
+    /// of the picked areas (their branch codes, TASAF Setup › Areas). filtered = false when nothing
+    /// narrows anything (the form searches everything).
     /// </summary>
     public async Task<(List<CustomerMatchInfo> customers, bool filtered)> GetCustomerOptionsAsync(
-        int? chainId, IReadOnlyList<int> areaIds)
+        int? chainId, IReadOnlyList<int> areaIds, IReadOnlyList<int> siteIds)
     {
         var fragments = new List<string>();
         if (chainId is int cid && await lookups.GetByIdAsync(typeof(TasafChain), cid) is TasafChain chain)
             fragments = SplitList(chain.CustomerMatch).Where(f => f.Length >= 2).ToList();
 
-        var scope = await AreaScopeAsync(areaIds);
+        var scope = await BranchScopeAsync(areaIds, siteIds);
         if (fragments.Count == 0 && scope is null) return ([], false);
         return (await customers.MatchAsync(fragments, scope, take: MaxCustomers), true);
     }
 
     /// <summary>
-    /// The picked areas' branches as a customer filter; null = no filter (no area picked, or one
-    /// with no branch codes, e.g. Nationwide). A customer belongs to a Site when its WhseNo is in
-    /// the Site's Cuwhsenos; a Site with none (HON-B) owns its folder's unclaimed WhseNos.
+    /// Customer / Chain dropdown: active stores per chain in the picked branches (else areas).
+    /// null = nothing narrows (every chain is offered). Chains with no name keywords (e.g. "LKA
+    /// Others") can't be counted and are left out — the form keeps offering them.
     /// </summary>
-    private async Task<CustomerBranchScope?> AreaScopeAsync(IReadOnlyList<int> areaIds)
+    public async Task<Dictionary<int, int>?> GetChainStoreCountsAsync(IReadOnlyList<int> areaIds, IReadOnlyList<int> siteIds)
+    {
+        var scope = await BranchScopeAsync(areaIds, siteIds);
+        if (scope is null) return null;
+        var counts = new Dictionary<int, int>();
+        foreach (var chain in (await lookups.GetAllAsync(typeof(TasafChain))).OfType<TasafChain>().Where(c => c.IsActive))
+        {
+            var fragments = SplitList(chain.CustomerMatch).Where(f => f.Length >= 2).ToList();
+            if (fragments.Count > 0) counts[chain.Id] = await customers.CountMatchAsync(fragments, scope);
+        }
+        return counts;
+    }
+
+    /// <summary>
+    /// The picked branches (Sites), else the picked areas' branches, as a customer filter; null = no
+    /// filter (nothing picked, or an area with no branch codes, e.g. Nationwide). A customer belongs
+    /// to a Site when its WhseNo is in the Site's Cuwhsenos; a Site with none (HON-B) owns its
+    /// folder's unclaimed WhseNos.
+    /// </summary>
+    private async Task<CustomerBranchScope?> BranchScopeAsync(IReadOnlyList<int> areaIds, IReadOnlyList<int> siteIds)
+    {
+        var allSites = (await sites.GetAllAsync()).ToList();
+        var picked = allSites.Where(s => siteIds.Contains(s.Id)).ToList();
+        if (picked.Count == 0)
+        {
+            var codes = await AreaCodesAsync(areaIds);
+            if (codes is null) return null;
+            picked = allSites.Where(s => codes.Contains(s.Code) || codes.Contains(s.Name)).ToList();
+        }
+
+        var claimed = allSites.SelectMany(s => ParseWhseNos(s.Cuwhsenos)).Distinct().ToList();
+        var whse = picked.SelectMany(s => ParseWhseNos(s.Cuwhsenos)).Distinct().ToList();
+        var folders = picked.Where(s => ParseWhseNos(s.Cuwhsenos).Count == 0)
+            .Select(s => s.Code.Split('-')[0].ToLowerInvariant()).Distinct().ToList();
+        return new CustomerBranchScope(whse, folders, claimed);
+    }
+
+    /// <summary>The picked areas' Site codes; null = no area, or one with no codes (all branches).</summary>
+    private async Task<HashSet<string>?> AreaCodesAsync(IReadOnlyList<int> areaIds)
     {
         var codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var id in areaIds.Distinct())
@@ -128,15 +169,7 @@ public class TasafService(
             if (list.Count == 0) return null;
             codes.UnionWith(list);
         }
-        if (codes.Count == 0) return null;
-
-        var allSites = (await sites.GetAllAsync()).ToList();
-        var claimed = allSites.SelectMany(s => ParseWhseNos(s.Cuwhsenos)).Distinct().ToList();
-        var picked = allSites.Where(s => codes.Contains(s.Code) || codes.Contains(s.Name)).ToList();
-        var whse = picked.SelectMany(s => ParseWhseNos(s.Cuwhsenos)).Distinct().ToList();
-        var folders = picked.Where(s => ParseWhseNos(s.Cuwhsenos).Count == 0)
-            .Select(s => s.Code.Split('-')[0].ToLowerInvariant()).Distinct().ToList();
-        return new CustomerBranchScope(whse, folders, claimed);
+        return codes.Count == 0 ? null : codes;
     }
 
     private static List<string> SplitList(string s) =>
@@ -276,6 +309,12 @@ public class TasafService(
 
         var missing = MissingForSubmit(t);
         if (missing.Count > 0) return (null, "Complete these before submitting: " + string.Join(", ", missing) + ".");
+
+        // Every picked store must have the same price for each SKU (one LSP per SKU).
+        var mixed = await MixedPriceSkusAsync(t);
+        if (mixed.Count > 0)
+            return (null, "The picked Cust Keys have different prices for " + string.Join("; ", mixed)
+                + ". Keep only stores with the same price.");
 
         // Mode of Payment: ONE payment type per TASAF, carrying the whole Total Cost.
         var payTypes = new[] { t.PayInvDeductionAp + t.PayInvDeductionSalesman, t.PayCheckAp + t.PayCheckSalesman,
@@ -618,6 +657,24 @@ public class TasafService(
 
     private static DateTime TodayPh() => DateTime.UtcNow.AddHours(8);
 
+    /// <summary>LSP is priced as of the program start date (today, Manila, when not set).</summary>
+    private static DateOnly PriceDate(Tasaf t) => t.StartDate ?? DateOnly.FromDateTime(TodayPh());
+
+    /// <summary>Price the TASAF's SKUs for its stores (form: LSP / case). See TasafPriceService.</summary>
+    public Task<List<TasafSkuPriceDto>> GetProductPricesAsync(TasafPriceRequest req) =>
+        prices.PriceAsync(req.CProdNos.Take(200), req.CustKeys.Take(MaxCustomers),
+            req.AsOf ?? DateOnly.FromDateTime(TodayPh()));
+
+    /// <summary>"7615 (462.37 × 2 stores, 471.33 × 1 store)" for each SKU whose stores differ in price.</summary>
+    private async Task<List<string>> MixedPriceSkusAsync(Tasaf t)
+    {
+        if (t.Products.Count == 0 || t.Customers.Count == 0) return [];
+        var priced = await prices.PriceAsync(t.Products.Select(p => p.CProdNo), t.Customers.Select(c => c.CustKey), PriceDate(t));
+        return priced.Where(p => p.Groups.Count > 1)
+            .Select(p => $"{p.CProdNo} ({string.Join(", ", p.Groups.Select(g => $"{g.Price:N2} × {g.CustKeys.Count} store{(g.CustKeys.Count == 1 ? "" : "s")}"))})")
+            .ToList();
+    }
+
     /// <summary>Validates the body and copies it onto t, recomputing every derived amount.</summary>
     private async Task<string?> ApplyAsync(Tasaf t, SaveTasafDto dto)
     {
@@ -752,8 +809,18 @@ public class TasafService(
                 PromotedVolCs = p.PromotedVolCs,
                 IncrVolCs     = p.IncrVolCs,
                 LspPerCase    = p.LspPerCase,
+                LspComputed   = null, // set below from the picked stores
                 PromotedValue = Math.Round(p.PromotedVolCs * p.LspPerCase, 2)
             });
+
+        // LSP the picked stores actually have (one price) — kept so approvers see an overridden LSP.
+        if (t.Products.Count > 0 && t.Customers.Count > 0)
+        {
+            var priced = (await prices.PriceAsync(t.Products.Select(p => p.CProdNo), t.Customers.Select(c => c.CustKey), PriceDate(t)))
+                .ToDictionary(x => x.CProdNo, StringComparer.OrdinalIgnoreCase);
+            foreach (var p in t.Products)
+                p.LspComputed = priced.TryGetValue(p.CProdNo, out var sp) && sp.Groups.Count == 1 ? sp.Groups[0].Price : null;
+        }
 
         t.Costs.Clear();
         line = 0;
@@ -849,7 +916,8 @@ public class TasafService(
             Products = t.Products.OrderBy(p => p.LineNo).Select(p => new TasafProductDto
             {
                 CProdNo = p.CProdNo, Sku = p.Sku, P3MoAvgCs = p.P3MoAvgCs, SplyCs = p.SplyCs,
-                PromotedVolCs = p.PromotedVolCs, IncrVolCs = p.IncrVolCs, LspPerCase = p.LspPerCase, PromotedValue = p.PromotedValue
+                PromotedVolCs = p.PromotedVolCs, IncrVolCs = p.IncrVolCs, LspPerCase = p.LspPerCase, LspComputed = p.LspComputed,
+                PromotedValue = p.PromotedValue
             }).ToList(),
             Costs = t.Costs.OrderBy(c => c.LineNo).Select(c => new TasafCostDto
             {

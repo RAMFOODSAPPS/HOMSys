@@ -11,6 +11,27 @@ public class CustomerRepository(AppDbContext db) : ICustomerRepository
 {
     public async Task<List<CustomerMatchInfo>> MatchAsync(IReadOnlyList<string> fragments, CustomerBranchScope? scope, int take)
     {
+        var rows = await Matching(fragments, scope)
+            .OrderBy(x => x.CusName)
+            .Select(x => new { x.CustKey, x.CusName, x.Branch, x.AddrLn1, x.AddrLn2, x.Id })
+            .Take(take * 2) // a CustKey can sit in more than one branch file — dedupe below
+            .ToListAsync();
+
+        return rows
+            .GroupBy(x => x.CustKey)
+            .Select(g => g.OrderByDescending(x => x.Id).First())
+            .Take(take)
+            .Select(x => new CustomerMatchInfo(x.CustKey.Trim(), x.CusName.Trim(), x.Branch,
+                $"{x.AddrLn1.Trim()} {x.AddrLn2.Trim()}".Trim()))
+            .ToList();
+    }
+
+    public Task<int> CountMatchAsync(IReadOnlyList<string> fragments, CustomerBranchScope? scope) =>
+        Matching(fragments, scope).Select(x => x.CustKey).Distinct().CountAsync();
+
+    /// <summary>Active customers narrowed by name fragments and branch scope (see MatchAsync).</summary>
+    private IQueryable<Customer> Matching(IReadOnlyList<string> fragments, CustomerBranchScope? scope)
+    {
         var q = db.Customers.AsNoTracking().Where(x => !x.Inactive);
 
         if (fragments.Count > 0)
@@ -37,20 +58,7 @@ public class CustomerRepository(AppDbContext db) : ICustomerRepository
             var claimed = scope.ClaimedWhseNos.ToList();
             q = q.Where(x => whse.Contains(x.WhseNo) || (folders.Contains(x.Branch) && !claimed.Contains(x.WhseNo)));
         }
-
-        var rows = await q
-            .OrderBy(x => x.CusName)
-            .Select(x => new { x.CustKey, x.CusName, x.Branch, x.AddrLn1, x.AddrLn2, x.Id })
-            .Take(take * 2) // a CustKey can sit in more than one branch file — dedupe below
-            .ToListAsync();
-
-        return rows
-            .GroupBy(x => x.CustKey)
-            .Select(g => g.OrderByDescending(x => x.Id).First())
-            .Take(take)
-            .Select(x => new CustomerMatchInfo(x.CustKey.Trim(), x.CusName.Trim(), x.Branch,
-                $"{x.AddrLn1.Trim()} {x.AddrLn2.Trim()}".Trim()))
-            .ToList();
+        return q;
     }
 
     // CustKey lives in exactly one branch's file in practice — take the most

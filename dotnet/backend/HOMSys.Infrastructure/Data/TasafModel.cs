@@ -190,6 +190,7 @@ internal static class TasafModel
             e.Property(x => x.PromotedVolCs).HasPrecision(18, 2);
             e.Property(x => x.IncrVolCs).HasPrecision(18, 2);
             e.Property(x => x.LspPerCase).HasPrecision(18, 2);
+            e.Property(x => x.LspComputed).HasPrecision(18, 2);
             e.Property(x => x.PromotedValue).HasPrecision(18, 2);
         });
 

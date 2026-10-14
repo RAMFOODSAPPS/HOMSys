@@ -14,6 +14,18 @@ public interface IPricingRepository
     /// <summary>CustomerBranchZone (Branch, CZone) for this CustKey, or null if none.</summary>
     Task<(string Branch, string CZone)?> GetCustomerBranchZoneAsync(string custKey);
 
+    /// <summary>Bulk GetCustomerBranchZoneAsync: (CustKey, Branch, CZone) per CustKey found (latest import), trimmed.</summary>
+    Task<List<(string CustKey, string Branch, string CZone)>> GetCustomerBranchZonesAsync(IReadOnlyCollection<string> custKeys);
+
+    /// <summary>ZoneAddOn rows for these products / pricing folders / zones with EffDate &lt;= asOf (caller picks the latest).</summary>
+    Task<List<HOMSys.Domain.Entities.ZoneAddOn>> GetZoneAddOnRowsAsync(IReadOnlyCollection<string> cProdNos,
+        IReadOnlyCollection<string> branches, IReadOnlyCollection<string> zones, DateOnly asOf);
+
+    /// <summary>Zone2AddOn rows for these products / pricing folders whose CustKey is one of <paramref name="keys"/>
+    /// (customer keys or CZones), EffDate &lt;= asOf (caller picks the latest).</summary>
+    Task<List<HOMSys.Domain.Entities.Zone2AddOn>> GetZone2AddOnRowsAsync(IReadOnlyCollection<string> cProdNos,
+        IReadOnlyCollection<string> branches, IReadOnlyCollection<string> keys, DateOnly asOf);
+
     /// <summary>
     /// Bulk form of GetZoneAddOnAsync for every CProdNo in one branch/zone at
     /// once (pricelist export) â€” same "latest EffDate &lt;= asOf" tie-break,

@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
-import { SaveTasafDto, TasafDecision, TasafDto, TasafFormOptions, TasafListItem, TasafProductLookup } from '../models/tasaf.model';
+import { SaveTasafDto, TasafDecision, TasafDto, TasafFormOptions, TasafListItem, TasafProductLookup, TasafSkuPrice } from '../models/tasaf.model';
 import { ApiResponse } from '../models/auth.model';
 
 export interface TasafCustomerSuggestion { custKey: string; cusName: string; }
@@ -42,10 +42,18 @@ export class TasafService {
 
   /** filtered = false when the chain has no keywords (use the free search instead). */
   /** Cust Key dropdown: stores of the chain (name keywords) and areas (branches). filtered = false → search all. */
-  customerOptions(chainId: number | null, areaIds: number[]) {
-    const params: Record<string, string | string[]> = { areaIds: areaIds.map(String) };
+  customerOptions(chainId: number | null, areaIds: number[], siteIds: number[] = []) {
+    const params: Record<string, string | string[]> = { areaIds: areaIds.map(String), siteIds: siteIds.map(String) };
     if (chainId) params['chainId'] = String(chainId);
     return this.http.get<ApiResponse<{ filtered: boolean; customers: TasafChainCustomer[] }>>(`${this.base}/customer-options`, { params });
+  }
+  /** LSP / case: each SKU's price (with VAT) for the picked stores as of the start date, grouped by price. */
+  productPrices(cProdNos: string[], custKeys: string[], asOf: string | null) {
+    return this.http.post<ApiResponse<TasafSkuPrice[]>>(`${this.base}/product-prices`, { cProdNos, custKeys, asOf });
+  }
+  chainStoreCounts(areaIds: number[], siteIds: number[]) {
+    const params = { areaIds: areaIds.map(String), siteIds: siteIds.map(String) };
+    return this.http.get<ApiResponse<Record<number, number> | null>>(`${this.base}/chain-store-counts`, { params });
   }
   getOptions() { return this.http.get<ApiResponse<TasafFormOptions>>(`${this.base}/options`); }
   searchCustomers(term: string) {

@@ -4,6 +4,8 @@ public class TasafBranchDto
 {
     public int? SiteId { get; set; }
     public string Name { get; set; } = string.Empty;
+    /// <summary>Site code (form options only), matched against an area's BranchCodes.</summary>
+    public string? Code { get; set; }
 }
 
 public class TasafCustomerDto
@@ -21,7 +23,37 @@ public class TasafProductDto
     public decimal PromotedVolCs { get; set; }
     public decimal IncrVolCs { get; set; }
     public decimal LspPerCase { get; set; }
+    /// <summary>
+    /// Server-computed price of the picked stores (TasafPriceService, read-only); null = no stores
+    /// picked or they have different prices. LspPerCase ≠ this = changed by the proponent.
+    /// </summary>
+    public decimal? LspComputed { get; set; }
     public decimal PromotedValue { get; set; }
+}
+
+/// <summary>POST tasafs/product-prices: price these SKUs for these stores.</summary>
+public class TasafPriceRequest
+{
+    public List<string> CProdNos { get; set; } = [];
+    public List<string> CustKeys { get; set; } = [];
+    /// <summary>Program start date; null = today (Manila).</summary>
+    public DateOnly? AsOf { get; set; }
+}
+
+/// <summary>One SKU's price across the picked stores, grouped by price (most stores first).</summary>
+public class TasafSkuPriceDto
+{
+    public string CProdNo { get; set; } = string.Empty;
+    /// <summary>False = the product or its base price was not found.</summary>
+    public bool HasPrice { get; set; }
+    public List<TasafPriceGroupDto> Groups { get; set; } = [];
+}
+
+public class TasafPriceGroupDto
+{
+    /// <summary>LSP per case (see TasafPriceService.IncludesVat).</summary>
+    public decimal Price { get; set; }
+    public List<string> CustKeys { get; set; } = [];
 }
 
 public class TasafCostDto
@@ -210,6 +242,8 @@ public class TasafOptionDto
     public int? ParentId { get; set; }
     /// <summary>Program types: Max CTS %.</summary>
     public decimal? Amount { get; set; }
+    /// <summary>Areas: comma-separated Site codes (blank = all branches).</summary>
+    public string? BranchCodes { get; set; }
 }
 
 /// <summary>Every dropdown the form needs, in one call. Keys match TasafMasterService.Masters.</summary>

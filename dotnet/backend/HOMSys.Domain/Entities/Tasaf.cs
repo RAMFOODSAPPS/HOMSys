@@ -217,6 +217,8 @@ public class TasafProduct
     public decimal PromotedVolCs { get; set; }
     public decimal IncrVolCs { get; set; }
     public decimal LspPerCase { get; set; }
+    /// <summary>Price of the picked stores at save time (null = none picked / mixed prices).</summary>
+    public decimal? LspComputed { get; set; }
     /// <summary>PromotedVolCs × LspPerCase.</summary>
     public decimal PromotedValue { get; set; }
 }

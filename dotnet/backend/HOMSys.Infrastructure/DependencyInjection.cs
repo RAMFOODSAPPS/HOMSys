@@ -66,6 +66,7 @@ public static class DependencyInjection
         services.AddScoped<AnalyticsService>();
         services.AddScoped<AnalyticsExcelBuilder>();
         services.AddScoped<TasafMasterService>();
+        services.AddScoped<TasafPriceService>();
         services.AddScoped<TasafService>();
         services.AddScoped<NotificationService>();
         services.AddScoped<FormLayoutService>();

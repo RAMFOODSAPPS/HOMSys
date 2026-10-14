@@ -29,6 +29,10 @@ public class CustomerBranchResolver(IPricingRepository pricingRepo)
 
     public const string DefaultBranch = "hon";
 
+    /// <summary>Pricing (ADDON) folder for a customer's CUSTOMER folder name.</summary>
+    public static string PricingFolder(string customerBranch) =>
+        CustomerBranchToPricingFolder.GetValueOrDefault(customerBranch, customerBranch);
+
     /// <summary>
     /// Customer (F:\AUTOPROG\CUSTOMER\{branch}\cust4win.dbf) carries both the
     /// real branch tag and CZone for this customer directly.

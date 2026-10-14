@@ -447,8 +447,11 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   Area is MULTI-select (`TasafAreaLinks` child rows → `AreaIds`/`AreaNames`; migration `TasafMultipleAreas`).
   Channel likewise (`TasafChannelLinks` → `ChannelIds`/`ChannelNames`; migration `TasafMultipleChannels`).
   Each area lists its branches (`TasafArea.BranchCodes`, Site codes, Setup › Areas; defaults by migration
-  `TasafAreaBranches`, Nationwide blank = all). The Cust Key dropdown (`GET tasafs/customer-options?chainId=&areaIds=`)
-  = active customers matching the chain keywords AND belonging to the picked areas' branches. A customer belongs to
+  `TasafAreaBranches`, corrected by `TasafAreaBranchesFromCustomers` from cust4win NREGION via WhseNo — NREGION is filled
+  for only ~1% of customers, so it is not a filter itself; Nationwide blank = all). With an area picked, the Branch dropdown
+  lists only its Sites (no ALL … scopes) and changing the area drops branches outside it. The Cust Key dropdown (`GET tasafs/customer-options?chainId=&areaIds=&siteIds=`)
+  = active customers matching the chain keywords AND belonging to the picked branches (Sites) — or, with no branch / an
+  ALL … scope picked, the picked areas' branches. A customer belongs to
   a Site when its `WhseNo` is in the Site's `Cuwhsenos` (any folder); a Site with no Cuwhsenos (HON-B) owns its
   folder's unclaimed WhseNos (hon 22 = GMA). Shared hon WhseNos (21/26/23/45) land in several sites. Max 8000.
   Cust Key is MULTI-select (`TasafCustomers` child rows, names re-read from cust4win on save, max 2000).
@@ -458,12 +461,18 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   `TasafChainCustomerMatch`). cust4win has no chain column, so the name is the only link. No keywords
   or no match → the free customer search. Each chain has a Sales Group (`TasafChain.SalesGroupId`, seeded
   by migration `TasafChainSalesGroups` from `Book1.xlsx` MODERN TRADE: NKA = SVI/Puregold/Robinson/Waltermart/
-  Landmark, the rest RKA; LKA Others → LKA, RDP Others → GT). The form lists only the picked group's chains,
+  Landmark, the rest RKA; LKA Others → LKA, RDP Others → GT). The form lists only the picked group's chains — and, with branches / areas picked,
+  only chains with stores there (`GET tasafs/chain-store-counts`, count in the label; keyword-less chains always shown) —
   picking a chain fills an empty Sales Group, and switching group clears a chain from another group. Program duration = `StartDate`/`EndDate` (date pickers).
   **Account Support & Convention** program types (name starts "ACCOUNT SUPPORT" or is "Convention";
   `TasafService.IsSupportProgram` + the form's `isSupport()`): Participating Products hidden and not saved,
   no Pre-Promo / Incremental Sales, Promoted Value relabelled "Annual Projected Sales", section titled
   "Account Support & Convention Computation". Listing Fee is NOT included (same approval matrix, but not this rule).
+  **LSP / Case** = the picked Cust Keys' price **with VAT** as of StartDate (today if blank): base price + ZONE + ZONE2 add-ons,
+  the Sales Order rule, bulk-priced by `TasafPriceService` (`POST tasafs/product-prices`, grouped by price; `IncludesVat`
+  const). Blank until Cust Keys are picked. All picked stores must share ONE price per SKU — Submit is refused otherwise
+  and the form offers "keep only the stores at X". LSP stays editable; `TasafProduct.LspComputed` (set on save) shows
+  approvers the computed price when it was changed.
   Server recomputes TotalCost, product PromotedValue (vol × LSP), and promoted /
   incremental sales and PrePromoSales (Σ P3Mo Avg cs × LSP, SPLY when P3M is blank) from products when any
   are listed (a row counts once it has a SKU — blank rows are dropped).

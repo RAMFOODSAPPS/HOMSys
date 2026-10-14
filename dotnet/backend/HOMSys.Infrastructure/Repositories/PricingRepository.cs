@@ -1,4 +1,5 @@
 using HOMSys.Application.Interfaces;
+using HOMSys.Domain.Entities;
 using HOMSys.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -38,6 +39,40 @@ public class PricingRepository(AppDbContext db) : IPricingRepository
             .Select(z => new { z.Branch, z.CZone })
             .FirstOrDefaultAsync();
         return row is null ? null : (row.Branch, row.CZone);
+    }
+
+    public async Task<List<(string CustKey, string Branch, string CZone)>> GetCustomerBranchZonesAsync(IReadOnlyCollection<string> custKeys)
+    {
+        var keys = custKeys.ToList();
+        var rows = await db.Customers.AsNoTracking()
+            .Where(c => keys.Contains(c.CustKey))
+            .Select(c => new { c.CustKey, c.Branch, c.CZone, c.ImportedAt })
+            .ToListAsync();
+        return rows
+            .GroupBy(r => r.CustKey.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderByDescending(r => r.ImportedAt).First())
+            .Select(r => (r.CustKey.Trim(), r.Branch.Trim(), r.CZone.Trim()))
+            .ToList();
+    }
+
+    public async Task<List<ZoneAddOn>> GetZoneAddOnRowsAsync(IReadOnlyCollection<string> cProdNos,
+        IReadOnlyCollection<string> branches, IReadOnlyCollection<string> zones, DateOnly asOf)
+    {
+        var (p, b, z) = (cProdNos.ToList(), branches.ToList(), zones.ToList());
+        return await db.ZoneAddOns.AsNoTracking()
+            .Where(x => p.Contains(x.CProdNo) && b.Contains(x.Branch) && z.Contains(x.CZone)
+                        && (x.EffDate == null || x.EffDate <= asOf))
+            .ToListAsync();
+    }
+
+    public async Task<List<Zone2AddOn>> GetZone2AddOnRowsAsync(IReadOnlyCollection<string> cProdNos,
+        IReadOnlyCollection<string> branches, IReadOnlyCollection<string> keys, DateOnly asOf)
+    {
+        var (p, b, k) = (cProdNos.ToList(), branches.ToList(), keys.ToList());
+        return await db.Zone2AddOns.AsNoTracking()
+            .Where(x => p.Contains(x.CProdNo) && b.Contains(x.Branch) && k.Contains(x.CustKey)
+                        && (x.EffDate == null || x.EffDate <= asOf))
+            .ToListAsync();
     }
 
     public async Task<Dictionary<string, decimal>> GetZoneAddOnsAsync(string branch, string cZone, DateOnly asOf)
