@@ -96,8 +96,11 @@ export class LoginComponent {
       next: () => {
         this.loading.set(false);
         this.tabBar.startSession(username!);
-        const target = this.auth.user()?.mustChangePassword ? '/change-password' : '/';
-        this.router.navigate([target]);
+        // Back to where the user was going (guard's returnUrl) — same-site paths only.
+        const ret = new URLSearchParams(location.search).get('returnUrl') ?? '';
+        const back = ret.startsWith('/') && !ret.startsWith('//') && !ret.startsWith('/login') ? ret : '/';
+        if (this.auth.user()?.mustChangePassword) this.router.navigate(['/change-password']);
+        else this.router.navigateByUrl(back);
       },
       error: (err) => {
         this.loading.set(false);

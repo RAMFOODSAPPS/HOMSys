@@ -782,6 +782,12 @@ export class TasafPageComponent implements OnInit, OnDestroy {
 
   // ── Tabs / navigation ──────────────────────────────────────
   private handleNavState() {
+    // Email link "/tasafs?id=42": reopen as a normal state navigation (opens the TASAF's own tab).
+    const qid = Number(new URLSearchParams(location.search).get('id'));
+    if (qid > 0) {
+      this.router.navigate(['/tasafs'], { state: { tasafId: qid }, replaceUrl: true });
+      return;
+    }
     const state     = history.state as Record<string, unknown>;
     const tasafId   = state?.['tasafId'] as number | undefined;
     const draftForm = state?.['draftForm'] as SaveTasafDto | undefined;

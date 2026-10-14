@@ -511,7 +511,10 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   - **Cancel** (proponent or Admin, `POST {id}/cancel`, reason required): any status except
     Approved (revert first) → **Cancelled**, terminal; unsigned steps become Skipped.
   Both log a `TasafAction` and notify the proponent, the waiting approver and everyone who signed.
-- **Notifications**: generic `Notification` table + `NotificationService.SendAsync`
+- **Notifications**: generic `Notification` table + `NotificationService.SendAsync` (also queues an email per active
+  recipient with an Email — `IEmailQueue` → `HOMSys.API/Email/EmailSenderService` via Azure Communication Services;
+  off until `Email:Enabled`/`ConnectionString`/`FromAddress` are set as App Service settings `Email__…`; the link is
+  `{WebUrl}{Link}?id={EntityId}`, which the TASAF page opens, and login honours `returnUrl`)
   (any module), `api/notifications`, topbar bell polls every 60 s. A notification's
   `Link` is navigated with state `{ <EntityType>Id: EntityId }`.
 

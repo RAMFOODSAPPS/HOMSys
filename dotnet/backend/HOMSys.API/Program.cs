@@ -1,5 +1,7 @@
 using System.Text;
+using HOMSys.API.Email;
 using HOMSys.API.Middleware;
+using HOMSys.Application.Interfaces;
 using HOMSys.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -11,6 +13,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// Notification emails (Azure Communication Services) — off until the "Email" section is configured.
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
+builder.Services.AddSingleton<EmailQueue>();
+builder.Services.AddSingleton<IEmailQueue>(sp => sp.GetRequiredService<EmailQueue>());
+builder.Services.AddHostedService<EmailSenderService>();
 
 // JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"]
