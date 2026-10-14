@@ -36,14 +36,14 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
           }
           @if (cfg().cancel) {
             <p-button icon="pi pi-times" pTooltip="Cancel" tooltipPosition="bottom"
-              [text]="true" severity="secondary"
+              [text]="true"
               [loading]="cfg().cancel!.loading ? cfg().cancel!.loading!() : false"
               [disabled]="cfg().cancel!.disabled ? cfg().cancel!.disabled!() : false"
               (onClick)="cfg().cancel!.onClick()" />
           }
           @if (cfg().clearForm) {
             <p-button icon="pi pi-eraser" pTooltip="Clear" tooltipPosition="bottom"
-              [text]="true" severity="secondary"
+              [text]="true"
               [disabled]="cfg().clearForm!.disabled ? cfg().clearForm!.disabled!() : false"
               (onClick)="cfg().clearForm!.onClick()" />
           }
@@ -248,12 +248,15 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
       opacity: 1;
     }
 
-    ::ng-deep .page-toolbar .p-button.p-button-text:not(.p-disabled):hover {
+    ::ng-deep .page-toolbar .p-button.p-button-text:not(:disabled):hover {
       background: var(--p-primary-100);
     }
 
-    ::ng-deep .page-toolbar .p-button.p-button-text.p-disabled {
-      opacity: 0.35;
+    /* Disabled = grey whatever the button's colour. PrimeNG 19 marks it with the native disabled attribute (no p-disabled class). */
+    ::ng-deep .page-toolbar .p-button.p-button-text:disabled {
+      opacity: 1;
+      color: #b8bcc4 !important;
+      filter: grayscale(1);
     }
 
     ::ng-deep .page-toolbar .p-button .p-button-icon {
