@@ -113,6 +113,7 @@ export class ModulebarComponent {
       items: [
         { label: 'Customers',         icon: 'pi pi-id-card',  routerLink: '/customers',    permission: 'customers' },
         { label: 'Products',          icon: 'pi pi-box',      routerLink: '/products',     permission: 'products' },
+        { label: 'Product Categories', icon: 'pi pi-tags',    routerLink: '/product-categories', permission: 'tasaf-masters' },
         { separator: true, permission: 'products' },
         { label: 'New Company',       icon: 'pi pi-building', routerLink: '/companies',    permission: 'companies' },
         { label: 'Companies List',    icon: 'pi pi-list',     routerLink: '/companies/list', permission: 'companies' },

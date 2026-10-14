@@ -20,6 +20,9 @@ public class ProductCatalogDto
     public string? GroupDesc { get; set; }
     public string? SubCat { get; set; }
     public int GroupNo { get; set; }
+    /// <summary>Book2 Product Category of GroupNo ("Peas & Beans"), from the TASAF Product Categories list
+    /// (its code "02" = GroupNo 2); null when none matches.</summary>
+    public string? ProductCategory { get; set; }
     public int SeqNo { get; set; }
     public string Brand { get; set; } = string.Empty;
     public string SBrand { get; set; } = string.Empty;

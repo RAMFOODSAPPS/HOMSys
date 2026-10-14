@@ -21,6 +21,8 @@ export interface ProductCatalogItem {
   groupDesc: string | null;
   subCat: string | null;
   groupNo: number;
+  /** Product Category name from TASAF Setup › Product Categories (code "02" = groupNo 2). */
+  productCategory: string | null;
   seqNo: number;
   brand: string;
   sBrand: string;

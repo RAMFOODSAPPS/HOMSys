@@ -20,7 +20,6 @@ const day = (iso: string | null | undefined) =>
 const when = (s: string | null | undefined) =>
   s ? new Date(utc(s)!).toLocaleString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 const other = (name: string | null | undefined, o: string) => (o?.trim() ? `${name ?? ''} - ${o.trim()}` : name ?? '');
-const join = (...xs: (string | null | undefined)[]) => xs.filter(x => x && x.trim()).join(' / ');
 
 export function isSupportProgram(name: string | null | undefined): boolean {
   const n = (name ?? '').trim().toUpperCase();
@@ -129,8 +128,9 @@ export function buildTasafPdf(t: TasafDto, logo?: string | null): jsPDF {
     ['Objective', other(t.objectiveName, t.objectiveOther)],
     ['Target Market', other(t.targetMarketName, t.targetMarketOther)],
     ['Channel', t.channelNames],
-    ['Product Group', join(t.productGroupName, t.productGroup2Name)],
-    ['Category', join(t.categoryName, t.category2Name)],
+    ['Product Category', t.productCategoryNames],
+    ['Product Sub-Category', t.subCategoryNames],
+    ['Segment', t.segmentNames],
     ['Background', t.background],
     ['Concessions', t.concessions],
     ['Program Mechanics', t.mechanics],

@@ -21,7 +21,6 @@ internal static class TasafModel
         Lookup<TasafTargetMarket>(mb);
         Lookup<TasafChannel>(mb);
         Lookup<TasafProductGroup>(mb);
-        Lookup<TasafCategory>(mb);
         Lookup<TasafCostType>(mb);
         Lookup<TasafApprovalRole>(mb);
         Lookup<TasafApprovalType>(mb);
@@ -45,11 +44,6 @@ internal static class TasafModel
         mb.Entity<TasafChain>()
             .HasOne(x => x.SalesGroup).WithMany()
             .HasForeignKey(x => x.SalesGroupId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        mb.Entity<TasafCategory>()
-            .HasOne(x => x.ProductGroup).WithMany()
-            .HasForeignKey(x => x.ProductGroupId)
             .OnDelete(DeleteBehavior.Restrict);
 
         mb.Entity<TasafProgramType>()
@@ -106,13 +100,11 @@ internal static class TasafModel
             e.HasOne(x => x.ProgramType).WithMany().HasForeignKey(x => x.ProgramTypeId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Objective).WithMany().HasForeignKey(x => x.ObjectiveId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.TargetMarket).WithMany().HasForeignKey(x => x.TargetMarketId).OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(x => x.ProductGroup).WithMany().HasForeignKey(x => x.ProductGroupId).OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(x => x.ProductGroup2).WithMany().HasForeignKey(x => x.ProductGroup2Id).OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(x => x.Category).WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(x => x.Category2).WithMany().HasForeignKey(x => x.Category2Id).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.ProponentUser).WithMany().HasForeignKey(x => x.ProponentUserId).OnDelete(DeleteBehavior.Restrict);
 
             e.HasMany(x => x.Areas).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.ProductCategories).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.SubCategories).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Channels).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Branches).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Customers).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
@@ -177,6 +169,20 @@ internal static class TasafModel
             e.HasOne(x => x.Area).WithMany().HasForeignKey(x => x.AreaId).OnDelete(DeleteBehavior.Restrict);
         });
 
+        mb.Entity<TasafProductCategoryLink>(e =>
+        {
+            e.ToTable("TasafProductCategoryLinks");
+            e.HasOne(x => x.ProductGroup).WithMany().HasForeignKey(x => x.ProductGroupId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        mb.Entity<TasafSubCategoryLink>(e =>
+        {
+            e.ToTable("TasafSubCategoryLinks");
+            e.Property(x => x.Code).HasMaxLength(10);
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.Property(x => x.Segment).HasMaxLength(100);
+        });
+
         mb.Entity<TasafBranch>(e =>
         {
             e.Property(x => x.Name).HasMaxLength(150);
@@ -204,7 +210,7 @@ internal static class TasafModel
         });
     }
 
-    private static void Lookup<T>(ModelBuilder mb) where T : TasafLookup
+    private static void Lookup<T>(ModelBuilder mb, bool uniqueName = true) where T : TasafLookup
     {
         mb.Entity<T>(e =>
         {
@@ -213,7 +219,7 @@ internal static class TasafModel
             e.Property(x => x.Description).HasMaxLength(500);
             e.Property(x => x.CreatedBy).HasMaxLength(100);
             e.Property(x => x.UpdatedBy).HasMaxLength(100);
-            e.HasIndex(x => x.Name).IsUnique();
+            if (uniqueName) e.HasIndex(x => x.Name).IsUnique();
             e.HasIndex(x => x.Code).IsUnique().HasFilter("[Code] != ''");
         });
     }
@@ -223,6 +229,8 @@ internal static class TasafModel
         Id = id, Code = code, Name = name, Description = description,
         SortOrder = id, IsActive = true, CreatedAt = SeedAt, CreatedBy = "seed"
     };
+
+    private static T Inactive<T>(T row) where T : TasafLookup { row.IsActive = false; return row; }
 
     private static T[] Rows<T>(params string[] names) where T : TasafLookup, new() =>
         names.Select((n, i) => Row<T>(i + 1, "", n)).ToArray();
@@ -290,32 +298,8 @@ internal static class TasafModel
             Row<TasafProductGroup>(7,  "07",   "Fruits & Vegetables"),
             Row<TasafProductGroup>(8,  "08",   "Baking & Dry Goods"),
             Row<TasafProductGroup>(9,  "09",   "Condiments"),
-            Row<TasafProductGroup>(10, "CORP", "TOTAL RAM / CORPORATE PROGRAM"));
-
-        // Description keeps the workbook's original dropdown text.
-        (int id, string code, string name, int group, string original)[] cats =
-        [
-            (1,  "1A",   "Tomato Sauce",        1,  "01 -Tom Sauce/Paste- 1a -Tomato Sauce - Tomato Sauce"),
-            (2,  "1B",   "Tomato Paste",        1,  "01 -Tom Sauce/Paste- 1b -Tomato Paste -Tomato Paste"),
-            (3,  "2A",   "Green Peas",          2,  "02 -Peas & Beans- 2a -Peas -Green Peas"),
-            (4,  "2B",   "Garbanzos",           2,  "02 -Peas & Beans- 2b -Peas -Garbanzos"),
-            (5,  "2C",   "Black Beans",         2,  "02 -Peas & Beans- 2c -Beans -Black Beans"),
-            (6,  "03",   "Pasta & Sauces",      3,  "03 -Pasta & Sauces"),
-            (7,  "04",   "Mitra",               4,  "04 -Mitra"),
-            (8,  "5A",   "Ram Raisins",         5,  "05 -Raisins- 5a -Raisins -Ram Raisins"),
-            (9,  "5B",   "Prunes",              5,  "05 -Raisins- 5b -Prunes -Prunes"),
-            (10, "6A",   "Ram Pickles",         6,  "06 -Pickles- 6a -Pickles -Ram Pickles"),
-            (11, "07",   "Fruits & Vegetables", 7,  "07 -Fruits & Vegetables"),
-            (12, "8A",   "Bread Crumbs",        8,  "08 -Baking & Dry Goods- 8a -Baking Goods -Bread Crumbs"),
-            (13, "09",   "Condiments",          9,  "09 -Condiments"),
-            (14, "CORP", "TOTAL RAM / CORPORATE PROGRAM", 10, "TOTAL RAM / CORPORATE PROGRAM"),
-        ];
-        mb.Entity<TasafCategory>().HasData(cats.Select(c =>
-        {
-            var row = Row<TasafCategory>(c.id, c.code, c.name, c.original);
-            row.ProductGroupId = c.group;
-            return row;
-        }).ToArray());
+            Inactive(Row<TasafProductGroup>(10, "CORP", "TOTAL RAM / CORPORATE PROGRAM")), // not in Book2.xlsx
+            Row<TasafProductGroup>(11, "10",   "Non Food & Toll Pack"));
 
         mb.Entity<TasafCostType>().HasData(Rows<TasafCostType>(
             "Promotions - Bundling Fee", "Promotions - Joining Fee", "Promotions - Rebates",

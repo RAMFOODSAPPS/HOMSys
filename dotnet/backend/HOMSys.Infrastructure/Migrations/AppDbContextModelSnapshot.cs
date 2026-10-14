@@ -2375,12 +2375,6 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("Category2Id")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CategoryId")
-                        .HasColumnType("int");
-
                     b.Property<int?>("ChainId")
                         .HasColumnType("int");
 
@@ -2465,12 +2459,6 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int?>("ProductGroup2Id")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("ProductGroupId")
-                        .HasColumnType("int");
-
                     b.Property<int?>("ProgramTypeId")
                         .HasColumnType("int");
 
@@ -2538,19 +2526,11 @@ namespace HOMSys.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Category2Id");
-
-                    b.HasIndex("CategoryId");
-
                     b.HasIndex("ChainId");
 
                     b.HasIndex("CurrentApproverUserId");
 
                     b.HasIndex("ObjectiveId");
-
-                    b.HasIndex("ProductGroup2Id");
-
-                    b.HasIndex("ProductGroupId");
 
                     b.HasIndex("ProgramTypeId");
 
@@ -3298,237 +3278,6 @@ namespace HOMSys.Infrastructure.Migrations
                     b.HasIndex("TasafId");
 
                     b.ToTable("TasafBranches");
-                });
-
-            modelBuilder.Entity("HOMSys.Domain.Entities.TasafCategory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<int?>("ProductGroupId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique()
-                        .HasFilter("[Code] != ''");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.HasIndex("ProductGroupId");
-
-                    b.ToTable("TasafCategories");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Code = "1A",
-                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
-                            CreatedBy = "seed",
-                            Description = "01 -Tom Sauce/Paste- 1a -Tomato Sauce - Tomato Sauce",
-                            IsActive = true,
-                            Name = "Tomato Sauce",
-                            ProductGroupId = 1,
-                            SortOrder = 1
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Code = "1B",
-                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
-                            CreatedBy = "seed",
-                            Description = "01 -Tom Sauce/Paste- 1b -Tomato Paste -Tomato Paste",
-                            IsActive = true,
-                            Name = "Tomato Paste",
-                            ProductGroupId = 1,
-                            SortOrder = 2
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Code = "2A",
-                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
-                            CreatedBy = "seed",
-                            Description = "02 -Peas & Beans- 2a -Peas -Green Peas",
-                            IsActive = true,
-                            Name = "Green Peas",
-                            ProductGroupId = 2,
-                            SortOrder = 3
-                        },
-                        new
-                        {
-                            Id = 4,
-                            Code = "2B",
-                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
-                            CreatedBy = "seed",
-                            Description = "02 -Peas & Beans- 2b -Peas -Garbanzos",
-                            IsActive = true,
-                            Name = "Garbanzos",
-                            ProductGroupId = 2,
-                            SortOrder = 4
-                        },
-                        new
-                        {
-                            Id = 5,
-                            Code = "2C",
-                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
-                            CreatedBy = "seed",
-                            Description = "02 -Peas & Beans- 2c -Beans -Black Beans",
-                            IsActive = true,
-                            Name = "Black Beans",
-                            ProductGroupId = 2,
-                            SortOrder = 5
-                        },
-                        new
-                        {
-                            Id = 6,
-                            Code = "03",
-                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
-                            CreatedBy = "seed",
-                            Description = "03 -Pasta & Sauces",
-                            IsActive = true,
-                            Name = "Pasta & Sauces",
-                            ProductGroupId = 3,
-                            SortOrder = 6
-                        },
-                        new
-                        {
-                            Id = 7,
-                            Code = "04",
-                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
-                            CreatedBy = "seed",
-                            Description = "04 -Mitra",
-                            IsActive = true,
-                            Name = "Mitra",
-                            ProductGroupId = 4,
-                            SortOrder = 7
-                        },
-                        new
-                        {
-                            Id = 8,
-                            Code = "5A",
-                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
-                            CreatedBy = "seed",
-                            Description = "05 -Raisins- 5a -Raisins -Ram Raisins",
-                            IsActive = true,
-                            Name = "Ram Raisins",
-                            ProductGroupId = 5,
-                            SortOrder = 8
-                        },
-                        new
-                        {
-                            Id = 9,
-                            Code = "5B",
-                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
-                            CreatedBy = "seed",
-                            Description = "05 -Raisins- 5b -Prunes -Prunes",
-                            IsActive = true,
-                            Name = "Prunes",
-                            ProductGroupId = 5,
-                            SortOrder = 9
-                        },
-                        new
-                        {
-                            Id = 10,
-                            Code = "6A",
-                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
-                            CreatedBy = "seed",
-                            Description = "06 -Pickles- 6a -Pickles -Ram Pickles",
-                            IsActive = true,
-                            Name = "Ram Pickles",
-                            ProductGroupId = 6,
-                            SortOrder = 10
-                        },
-                        new
-                        {
-                            Id = 11,
-                            Code = "07",
-                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
-                            CreatedBy = "seed",
-                            Description = "07 -Fruits & Vegetables",
-                            IsActive = true,
-                            Name = "Fruits & Vegetables",
-                            ProductGroupId = 7,
-                            SortOrder = 11
-                        },
-                        new
-                        {
-                            Id = 12,
-                            Code = "8A",
-                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
-                            CreatedBy = "seed",
-                            Description = "08 -Baking & Dry Goods- 8a -Baking Goods -Bread Crumbs",
-                            IsActive = true,
-                            Name = "Bread Crumbs",
-                            ProductGroupId = 8,
-                            SortOrder = 12
-                        },
-                        new
-                        {
-                            Id = 13,
-                            Code = "09",
-                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
-                            CreatedBy = "seed",
-                            Description = "09 -Condiments",
-                            IsActive = true,
-                            Name = "Condiments",
-                            ProductGroupId = 9,
-                            SortOrder = 13
-                        },
-                        new
-                        {
-                            Id = 14,
-                            Code = "CORP",
-                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
-                            CreatedBy = "seed",
-                            Description = "TOTAL RAM / CORPORATE PROGRAM",
-                            IsActive = true,
-                            Name = "TOTAL RAM / CORPORATE PROGRAM",
-                            ProductGroupId = 10,
-                            SortOrder = 14
-                        });
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafChain", b =>
@@ -4649,6 +4398,32 @@ namespace HOMSys.Infrastructure.Migrations
                     b.ToTable("TasafProducts");
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafProductCategoryLink", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProductGroupId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TasafId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductGroupId");
+
+                    b.HasIndex("TasafId");
+
+                    b.ToTable("TasafProductCategoryLinks", (string)null);
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafProductGroup", b =>
                 {
                     b.Property<int>("Id")
@@ -4811,9 +4586,20 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
-                            IsActive = true,
+                            IsActive = false,
                             Name = "TOTAL RAM / CORPORATE PROGRAM",
                             SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Code = "10",
+                            CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedBy = "seed",
+                            Description = "",
+                            IsActive = true,
+                            Name = "Non Food & Toll Pack",
+                            SortOrder = 11
                         });
                 });
 
@@ -5144,6 +4930,42 @@ namespace HOMSys.Infrastructure.Migrations
                             Name = "GT",
                             SortOrder = 4
                         });
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafSubCategoryLink", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Segment")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("TasafId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TasafId");
+
+                    b.ToTable("TasafSubCategoryLinks", (string)null);
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafTargetMarket", b =>
@@ -5639,16 +5461,6 @@ namespace HOMSys.Infrastructure.Migrations
 
             modelBuilder.Entity("HOMSys.Domain.Entities.Tasaf", b =>
                 {
-                    b.HasOne("HOMSys.Domain.Entities.TasafCategory", "Category2")
-                        .WithMany()
-                        .HasForeignKey("Category2Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("HOMSys.Domain.Entities.TasafCategory", "Category")
-                        .WithMany()
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("HOMSys.Domain.Entities.TasafChain", "Chain")
                         .WithMany()
                         .HasForeignKey("ChainId")
@@ -5657,16 +5469,6 @@ namespace HOMSys.Infrastructure.Migrations
                     b.HasOne("HOMSys.Domain.Entities.TasafObjective", "Objective")
                         .WithMany()
                         .HasForeignKey("ObjectiveId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("HOMSys.Domain.Entities.TasafProductGroup", "ProductGroup2")
-                        .WithMany()
-                        .HasForeignKey("ProductGroup2Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("HOMSys.Domain.Entities.TasafProductGroup", "ProductGroup")
-                        .WithMany()
-                        .HasForeignKey("ProductGroupId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("HOMSys.Domain.Entities.TasafProgramType", "ProgramType")
@@ -5690,17 +5492,9 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasForeignKey("TargetMarketId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.Navigation("Category");
-
-                    b.Navigation("Category2");
-
                     b.Navigation("Chain");
 
                     b.Navigation("Objective");
-
-                    b.Navigation("ProductGroup");
-
-                    b.Navigation("ProductGroup2");
 
                     b.Navigation("ProgramType");
 
@@ -5807,16 +5601,6 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("Site");
                 });
 
-            modelBuilder.Entity("HOMSys.Domain.Entities.TasafCategory", b =>
-                {
-                    b.HasOne("HOMSys.Domain.Entities.TasafProductGroup", "ProductGroup")
-                        .WithMany()
-                        .HasForeignKey("ProductGroupId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("ProductGroup");
-                });
-
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafChain", b =>
                 {
                     b.HasOne("HOMSys.Domain.Entities.TasafSalesGroup", "SalesGroup")
@@ -5878,6 +5662,23 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafProductCategoryLink", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.TasafProductGroup", "ProductGroup")
+                        .WithMany()
+                        .HasForeignKey("ProductGroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HOMSys.Domain.Entities.Tasaf", null)
+                        .WithMany("ProductCategories")
+                        .HasForeignKey("TasafId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProductGroup");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafProgramType", b =>
                 {
                     b.HasOne("HOMSys.Domain.Entities.TasafApprovalType", "ApprovalType")
@@ -5886,6 +5687,15 @@ namespace HOMSys.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("ApprovalType");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafSubCategoryLink", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Tasaf", null)
+                        .WithMany("SubCategories")
+                        .HasForeignKey("TasafId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.User", b =>
@@ -5970,9 +5780,13 @@ namespace HOMSys.Infrastructure.Migrations
 
                     b.Navigation("Customers");
 
+                    b.Navigation("ProductCategories");
+
                     b.Navigation("Products");
 
                     b.Navigation("Steps");
+
+                    b.Navigation("SubCategories");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.User", b =>

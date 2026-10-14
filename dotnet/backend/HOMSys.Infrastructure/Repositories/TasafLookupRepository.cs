@@ -18,7 +18,6 @@ public class TasafLookupRepository(AppDbContext db) : ITasafLookupRepository
         [typeof(TasafTargetMarket)]  = c => c.TasafTargetMarkets,
         [typeof(TasafChannel)]       = c => c.TasafChannels,
         [typeof(TasafProductGroup)]  = c => c.TasafProductGroups,
-        [typeof(TasafCategory)]      = c => c.TasafCategories,
         [typeof(TasafCostType)]      = c => c.TasafCostTypes,
         [typeof(TasafApprovalRole)]  = c => c.TasafApprovalRoles,
         [typeof(TasafApprovalType)]  = c => c.TasafApprovalTypes,

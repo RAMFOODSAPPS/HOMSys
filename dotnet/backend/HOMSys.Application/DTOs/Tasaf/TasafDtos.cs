@@ -82,10 +82,11 @@ public class SaveTasafDto
     public string TargetMarketOther { get; set; } = string.Empty;
     /// <summary>Channels (multi-select).</summary>
     public List<int> ChannelIds { get; set; } = [];
-    public int? ProductGroupId { get; set; }
-    public int? ProductGroup2Id { get; set; }
-    public int? CategoryId { get; set; }
-    public int? Category2Id { get; set; }
+    /// <summary>Product Categories (multi-select; "product-groups" list).</summary>
+    public List<int> ProductCategoryIds { get; set; } = [];
+    /// <summary>Product Sub-Categories = product master category codes ("2a"); multi-select, optional —
+    /// none for a picked Product Category = the whole category.</summary>
+    public List<string> SubCategoryCodes { get; set; } = [];
     public string Background { get; set; } = string.Empty;
     public string Concessions { get; set; } = string.Empty;
     public string Mechanics { get; set; } = string.Empty;
@@ -125,10 +126,11 @@ public class TasafDto : SaveTasafDto
     public string? TargetMarketName { get; set; }
     /// <summary>Picked channel names, comma-separated.</summary>
     public string? ChannelNames { get; set; }
-    public string? ProductGroupName { get; set; }
-    public string? ProductGroup2Name { get; set; }
-    public string? CategoryName { get; set; }
-    public string? Category2Name { get; set; }
+    /// <summary>Picked Product Category / Sub-Category ("2a - Peas") names, comma-separated; Segments =
+    /// the picked sub-categories' segments ("Green Peas, Garbanzos"), automatic.</summary>
+    public string? ProductCategoryNames { get; set; }
+    public string? SubCategoryNames { get; set; }
+    public string? SegmentNames { get; set; }
 
     public decimal TotalCost { get; set; }
     /// <summary>PromotedValue / PrePromoSales.</summary>
@@ -254,6 +256,18 @@ public class TasafFormOptionsDto
     public Dictionary<string, List<TasafOptionDto>> Lists { get; set; } = [];
     /// <summary>Active Sites, then the "ALL ..." scopes (Id null).</summary>
     public List<TasafBranchDto> Branches { get; set; } = [];
+    /// <summary>Product Sub-Categories from the product master, for categories in the Product Categories list.</summary>
+    public List<TasafSubCategoryOptionDto> SubCategories { get; set; } = [];
+}
+
+/// <summary>A product master category as a TASAF Sub-Category option: "2a" · Peas · Green Peas.</summary>
+public class TasafSubCategoryOptionDto
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Segment { get; set; } = string.Empty;
+    /// <summary>The Product Categories row (code "02" = GroupNo 2).</summary>
+    public int ProductCategoryId { get; set; }
 }
 
 public class TasafProductLookupDto

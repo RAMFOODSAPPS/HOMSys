@@ -28,8 +28,10 @@ const EXPORT_COLS: ExportColumn[] = [
   { header: 'LSP/Case',      field: 'newPrice', formatter: money },
   { header: 'SRP',           field: 'srp', formatter: money },
   { header: 'Price From',    field: 'priceFrom' },
-  { header: 'Product Group', field: 'groupDesc' },
-  { header: 'Sub-category',  field: 'subCat' },
+  { header: 'Product Category', field: 'productCategory' },
+  { header: 'Category',      field: 'category' },
+  { header: 'Segment',       field: 'groupDesc' },
+  { header: 'Sub-Category',  field: 'subCat' },
   { header: 'Brand',         field: 'brand' },
   { header: 'Status',        field: 'status' },
 ];
@@ -42,7 +44,7 @@ const EXPORT_COLS: ExportColumn[] = [
   template: `
     <div class="filters">
       <p-select [options]="groups()" [ngModel]="group()" (ngModelChange)="group.set($event)"
-        placeholder="All product groups" [showClear]="true" [filter]="true" styleClass="group-sel" />
+        placeholder="All segments" [showClear]="true" [filter]="true" styleClass="group-sel" />
       <p-selectButton [options]="statusViews" [ngModel]="statusView()" (ngModelChange)="statusView.set($event)"
         optionLabel="label" optionValue="value" [allowEmpty]="false" />
       <span class="count">{{ filtered().length }} of {{ all().length }} items</span>
@@ -60,7 +62,10 @@ const EXPORT_COLS: ExportColumn[] = [
           <th pSortableColumn="newPrice" class="num">LSP/Case <p-sortIcon field="newPrice" /></th>
           <th pSortableColumn="srp" class="num">SRP <p-sortIcon field="srp" /></th>
           <th pSortableColumn="priceFrom">Price From <p-sortIcon field="priceFrom" /></th>
-          <th pSortableColumn="groupDesc">Product Group <p-sortIcon field="groupDesc" /></th>
+          <th pSortableColumn="productCategory">Product Category <p-sortIcon field="productCategory" /></th>
+          <th pSortableColumn="category" style="width:6rem">Category <p-sortIcon field="category" /></th>
+          <th pSortableColumn="groupDesc">Segment <p-sortIcon field="groupDesc" /></th>
+          <th pSortableColumn="subCat">Sub-Category <p-sortIcon field="subCat" /></th>
           <th pSortableColumn="brand">Brand <p-sortIcon field="brand" /></th>
           <th pSortableColumn="status">Status <p-sortIcon field="status" /></th>
         </tr>
@@ -74,13 +79,16 @@ const EXPORT_COLS: ExportColumn[] = [
           <td class="num">{{ p.newPrice | number:'1.2-2' }}</td>
           <td class="num">{{ p.srp | number:'1.2-2' }}</td>
           <td>{{ p.priceFrom | date:'MM/dd/yyyy' }}</td>
-          <td>{{ p.groupDesc || '—' }}@if (p.subCat) { <div class="sub">{{ p.subCat }}</div> }</td>
+          <td>{{ p.productCategory || '—' }}</td>
+          <td>{{ p.category || '—' }}</td>
+          <td>{{ p.groupDesc || '—' }}</td>
+          <td>{{ p.subCat || '—' }}</td>
           <td>{{ p.brand || '—' }}</td>
           <td><p-tag [value]="p.status" [severity]="sev(p.status)" /></td>
         </tr>
       </ng-template>
       <ng-template pTemplate="emptymessage">
-        <tr><td colspan="10" class="text-center">No products match.</td></tr>
+        <tr><td colspan="13" class="text-center">No products match.</td></tr>
       </ng-template>
     </p-table>
 
@@ -96,7 +104,8 @@ const EXPORT_COLS: ExportColumn[] = [
           <dt>Previous Price</dt><dd>{{ (p.oldPrice1 | number:'1.2-2') || '—' }}</dd>
           <dt>SRP</dt><dd>{{ (p.srp | number:'1.2-2') || '—' }}</dd>
           <dt>Tax Rate</dt><dd>{{ p.taxRate }}%</dd>
-          <dt>Product Group</dt><dd>{{ p.groupDesc || '—' }}</dd>
+          <dt>Product Category</dt><dd>{{ p.productCategory || '—' }}</dd>
+          <dt>Segment</dt><dd>{{ p.groupDesc || '—' }}</dd>
           <dt>Sub-category</dt><dd>{{ p.subCat || '—' }} <span class="sub">({{ p.category }})</span></dd>
           <dt>Brand</dt><dd>{{ p.brand || '—' }}@if (p.sBrand) { / {{ p.sBrand }} }</dd>
           <dt>Barcode</dt><dd>{{ p.barcode || '—' }}</dd>
@@ -178,7 +187,7 @@ export class ProductsPageComponent implements OnInit, OnDestroy {
       tokens.every(t =>
         p.cProdNo.toLowerCase().includes(t) || p.prodDesc.toLowerCase().includes(t) ||
         p.packSize.toLowerCase().includes(t) || p.brand.toLowerCase().includes(t) ||
-        (p.groupDesc ?? '').toLowerCase().includes(t) || p.barcode.includes(t)));
+        (p.groupDesc ?? '').toLowerCase().includes(t) || (p.subCat ?? '').toLowerCase().includes(t) || p.category.toLowerCase().includes(t) || (p.productCategory ?? '').toLowerCase().includes(t) || p.barcode.includes(t)));
   });
 
   ngOnInit() {

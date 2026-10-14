@@ -21,8 +21,14 @@ import {
   TasafApprovalMatrix, TasafApprovalRules, TasafLookupDto, TasafMasterMeta, TasafNumbering, TasafUserOption
 } from '../../core/models/tasaf-master.model';
 import { utc } from '../../core/utils/utc-date';
+import { ActivatedRoute } from '@angular/router';
 
 const LAST_MASTER_KEY = 'homsys_tasaf_setup_master';
+/**
+ * Lists edited on their own Master Data page instead of TASAF Setup (route data { masters: [...],
+ * title }) — the same editor, showing only those lists.
+ */
+const MASTER_DATA_KEYS = ['product-groups'];
 const MATRIX_KEY = 'approval-matrix';
 const RULES_KEY = 'approval-rules';
 const NUMBERING_KEY = 'numbering';
@@ -50,7 +56,7 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
             {{ m.label }}
           </button>
         }
-        @if (metas().length) {
+        @if (metas().length && !only) {
           <button type="button" class="master-btn matrix-btn" [class.active]="rulesMode()" (click)="selectRules()">
             <i class="pi pi-sliders-h"></i> Approval Rules
           </button>
@@ -346,6 +352,12 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
   private exportSvc  = inject(ExportService);
   private messageSvc = inject(MessageService);
   private confirmSvc = inject(ConfirmationService);
+  private route      = inject(ActivatedRoute);
+
+  /** Master Data page mode: only these lists (no approval / numbering screens). Null = TASAF Setup. */
+  protected only      = (this.route.snapshot.data['masters'] as string[] | undefined) ?? null;
+  private pageTitle   = (this.route.snapshot.data['title'] as string | undefined) ?? 'TASAF Setup';
+  private lastKey     = this.only ? `${LAST_MASTER_KEY}:${this.only.join(',')}` : LAST_MASTER_KEY;
 
   protected metas         = signal<TasafMasterMeta[]>([]);
   protected current       = signal<TasafMasterMeta | null>(null);
@@ -424,12 +436,15 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.setToolbar();
     this.api.getMeta().subscribe(res => {
-      const metas = res.data ?? [];
+      const all = res.data ?? [];
+      const metas = this.only ? all.filter(m => this.only!.includes(m.key)) : all.filter(m => !MASTER_DATA_KEYS.includes(m.key));
       this.metas.set(metas);
-      const last = localStorage.getItem(LAST_MASTER_KEY);
-      if (last === MATRIX_KEY) { this.selectMatrix(); return; }
-      if (last === RULES_KEY) { this.selectRules(); return; }
-      if (last === NUMBERING_KEY) { this.selectNumbering(); return; }
+      const last = localStorage.getItem(this.lastKey);
+      if (!this.only) {
+        if (last === MATRIX_KEY) { this.selectMatrix(); return; }
+        if (last === RULES_KEY) { this.selectRules(); return; }
+        if (last === NUMBERING_KEY) { this.selectNumbering(); return; }
+      }
       const first = metas.find(m => m.key === last) ?? metas[0];
       if (first) this.selectMaster(first);
     });
@@ -442,7 +457,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
 
   private setToolbar() {
     this.toolbar.set({
-      title:   'TASAF Setup',
+      title:   this.pageTitle,
       add:     { onClick: () => this.openNew(), disabled: this.notMaster },
       edit:    { onClick: () => this.selected && this.openEdit(this.selected), disabled: this.editOff },
       delete:  { onClick: () => this.confirmDelete(), disabled: this.editOff, loading: this.deleting },
@@ -461,7 +476,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     if (view !== 'master') this.current.set(null);
     this.selected = null;
     this.noSelection.set(true);
-    localStorage.setItem(LAST_MASTER_KEY, key);
+    localStorage.setItem(this.lastKey, key);
   }
 
   // ── Approval rules ─────────────────────────────────────────
@@ -740,7 +755,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
       { header: 'Status', field: 'isActive', formatter: v => v ? 'Active' : 'Inactive' },
     ];
     const rows = this.filteredRows() as unknown as Record<string, unknown>[];
-    const title = `TASAF ${m.label}`;
+    const title = this.only ? m.label : `TASAF ${m.label}`;
     if (kind === 'pdf') this.exportSvc.exportPdf(title, cols, rows);
     else if (kind === 'excel') this.exportSvc.exportExcel(title, cols, rows);
     else this.exportSvc.exportCsv(title, cols, rows);

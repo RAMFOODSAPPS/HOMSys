@@ -66,8 +66,9 @@ public static class TasafEmailRenderer
             ("Objective", WithOther(d.ObjectiveName, d.ObjectiveOther)),
             ("Target Market", WithOther(d.TargetMarketName, d.TargetMarketOther)),
             ("Channel", d.ChannelNames),
-            ("Product Group", Join(d.ProductGroupName, d.ProductGroup2Name)),
-            ("Category", Join(d.CategoryName, d.Category2Name)),
+            ("Product Category", d.ProductCategoryNames),
+            ("Product Sub-Category", d.SubCategoryNames),
+            ("Segment", d.SegmentNames),
             ("Background", d.Background),
             ("Concessions", d.Concessions),
             ("Program Mechanics", d.Mechanics),
@@ -165,7 +166,6 @@ public static class TasafEmailRenderer
     private static string Pct(decimal? v, string label) => v is decimal x ? $" ({x.ToString("P2", En)}{label})" : "";
     private static string Date(DateOnly? d) => d?.ToString("MMM d, yyyy", En) ?? "—";
     private static string Manila(DateTime utc) => utc.AddHours(8).ToString("MMM d, yyyy h:mm tt", En);
-    private static string? Join(string? a, string? b) => string.Join(" / ", new[] { a, b }.Where(x => !string.IsNullOrWhiteSpace(x)));
     private static string? WithOther(string? name, string other) => other.Trim().Length > 0 ? $"{name} — {other.Trim()}" : name;
 
     private static string Section(string title) =>

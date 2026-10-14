@@ -145,6 +145,13 @@ export const routes: Routes = [
           import('./features/tasafs/tasaf.routes').then(m => m.tasafRoutes)
       },
       {
+        // Master Data › Product Categories: the TASAF Setup editor limited to that list.
+        path: 'product-categories',
+        data: { permission: 'tasaf-masters', masters: ['product-groups'], title: 'Product Categories' },
+        loadComponent: () =>
+          import('./features/tasaf-setup/tasaf-setup-page.component').then(m => m.TasafSetupPageComponent)
+      },
+      {
         path: 'tasaf-setup',
         data: { permission: 'tasaf-masters' },
         loadComponent: () =>

@@ -51,7 +51,7 @@ function blankModel(): SaveTasafDto {
     salesGroupId: null, areaIds: [], chainId: null,
     programTypeId: null, programTypeOther: '', objectiveId: null, objectiveOther: '',
     targetMarketId: null, targetMarketOther: '', channelIds: [],
-    productGroupId: null, productGroup2Id: null, categoryId: null, category2Id: null,
+    productCategoryIds: [], subCategoryCodes: [],
     background: '', concessions: '', mechanics: '', ctsJustification: '',
     promotedValue: null, prePromoSales: null, incrementalSales: null,
     payInvDeductionAp: 0, payInvDeductionSalesman: 0, payCheckAp: 0, payCheckSalesman: 0,
@@ -162,7 +162,8 @@ function blankProduct(): TasafProduct {
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
               <p-multiSelect #areaMs [focusOnHover]="false" [ngModel]="m.areaIds" (ngModelChange)="onAreas($event)" [options]="list('areas')" optionLabel="name" optionValue="id"
                 [filter]="true" [showClear]="true" display="chip" [maxSelectedLabels]="100000"
-                placeholder="Select one or more areas" styleClass="w-full chips-wrap" appendTo="body" [disabled]="readonly()">
+                [placeholder]="m.salesGroupId ? 'Select one or more areas' : 'Pick a Sales Group first'" styleClass="w-full chips-wrap"
+                appendTo="body" [disabled]="readonly() || !m.salesGroupId">
                 <ng-template pTemplate="footer">
                   <div class="ms-footer"><span>{{ m.areaIds.length }} selected</span><p-button label="Done" size="small" (onClick)="areaMs.hide()" /></div>
                 </ng-template>
@@ -172,11 +173,14 @@ function blankProduct(): TasafProduct {
           @case ('chain') {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
+              <!-- Picked in order: Area → Branch(es) → Customer / Chain → Cust Key. -->
               <p-select [focusOnHover]="false" [ngModel]="m.chainId" (ngModelChange)="onChain($event)" [options]="chainOptions()" optionLabel="name" optionValue="id"
-                [showClear]="true" [filter]="true" filterBy="name" placeholder="Select" styleClass="w-full" [disabled]="readonly()" />
+                [showClear]="true" [filter]="true" filterBy="name" [placeholder]="branchSel.length ? 'Select' : 'Pick Branch(es) first'"
+                styleClass="w-full" [disabled]="readonly() || !branchSel.length" />
             </div>
           }
           @case ('custKey') {
+            <!-- Disabled until a Customer / Chain is picked: the stores come from the chain. -->
             <div class="field">
               <label>{{ cap(it) }} <span class="req">*</span></label>
               @if (chainCustomers().length) {
@@ -185,9 +189,9 @@ function blankProduct(): TasafProduct {
                   [options]="chainCustomers()" optionValue="custKey" optionLabel="label" [filter]="true"
                   filterBy="custKey,cusName,address,branch" [showClear]="true" [virtualScroll]="chainCustomers().length > 500" [virtualScrollItemSize]="48" scrollHeight="20rem"
                   panelStyleClass="opt2-panel" [panelStyle]="{ width: '36rem', maxWidth: '95vw' }"
-                  [placeholder]="'Select from ' + chainCustomers().length + ' ' + scopeName() + ' stores'" appendTo="body"
+                  [placeholder]="m.chainId ? 'Select from ' + chainCustomers().length + ' ' + scopeName() + ' stores' : 'Pick a Customer / Chain first'" appendTo="body"
                   display="chip" [maxSelectedLabels]="100000"
-                  styleClass="w-full chips-wrap" [disabled]="readonly()" [loading]="chainLoading()">
+                  styleClass="w-full chips-wrap" [disabled]="readonly() || !m.chainId" [loading]="chainLoading()">
                   <ng-template let-c pTemplate="item">
                     <div class="cust-opt" [title]="c.custKey + ' — ' + c.cusName + (c.address ? ' · ' + c.address : '')">
                       <span><strong>{{ c.custKey }}</strong> — {{ c.cusName }}</span>
@@ -203,7 +207,8 @@ function blankProduct(): TasafProduct {
                   [suggestions]="customerHits()" optionLabel="cusName" [forceSelection]="true" dataKey="custKey"
                   [minLength]="2" [delay]="600" (completeMethod)="searchCustomer($event.query)"
                   appendTo="body" styleClass="w-full" [inputStyle]="{ width: '100%' }"
-                  placeholder="Type cust key or name — pick as many as needed" [disabled]="readonly()">
+                  [placeholder]="m.chainId ? 'Type cust key or name — pick as many as needed' : 'Pick a Customer / Chain first'"
+                  [disabled]="readonly() || !m.chainId">
                   <ng-template let-c pTemplate="item">{{ c.custKey }} — {{ c.cusName }}</ng-template>
                   <ng-template let-c pTemplate="selecteditem"><span [pTooltip]="c.cusName" tooltipPosition="top">{{ c.custKey }}</span></ng-template>
                 </p-autoComplete>
@@ -218,8 +223,8 @@ function blankProduct(): TasafProduct {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
               <p-multiSelect #branchMs [focusOnHover]="false" [ngModel]="branchSel" (ngModelChange)="onBranches($event)" [options]="branchOptions()" optionLabel="name" dataKey="name"
-                [filter]="true" display="chip" [maxSelectedLabels]="100000" [placeholder]="areaCodes() ? 'Select branches of the chosen area' : 'Select one or more branches'" styleClass="w-full chips-wrap"
-                appendTo="body" [disabled]="readonly()">
+                [filter]="true" display="chip" [maxSelectedLabels]="100000" [placeholder]="!m.areaIds.length ? 'Pick an Area first' : areaCodes() ? 'Select branches of the chosen area' : 'Select one or more branches'" styleClass="w-full chips-wrap"
+                appendTo="body" [disabled]="readonly() || !m.areaIds.length">
                 <ng-template pTemplate="footer">
                   <div class="ms-footer"><span>{{ branchSel.length }} selected</span><p-button label="Done" size="small" (onClick)="branchMs.hide()" /></div>
                 </ng-template>
@@ -286,44 +291,41 @@ function blankProduct(): TasafProduct {
               </p-multiSelect>
             </div>
           }
-          @case ('productGroup') {
+          @case ('productCategory') {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
-              <p-select [focusOnHover]="false" [ngModel]="m.productGroupId" (ngModelChange)="m.productGroupId = $event; loadProductOptions()" [options]="list('product-groups')" optionLabel="name" optionValue="id"
-                [showClear]="true" placeholder="Primary product group" styleClass="w-full" [filter]="true" filterBy="code,name" [disabled]="readonly()">
-                <ng-template let-o pTemplate="item">{{ codeName(o) }}</ng-template>
-                <ng-template let-o pTemplate="selectedItem">{{ codeName(o) }}</ng-template>
-              </p-select>
+              <p-multiSelect #pcMs [focusOnHover]="false" [ngModel]="m.productCategoryIds" (ngModelChange)="onProductCategories($event)"
+                [options]="productCategoryOptions()" optionLabel="label" optionValue="id"
+                [filter]="true" filterBy="label" [showClear]="true" display="chip" [maxSelectedLabels]="100000"
+                placeholder="Select one or more categories" styleClass="w-full chips-wrap" appendTo="body" [disabled]="readonly()">
+                <ng-template pTemplate="footer">
+                  <div class="ms-footer"><span>{{ m.productCategoryIds.length }} selected</span><p-button label="Done" size="small" (onClick)="pcMs.hide()" /></div>
+                </ng-template>
+              </p-multiSelect>
             </div>
           }
-          @case ('productGroup2') {
+          @case ('subCategory') {
             <div class="field">
-              <label>{{ cap(it) }} <span class="opt">(optional)</span></label>
-              <p-select [focusOnHover]="false" [ngModel]="m.productGroup2Id" (ngModelChange)="m.productGroup2Id = $event; loadProductOptions()" [options]="list('product-groups')" optionLabel="name" optionValue="id"
-                [showClear]="true" placeholder="Other product group" styleClass="w-full" [filter]="true" filterBy="code,name" [disabled]="readonly()">
-                <ng-template let-o pTemplate="item">{{ codeName(o) }}</ng-template>
-                <ng-template let-o pTemplate="selectedItem">{{ codeName(o) }}</ng-template>
-              </p-select>
+              <label>{{ cap(it) }} <span class="opt">(optional — none = whole category)</span></label>
+              <p-multiSelect #scMs [focusOnHover]="false" [ngModel]="m.subCategoryCodes" (ngModelChange)="onSubCategories($event)"
+                [options]="subCategoryOptions()" optionLabel="label" optionValue="code" [group]="true" optionGroupLabel="label" optionGroupChildren="items"
+                [filter]="true" filterBy="label" [showClear]="true" display="chip" [maxSelectedLabels]="100000"
+                [placeholder]="m.productCategoryIds.length ? 'Whole category — or pick sub-categories' : 'Pick a Product Category first'"
+                styleClass="w-full chips-wrap" appendTo="body" [disabled]="readonly() || !m.productCategoryIds.length">
+                <ng-template pTemplate="footer">
+                  <div class="ms-footer"><span>{{ m.subCategoryCodes.length }} selected</span><p-button label="Done" size="small" (onClick)="scMs.hide()" /></div>
+                </ng-template>
+              </p-multiSelect>
             </div>
           }
-          @case ('category') {
+          @case ('segment') {
+            <!-- Automatic: the segment of each picked sub-category (product master, Products page). -->
             <div class="field">
-              <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
-              <p-select [focusOnHover]="false" [ngModel]="m.categoryId" (ngModelChange)="m.categoryId = $event; loadProductOptions()" [options]="categoryOptions(m.productGroupId)" optionLabel="name" optionValue="id"
-                [showClear]="true" placeholder="Category to activate" styleClass="w-full" [filter]="true" filterBy="code,name" [disabled]="readonly()">
-                <ng-template let-o pTemplate="item">{{ codeName(o) }}</ng-template>
-                <ng-template let-o pTemplate="selectedItem">{{ codeName(o) }}</ng-template>
-              </p-select>
-            </div>
-          }
-          @case ('category2') {
-            <div class="field">
-              <label>{{ cap(it) }} <span class="opt">(optional)</span></label>
-              <p-select [focusOnHover]="false" [ngModel]="m.category2Id" (ngModelChange)="m.category2Id = $event; loadProductOptions()" [options]="categoryOptions(m.productGroup2Id)" optionLabel="name" optionValue="id"
-                [showClear]="true" placeholder="Other category" styleClass="w-full" [filter]="true" filterBy="code,name" [disabled]="readonly()">
-                <ng-template let-o pTemplate="item">{{ codeName(o) }}</ng-template>
-                <ng-template let-o pTemplate="selectedItem">{{ codeName(o) }}</ng-template>
-              </p-select>
+              <label>{{ cap(it) }} <span class="opt">(automatic, from the sub-categories)</span></label>
+              <div class="seg-chips">
+                @for (s of segmentOptions(); track s) { <span class="seg-chip">{{ s }}</span> }
+                @empty { <span class="muted">{{ m.subCategoryCodes.length ? 'No segments' : 'Pick a Sub-Category' }}</span> }
+              </div>
             </div>
           }
           @case ('categoryNote') {
@@ -1106,9 +1108,60 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     return list;
   }
 
-  categoryOptions(groupId: number | null): TasafOption[] {
-    const all = this.list('categories');
-    return groupId ? all.filter(c => c.parentId === groupId) : all;
+  // ── Product scope (Book2.xlsx): Category → Sub-Category → Segment ──
+  /** Product Categories ("product-groups" list), shown by name only ("Peas & Beans"; the code stays for the SKU match). */
+  productCategoryOptions() {
+    return this.cached('pc', () => this.list('product-groups').map(o => ({ ...o, label: o.name })));
+  }
+
+  /** Sub-Category options: the product master's categories (Products page), see options().subCategories. */
+  private subCategoryList() { return this.options()?.subCategories ?? []; }
+
+  /**
+   * Sub-Categories of the picked categories, grouped by category, labelled "2a — Peas". None picked
+   * for a category = the whole category.
+   */
+  subCategoryOptions() {
+    return this.cached('sc', () => {
+      const picked = new Set(this.m.productCategoryIds);
+      const subs = this.subCategoryList().filter(sc => picked.has(sc.productCategoryId) || this.m.subCategoryCodes.includes(sc.code));
+      return this.list('product-groups')
+        .filter(c => subs.some(sc => sc.productCategoryId === c.id))
+        .map(c => ({ label: c.name, items: subs.filter(sc => sc.productCategoryId === c.id).map(sc => ({ ...sc, label: `${sc.code} — ${sc.name}` })) }));
+    });
+  }
+
+  /** Segment of each picked sub-category (product master), by name ("Green Peas") — automatic. */
+  segmentOptions() {
+    return this.cached('seg', () => {
+      const picked = new Set(this.m.subCategoryCodes);
+      return [...new Set(this.subCategoryList().filter(sc => picked.has(sc.code)).map(sc => sc.segment).filter(s => !!s))];
+    });
+  }
+
+  /** Categories changed: drop sub-categories that no longer belong. */
+  onProductCategories(ids: number[] | null) {
+    this.m.productCategoryIds = ids ?? [];
+    const cats = new Set(this.m.productCategoryIds);
+    const subs = this.subCategoryList();
+    this.onSubCategories(this.m.subCategoryCodes.filter(code => cats.has(subs.find(sc => sc.code === code)?.productCategoryId ?? -1)));
+  }
+
+  /** Sub-categories changed: their segments follow automatically; reload the SKU list. */
+  onSubCategories(codes: string[] | null) {
+    this.m.subCategoryCodes = codes ?? [];
+    this.loadProductOptions();
+  }
+
+  /** Option arrays rebuilt only when their inputs change (multiselects need stable arrays). */
+  private optCache = new Map<string, { key: string; value: unknown }>();
+  private cached<T>(name: string, build: () => T): T {
+    const key = JSON.stringify([!!this.options(), this.m.productCategoryIds, this.m.subCategoryCodes]);
+    const hit = this.optCache.get(name);
+    if (hit && hit.key === key) return hit.value as T;
+    const value = build();
+    this.optCache.set(name, { key, value });
+    return value;
   }
 
   isOthers(key: string, id: number | null): boolean {
@@ -1142,12 +1195,20 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     // A chain belongs to one sales group (TASAF Setup › Customers / Chains) — fill it in.
     const sg = this.list('chains').find(o => o.id === chainId)?.parentId;
     if (sg && !this.m.salesGroupId) this.m.salesGroupId = sg;
+    // No chain = Cust Key is disabled, so stores picked for the old chain go too.
+    if (!chainId && this.customers().length) {
+      const n = this.customers().length;
+      this.customers.set([]);
+      this.messageSvc.add({ severity: 'info', summary: 'Cust Key', detail: `${n} store${n === 1 ? '' : 's'} cleared — pick a Customer / Chain first.` });
+    }
     this.loadCustomerOptions(true);
   }
 
   /** Areas changed: the Cust Key list narrows to the areas' branches (TASAF Setup › Areas). */
   onAreas(areaIds: number[] | null) {
     this.m.areaIds = areaIds ?? [];
+    // No area = Branch(es) is disabled: clear them (and, through onBranches, the chain and stores).
+    if (!this.m.areaIds.length && this.branchSel.length) { this.onBranches([]); return; }
     // Branches outside the picked areas no longer apply.
     const codes = this.areaCodes();
     if (codes) {
@@ -1189,6 +1250,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   /** Branches changed: the Cust Key list narrows to the picked branches' stores. */
   onBranches(sel: TasafBranch[] | null) {
     this.branchSel = sel ?? [];
+    // No branch = Customer / Chain is disabled: clear it (onChain also clears the stores).
+    if (!this.branchSel.length && this.m.chainId) { this.onChain(null); this.loadChainCounts(true); return; }
     this.loadCustomerOptions(true);
     this.loadChainCounts(true);
   }
@@ -1246,6 +1309,9 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   /** Sales group changed: a chain of another group no longer applies. */
   onSalesGroup(salesGroupId: number | null) {
     this.m.salesGroupId = salesGroupId;
+    // Order: Sales Group → Area → Branch(es) → Customer / Chain → Cust Key. No sales group = Area is
+    // disabled: clear it (onAreas clears the branches, chain and stores after it).
+    if (!salesGroupId && this.m.areaIds.length) { this.onAreas([]); return; }
     if (this.m.chainId && !this.chainOptions().some(c => c.id === this.m.chainId)) this.onChain(null);
   }
 
@@ -1291,15 +1357,14 @@ export class TasafPageComponent implements OnInit, OnDestroy {
 
   // ── Participating SKUs ─────────────────────────────────────
   /**
-   * SKU dropdown = active products of the picked Product Group / Category (and the secondary
-   * pair). Products already on the TASAF stay listed even if they fall outside the scope.
+   * SKU dropdown = active products of the picked Product Categories / Sub-Categories
+   * (server: GetProductOptionsAsync). Products already on the TASAF stay listed even if outside.
    */
   loadProductOptions() {
     const req = ++this.productReq;
     this.productLoading.set(true);
     this.api.productOptions({
-      productGroupId: this.m.productGroupId, categoryId: this.m.categoryId,
-      productGroup2Id: this.m.productGroup2Id, category2Id: this.m.category2Id
+      productCategoryIds: this.m.productCategoryIds, subCategoryCodes: this.m.subCategoryCodes
     }).subscribe({
       next: res => {
         if (req !== this.productReq) return; // a newer scope was picked meanwhile

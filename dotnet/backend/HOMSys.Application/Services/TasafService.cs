@@ -54,6 +54,7 @@ public class TasafService(
             .Select(s => new TasafBranchDto { SiteId = s.Id, Name = s.Name, Code = s.Code })
             .Concat(BranchScopes.Select(b => new TasafBranchDto { Name = b }))
             .ToList();
+        dto.SubCategories = await SubCategoryOptionsAsync();
         return dto;
     }
 
@@ -180,36 +181,46 @@ public class TasafService(
         SplitList(cuwhsenos).Select(x => int.TryParse(x, out var n) ? n : -1).Where(n => n >= 0).ToList();
 
     /// <summary>
-    /// Participating SKU dropdown: active products (not Delisted / Phased Out) of the TASAF's
-    /// product scope. Each (group, category) pair contributes its category's SKUs when a
-    /// category is picked, else the whole group's. TASAF codes map to the product master:
-    /// category "1A" = ProductCategory "1a", group / whole-group category "07" = GroupNo 7.
-    /// A non-numeric group code (CORP — Total RAM) or no scope at all = every active product.
+    /// Participating SKU dropdown: active products (not Delisted / Phased Out) of the TASAF's product
+    /// scope (Book2.xlsx), mapped to the product master: a Sub-Category = its code (a product master
+    /// category, ProductCategories.CategoryCode, e.g. "2a"); a Product Category with none of its
+    /// sub-categories picked = the whole category (GroupNo = its code, "02" → 2). A non-numeric category
+    /// code (old CORP) or no scope at all = every active product.
     /// </summary>
     public async Task<List<TasafProductOptionDto>> GetProductOptionsAsync(
-        int? productGroupId, int? categoryId, int? productGroup2Id, int? category2Id)
+        IReadOnlyList<int> productCategoryIds, IReadOnlyList<string> subCategoryCodes)
     {
         var catalog = (await products.GetCatalogAsync())
             .Where(p => !string.Equals(p.GroupDesc?.Trim(), ProductCatalogService.Delisted, StringComparison.OrdinalIgnoreCase)
                         && !p.PhOut)
             .ToList();
 
-        var codes = new List<string>();
-        foreach (var (groupId, catId) in new[] { (productGroupId, categoryId), (productGroup2Id, category2Id) })
+        var codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var groupNos = new HashSet<int>();
+        var everything = false;
+        async Task WholeCategory(int? categoryId)
         {
-            var cat = catId is int c ? await lookups.GetByIdAsync(typeof(TasafCategory), c) : null;
-            var grp = groupId is int g ? await lookups.GetByIdAsync(typeof(TasafProductGroup), g) : null;
-            var code = (cat ?? grp)?.Code.Trim();
-            if (!string.IsNullOrEmpty(code)) codes.Add(code);
+            if (categoryId is int id && await lookups.GetByIdAsync(typeof(TasafProductGroup), id) is { } cat)
+            {
+                if (int.TryParse(cat.Code.Trim(), out var no)) groupNos.Add(no);
+                else everything = true;
+            }
         }
 
-        IEnumerable<HOMSys.Application.DTOs.Products.ProductCatalogDto> picked = catalog;
-        if (codes.Count > 0 && !codes.Any(c => !char.IsDigit(c[0])))  // any CORP-like code = all products
+        var covered = new HashSet<int>();
+        var subs = (await SubCategoryOptionsAsync()).ToDictionary(o => o.Code, StringComparer.OrdinalIgnoreCase);
+        foreach (var code in subCategoryCodes.Select(c => c.Trim()).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            var categoryCodes = codes.Where(c => c.Any(char.IsLetter)).Select(c => c.ToLowerInvariant()).ToHashSet();
-            var groupNos = codes.Where(c => c.All(char.IsDigit)).Select(int.Parse).ToHashSet();
-            picked = catalog.Where(p => categoryCodes.Contains(p.Category.Trim().ToLowerInvariant()) || groupNos.Contains(p.GroupNo));
+            if (!subs.TryGetValue(code, out var sub)) continue;
+            covered.Add(sub.ProductCategoryId);
+            codes.Add(sub.Code);
         }
+        foreach (var id in productCategoryIds.Distinct().Where(id => !covered.Contains(id)))
+            await WholeCategory(id);
+
+        IEnumerable<HOMSys.Application.DTOs.Products.ProductCatalogDto> picked = catalog;
+        if (!everything && (codes.Count > 0 || groupNos.Count > 0))
+            picked = catalog.Where(p => codes.Contains(p.Category.Trim()) || groupNos.Contains(p.GroupNo));
 
         return picked
             .OrderBy(p => p.GroupNo).ThenBy(p => p.SeqNo).ThenBy(p => p.CProdNo)
@@ -671,8 +682,7 @@ public class TasafService(
         if (t.TargetMarketId is null) m.Add("Target Market");
         else if (IsOthers(t.TargetMarket) && t.TargetMarketOther.Length == 0) m.Add("Target Market (Others, indicate)");
         if (t.Channels.Count == 0) m.Add("Channel");
-        if (t.ProductGroupId is null) m.Add("Product Group");
-        if (t.CategoryId is null) m.Add("Category");
+        if (t.ProductCategories.Count == 0) m.Add("Product Category");
         if (t.Background.Length == 0) m.Add("Background");
         if (t.Concessions.Length == 0) m.Add("Concessions");
         if (t.Mechanics.Length == 0) m.Add("Program Mechanics");
@@ -766,6 +776,27 @@ public class TasafService(
 
     private static DateTime TodayPh() => DateTime.UtcNow.AddHours(8);
 
+    /// <summary>
+    /// TASAF Sub-Category options = product master categories (ProductCategories, the Products page) whose
+    /// GroupNo has a Product Category (Master Data › Product Categories, code "02" = GroupNo 2): code,
+    /// SubCat as the name, GroupDesc as the Segment. Groups with no Product Category (Dummy, Delisted) are left out.
+    /// </summary>
+    private async Task<List<TasafSubCategoryOptionDto>> SubCategoryOptionsAsync()
+    {
+        var categories = (await lookups.GetAllAsync(typeof(TasafProductGroup)))
+            .Where(c => int.TryParse(c.Code.Trim(), out _))
+            .GroupBy(c => int.Parse(c.Code.Trim()))
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(c => c.IsActive).First().Id);
+        return (await products.GetCategoriesAsync())
+            .Where(c => categories.ContainsKey(c.GroupNo) && c.CategoryCode.Trim().Length > 0)
+            .Select(c => new TasafSubCategoryOptionDto
+            {
+                Code = c.CategoryCode.Trim(), Name = c.SubCat.Trim(), Segment = c.GroupDesc.Trim(),
+                ProductCategoryId = categories[c.GroupNo]
+            })
+            .ToList();
+    }
+
     /// <summary>LSP is priced as of the program start date (today, Manila, when not set).</summary>
     private static DateOnly PriceDate(Tasaf t) => t.StartDate ?? DateOnly.FromDateTime(TodayPh());
 
@@ -802,9 +833,6 @@ public class TasafService(
             (dto.SalesGroupId, "sales-groups", "Sales Group"),
             (dto.ChainId, "chains", "Customer / Chain"), (dto.ProgramTypeId, "program-types", "Program Type"),
             (dto.ObjectiveId, "objectives", "Objective"), (dto.TargetMarketId, "target-markets", "Target Market"),
-            (dto.ProductGroupId, "product-groups", "Product Group"),
-            (dto.ProductGroup2Id, "product-groups", "Secondary Product Group"), (dto.CategoryId, "categories", "Category"),
-            (dto.Category2Id, "categories", "Secondary Category"),
         };
         foreach (var (lookupId, key, label) in checks)
             if (lookupId is int lid && !await LookupExistsAsync(key, lid))
@@ -826,6 +854,22 @@ public class TasafService(
         var channelIds = (dto.ChannelIds ?? []).Distinct().ToList();
         foreach (var cid in channelIds)
             if (!await LookupExistsAsync("channels", cid)) return "Channel not found.";
+        var productCategoryIds = (dto.ProductCategoryIds ?? []).Distinct().ToList();
+        foreach (var pcid in productCategoryIds)
+            if (!await LookupExistsAsync("product-groups", pcid)) return "Product Category not found.";
+        // Sub-Categories = product master categories; the names are snapshotted onto the TASAF.
+        var subOptions = (await SubCategoryOptionsAsync()).ToDictionary(o => o.Code, StringComparer.OrdinalIgnoreCase);
+        var keptSubs = t.SubCategories.ToDictionary(c => c.Code, StringComparer.OrdinalIgnoreCase);
+        var subCategories = new List<TasafSubCategoryLink>();
+        foreach (var code in (dto.SubCategoryCodes ?? []).Select(c => (c ?? "").Trim()).Where(c => c.Length > 0)
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (subOptions.TryGetValue(code, out var o))
+                subCategories.Add(new TasafSubCategoryLink { Code = o.Code, Name = o.Name, Segment = o.Segment });
+            else if (keptSubs.TryGetValue(code, out var kept)) // no longer in the master: keep the saved snapshot
+                subCategories.Add(new TasafSubCategoryLink { Code = kept.Code, Name = kept.Name, Segment = kept.Segment });
+            else return $"Product Sub-Category {code} not found.";
+        }
 
         var costTypeIds = dto.Costs.Where(c => c.CostTypeId is not null).Select(c => c.CostTypeId!.Value).Distinct();
         foreach (var ct in costTypeIds)
@@ -861,10 +905,6 @@ public class TasafService(
         t.ObjectiveOther    = dto.ObjectiveOther.Trim();
         t.TargetMarketId    = dto.TargetMarketId;
         t.TargetMarketOther = dto.TargetMarketOther.Trim();
-        t.ProductGroupId    = dto.ProductGroupId;
-        t.ProductGroup2Id   = dto.ProductGroup2Id;
-        t.CategoryId        = dto.CategoryId;
-        t.Category2Id       = dto.Category2Id;
         t.Background        = dto.Background.Trim();
         t.Concessions       = dto.Concessions.Trim();
         t.Mechanics         = dto.Mechanics.Trim();
@@ -890,6 +930,19 @@ public class TasafService(
         line = 0;
         foreach (var cid in channelIds)
             t.Channels.Add(new TasafChannelLink { LineNo = ++line, ChannelId = cid });
+
+        t.ProductCategories.Clear();
+        line = 0;
+        foreach (var pcid in productCategoryIds)
+            t.ProductCategories.Add(new TasafProductCategoryLink { LineNo = ++line, ProductGroupId = pcid });
+
+        t.SubCategories.Clear();
+        line = 0;
+        foreach (var sc in subCategories)
+        {
+            sc.LineNo = ++line;
+            t.SubCategories.Add(sc);
+        }
 
         t.Branches.Clear();
         line = 0;
@@ -992,14 +1045,11 @@ public class TasafService(
             TargetMarketOther = t.TargetMarketOther,
             ChannelIds        = t.Channels.OrderBy(c => c.LineNo).Select(c => c.ChannelId).ToList(),
             ChannelNames      = string.Join(", ", t.Channels.OrderBy(c => c.LineNo).Select(c => c.Channel?.Name).Where(n => n is not null)),
-            ProductGroupId    = t.ProductGroupId,
-            ProductGroupName  = t.ProductGroup?.Name,
-            ProductGroup2Id   = t.ProductGroup2Id,
-            ProductGroup2Name = t.ProductGroup2?.Name,
-            CategoryId        = t.CategoryId,
-            CategoryName      = t.Category?.Name,
-            Category2Id       = t.Category2Id,
-            Category2Name     = t.Category2?.Name,
+            ProductCategoryIds   = t.ProductCategories.OrderBy(c => c.LineNo).Select(c => c.ProductGroupId).ToList(),
+            ProductCategoryNames = string.Join(", ", t.ProductCategories.OrderBy(c => c.LineNo).Select(c => c.ProductGroup?.Name).Where(n => n is not null)),
+            SubCategoryCodes     = t.SubCategories.OrderBy(c => c.LineNo).Select(c => c.Code).ToList(),
+            SubCategoryNames     = string.Join(", ", t.SubCategories.OrderBy(c => c.LineNo).Select(c => $"{c.Code} - {c.Name}")),
+            SegmentNames         = string.Join(", ", t.SubCategories.OrderBy(c => c.LineNo).Select(c => c.Segment).Where(n => n.Length > 0)),
             Background        = t.Background,
             Concessions       = t.Concessions,
             Mechanics         = t.Mechanics,

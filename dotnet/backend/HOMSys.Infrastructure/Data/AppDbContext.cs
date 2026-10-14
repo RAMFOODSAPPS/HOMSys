@@ -77,7 +77,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TasafTargetMarket> TasafTargetMarkets => Set<TasafTargetMarket>();
     public DbSet<TasafChannel> TasafChannels => Set<TasafChannel>();
     public DbSet<TasafProductGroup> TasafProductGroups => Set<TasafProductGroup>();
-    public DbSet<TasafCategory> TasafCategories => Set<TasafCategory>();
     public DbSet<TasafCostType> TasafCostTypes => Set<TasafCostType>();
     public DbSet<TasafApprovalRole> TasafApprovalRoles => Set<TasafApprovalRole>();
     public DbSet<TasafApprover> TasafApprovers => Set<TasafApprover>();

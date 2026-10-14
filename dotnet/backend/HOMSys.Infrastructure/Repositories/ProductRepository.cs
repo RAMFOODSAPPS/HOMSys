@@ -9,6 +9,9 @@ namespace HOMSys.Infrastructure.Repositories;
 
 public class ProductRepository(AppDbContext db) : IProductRepository
 {
+    public async Task<List<ProductCategory>> GetCategoriesAsync() =>
+        await db.ProductCategories.AsNoTracking().OrderBy(c => c.GroupNo).ThenBy(c => c.SeqNo).ToListAsync();
+
     public async Task<List<ProductCatalogDto>> GetCatalogAsync() =>
         await (from p in db.Products.AsNoTracking()
                join c in db.ProductCategories.AsNoTracking() on p.Category equals c.CategoryCode into cj

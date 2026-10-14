@@ -36,15 +36,6 @@ public class Tasaf
     public TasafTargetMarket? TargetMarket { get; set; }
     public string TargetMarketOther { get; set; } = string.Empty;
 
-    public int? ProductGroupId { get; set; }
-    public TasafProductGroup? ProductGroup { get; set; }
-    public int? ProductGroup2Id { get; set; }
-    public TasafProductGroup? ProductGroup2 { get; set; }
-    public int? CategoryId { get; set; }
-    public TasafCategory? Category { get; set; }
-    public int? Category2Id { get; set; }
-    public TasafCategory? Category2 { get; set; }
-
     public string Background { get; set; } = string.Empty;
     public string Concessions { get; set; } = string.Empty;
     public string Mechanics { get; set; } = string.Empty;
@@ -98,6 +89,10 @@ public class Tasaf
     public List<TasafAreaLink> Areas { get; set; } = [];
     /// <summary>Channels (multi-select).</summary>
     public List<TasafChannelLink> Channels { get; set; } = [];
+    /// <summary>Product Categories (multi-select; TasafProductGroup rows).</summary>
+    public List<TasafProductCategoryLink> ProductCategories { get; set; } = [];
+    /// <summary>Product Sub-Categories (multi-select, from the product master).</summary>
+    public List<TasafSubCategoryLink> SubCategories { get; set; } = [];
     public List<TasafBranch> Branches { get; set; } = [];
     /// <summary>Participating stores (Cust Keys) from the customer master — any number.</summary>
     public List<TasafCustomer> Customers { get; set; } = [];
@@ -177,6 +172,31 @@ public class TasafAreaLink
     public int LineNo { get; set; }
     public int AreaId { get; set; }
     public TasafArea? Area { get; set; }
+}
+
+/// <summary>A Product Category the TASAF covers (TasafProductGroup master row).</summary>
+public class TasafProductCategoryLink
+{
+    public int Id { get; set; }
+    public int TasafId { get; set; }
+    public int LineNo { get; set; }
+    public int ProductGroupId { get; set; }
+    public TasafProductGroup? ProductGroup { get; set; }
+}
+
+/// <summary>
+/// A Product Sub-Category the TASAF covers — a product master category (ProductCategories, the
+/// Products page): Code "2a", Name = its SubCat ("Peas"), Segment = its GroupDesc ("Green Peas").
+/// Names are a snapshot taken on save, so a later BMS rename doesn't rewrite old TASAFs.
+/// </summary>
+public class TasafSubCategoryLink
+{
+    public int Id { get; set; }
+    public int TasafId { get; set; }
+    public int LineNo { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Segment { get; set; } = string.Empty;
 }
 
 /// <summary>A channel the TASAF targets (TasafChannel master row).</summary>

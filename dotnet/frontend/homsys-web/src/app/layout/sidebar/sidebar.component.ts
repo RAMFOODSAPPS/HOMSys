@@ -32,7 +32,7 @@ import { LayoutService } from '../../core/services/layout.service';
         </li>
         <li class="menu-sub-divider"></li>
 
-        @if (auth.isAdmin() || auth.hasPermission('companies') || auth.hasPermission('departments') || auth.hasPermission('sites') || auth.hasPermission('site-types') || auth.hasPermission('legacy-monitoring') || auth.hasPermission('products') || auth.hasPermission('customers')) {
+        @if (auth.isAdmin() || auth.hasPermission('companies') || auth.hasPermission('departments') || auth.hasPermission('sites') || auth.hasPermission('site-types') || auth.hasPermission('legacy-monitoring') || auth.hasPermission('products') || auth.hasPermission('customers') || auth.hasPermission('tasaf-masters')) {
           <li class="menu-group">Master Data</li>
         }
         @if (auth.isAdmin() || auth.hasPermission('customers')) {
@@ -51,7 +51,15 @@ import { LayoutService } from '../../core/services/layout.service';
             </a>
           </li>
         }
-        @if (auth.isAdmin() || auth.hasPermission('customers') || auth.hasPermission('products')) {
+        @if (auth.isAdmin() || auth.hasPermission('tasaf-masters')) {
+          <li>
+            <a routerLink="/product-categories" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" (click)="onNavClick()">
+              <i class="pi pi-tags"></i>
+              <span>Product Categories</span>
+            </a>
+          </li>
+        }
+        @if (auth.isAdmin() || auth.hasPermission('customers') || auth.hasPermission('products') || auth.hasPermission('tasaf-masters')) {
           <li class="menu-sub-divider"></li>
         }
         @if (auth.isAdmin() || auth.hasPermission('companies')) {

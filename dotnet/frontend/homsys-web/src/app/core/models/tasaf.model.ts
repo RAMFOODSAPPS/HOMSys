@@ -58,10 +58,10 @@ export interface SaveTasafDto {
   targetMarketOther: string;
   /** Channels — multi-select. */
   channelIds: number[];
-  productGroupId: number | null;
-  productGroup2Id: number | null;
-  categoryId: number | null;
-  category2Id: number | null;
+  /** Product scope (Book2.xlsx): Categories and Sub-Categories multi-select; Segments follow the Sub-Categories. */
+  productCategoryIds: number[];
+  /** Product master category codes ("2a"); none for a picked category = the whole category. */
+  subCategoryCodes: string[];
   background: string;
   concessions: string;
   mechanics: string;
@@ -95,10 +95,10 @@ export interface TasafDto extends SaveTasafDto {
   objectiveName?: string | null;
   targetMarketName?: string | null;
   channelNames?: string | null;
-  productGroupName?: string | null;
-  productGroup2Name?: string | null;
-  categoryName?: string | null;
-  category2Name?: string | null;
+  productCategoryNames?: string | null;
+  subCategoryNames?: string | null;
+  /** Segments of the picked sub-categories by name, "Green Peas, Garbanzos" (automatic). */
+  segmentNames?: string | null;
   totalCost: number;
   promotedVsPrePromo: number | null;
   incrementalVsPrePromo: number | null;
@@ -205,6 +205,15 @@ export interface TasafFormOptions {
   /** Keyed by master key: 'sales-groups', 'chains', 'areas', 'program-types', ... */
   lists: Record<string, TasafOption[]>;
   branches: TasafBranch[];
+  /** Sub-Categories from the product master (Products page): code, sub-category, segment, Product Category id. */
+  subCategories: TasafSubCategoryOption[];
+}
+
+export interface TasafSubCategoryOption {
+  code: string;
+  name: string;
+  segment: string;
+  productCategoryId: number;
 }
 
 export interface TasafProductLookup {

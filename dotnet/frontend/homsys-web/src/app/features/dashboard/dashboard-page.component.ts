@@ -21,6 +21,7 @@ const GROUPS: DashboardGroup[] = [
     cards: [
       { label: 'Customers',         icon: 'pi-id-card',            route: '/customers',         permission: 'customers' },
       { label: 'Products',          icon: 'pi-box',                route: '/products',          permission: 'products' },
+      { label: 'Product Categories', icon: 'pi-tags',              route: '/product-categories', permission: 'tasaf-masters' },
       { label: 'Companies',        icon: 'pi-building',           route: '/companies/list',    permission: 'companies' },
       { label: 'Departments',       icon: 'pi-sitemap',            route: '/departments/list',  permission: 'departments' },
       { label: 'Sites',             icon: 'pi-map-marker',         route: '/sites/list',        permission: 'sites' },

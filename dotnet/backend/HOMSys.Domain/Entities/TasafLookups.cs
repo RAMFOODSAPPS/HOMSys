@@ -75,14 +75,6 @@ public class TasafTargetMarket : TasafLookup { }
 public class TasafChannel : TasafLookup { }
 public class TasafProductGroup : TasafLookup { }
 
-/// <summary>Promotable category. Only categories listed here may be promoted (GUIDE sheet).</summary>
-public class TasafCategory : TasafLookup, ITasafParentLookup
-{
-    public int? ProductGroupId { get; set; }
-    public TasafProductGroup? ProductGroup { get; set; }
-    int? ITasafParentLookup.ParentId { get => ProductGroupId; set => ProductGroupId = value; }
-}
-
 /// <summary>Cost Details description, e.g. "Promotions - Free Goods".</summary>
 public class TasafCostType : TasafLookup { }
 

@@ -31,8 +31,9 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         new("objectives",      "Objectives",       typeof(TasafObjective)),
         new("target-markets",  "Target Markets",   typeof(TasafTargetMarket)),
         new("channels",        "Channels",         typeof(TasafChannel)),
-        new("product-groups",  "Product Groups",   typeof(TasafProductGroup)),
-        new("categories",      "Product Categories", typeof(TasafCategory),    ParentKey: "product-groups", ParentLabel: "Product Group"),
+        // Product Categories (Book2): edited on Master Data › Product Categories ("product-groups" key kept).
+        // Sub-Categories / Segments come from the product master (ProductCategories), not a list here.
+        new("product-groups",  "Product Categories", typeof(TasafProductGroup)),
         new("cost-types",      "Cost Descriptions", typeof(TasafCostType)),
         new("approval-types",  "Approval Types",   typeof(TasafApprovalType)),
         new("approval-roles",  "Approval Roles",   typeof(TasafApprovalRole)),

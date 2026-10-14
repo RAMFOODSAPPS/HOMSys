@@ -12,7 +12,7 @@ export interface TasafChainCustomer {
   label?: string;
 }
 export interface TasafProductSuggestion { cProdNo: string; prodDesc: string; packSize: string; pieces: number; }
-/** Participating SKU dropdown option (active products of the picked product group / category). */
+/** Participating SKU dropdown option (active products of the picked Product Category / Sub-Category / Segment). */
 export interface TasafProductOption {
   cProdNo: string; prodDesc: string; packSize: string;
   category: string; categoryName: string | null; lspPerCase: number | null;
@@ -61,9 +61,10 @@ export class TasafService {
   searchCustomers(term: string) {
     return this.http.get<ApiResponse<TasafCustomerSuggestion[]>>(`${this.base}/search/customer`, { params: { term } });
   }
-  productOptions(scope: { productGroupId: number | null; categoryId: number | null; productGroup2Id: number | null; category2Id: number | null }) {
-    const params: Record<string, string> = {};
-    for (const [k, v] of Object.entries(scope)) if (v != null) params[k] = String(v);
+  productOptions(scope: { productCategoryIds: number[]; subCategoryCodes: string[] }) {
+    const params: Record<string, string | string[]> = {
+      productCategoryIds: scope.productCategoryIds.map(String), subCategoryCodes: scope.subCategoryCodes
+    };
     return this.http.get<ApiResponse<TasafProductOption[]>>(`${this.base}/product-options`, { params });
   }
   searchProducts(term: string) {

@@ -480,6 +480,14 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   `TasafService.IsSupportProgram` + the form's `isSupport()`): Participating Products hidden and not saved,
   no Pre-Promo / Incremental Sales, Promoted Value relabelled "Annual Projected Sales", section titled
   "Account Support & Convention Computation". Listing Fee is NOT included (same approval matrix, but not this rule).
+  **Product scope** (Book2.xlsx, 2026-10-14; migration `TasafProductHierarchy`): **Product Category** = the
+  `product-groups` list (`TasafProductGroup`, code 01–10 = product master GroupNo; CORP deactivated), edited on
+  **Master Data › Product Categories** (`/product-categories`, the TASAF Setup editor with route data `masters`; no
+  longer in TASAF Setup). **Sub-Category** and **Segment** have no HOMSys list: they are the product master's
+  `ProductCategories` rows (the Products page) for the picked categories — code "2a", Sub-Category = SubCat ("Peas"),
+  Segment = GroupDesc ("Green Peas"). Category + Sub-Category are multi-select (`TasafProductCategoryLinks`;
+  `TasafSubCategoryLinks` holds Code + a Name / Segment snapshot taken on save); Segments show automatically. None
+  picked for a category = the whole category. SKU list: a Sub-Category = its code, a bare category = its GroupNo.
   **LSP / Case** = the picked Cust Keys' price **with VAT** as of StartDate (today if blank): base price + ZONE + ZONE2 add-ons,
   the Sales Order rule, bulk-priced by `TasafPriceService` (`POST tasafs/product-prices`, grouped by price; `IncludesVat`
   const). Blank until Cust Keys are picked. All picked stores must share ONE price per SKU — Submit is refused otherwise

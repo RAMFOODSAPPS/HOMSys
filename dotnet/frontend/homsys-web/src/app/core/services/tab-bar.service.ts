@@ -38,6 +38,7 @@ const ROUTE_META: Record<string, { label: string; icon: string }> = {
   '/tasafs':            { label: 'New TASAF',        icon: 'pi-file-edit' },
   '/tasafs/list':       { label: 'TASAF List',       icon: 'pi-list' },
   '/tasaf-setup':       { label: 'TASAF Setup',      icon: 'pi-cog' },
+  '/product-categories': { label: 'Product Categories', icon: 'pi-tags' },
 };
 
 const TABS_STORAGE_KEY   = 'homsys_tabs';
