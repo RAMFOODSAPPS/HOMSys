@@ -982,6 +982,7 @@ public class TasafService(
             ChainName         = t.Chain?.Name,
             ProgramTypeId     = t.ProgramTypeId,
             ProgramTypeName   = t.ProgramType?.Name,
+            CtsLimitPercent   = t.ProgramType?.MaxCtsPercent,
             ProgramTypeOther  = t.ProgramTypeOther,
             ObjectiveId       = t.ObjectiveId,
             ObjectiveName     = t.Objective?.Name,

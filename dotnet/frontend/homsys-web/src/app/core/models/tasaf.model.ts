@@ -103,6 +103,8 @@ export interface TasafDto extends SaveTasafDto {
   promotedVsPrePromo: number | null;
   incrementalVsPrePromo: number | null;
   cts: number | null;
+  /** The program type's Max CTS % (e.g. 8); null = no limit (8% is the guide for Account Support / Convention). */
+  ctsLimitPercent?: number | null;
   paymentTotal: number;
   paymentVariance: number;
   proponentUserId: number;

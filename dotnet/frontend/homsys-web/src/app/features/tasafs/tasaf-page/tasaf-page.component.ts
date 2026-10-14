@@ -507,7 +507,7 @@ function blankProduct(): TasafProduct {
             <!-- ONE payment type per TASAF; it carries the whole Total Cost (saved into that type's amount field). -->
             <table class="lines pay">
               <colgroup><col /><col style="width: 15rem" /><col style="width: 12rem" /></colgroup>
-              <thead><tr><th>Payment Type <span class="req">*</span></th><th class="num">AP / Collection (₱)</th><th class="num">Total (₱)</th></tr></thead>
+              <thead><tr><th>Payment Type <span class="req">*</span></th><th class="num">Amount (₱)</th><th class="num">Total (₱)</th></tr></thead>
               <tbody>
                 <tr>
                   <td>

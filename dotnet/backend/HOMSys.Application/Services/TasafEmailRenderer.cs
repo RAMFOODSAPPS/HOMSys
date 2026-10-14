@@ -108,9 +108,13 @@ public static class TasafEmailRenderer
             rows.Add(("Incremental Sales", Num(d.IncrementalSales) + Pct(d.IncrementalVsPrePromo, " vs pre-promo")));
         }
         rows.Add(("Total Cost", Num(d.TotalCost)));
-        rows.Add(($"CTS ({(support ? "Annual Projected Sales" : "Promoted Value")})", d.Cts is decimal cts ? cts.ToString("P2", En) : "—"));
+        var ctsLabel = $"CTS ({(support ? "Annual Projected Sales" : "Promoted Value")})";
+        rows.Add((ctsLabel, d.Cts is decimal cts ? cts.ToString("P2", En) : "—"));
         if (d.CtsJustification.Length > 0) rows.Add(("CTS Justification", d.CtsJustification));
-        sb.Append(Rows(rows));
+        // Like the form: red over the program type's Max CTS % (8% guide when it has none), else green.
+        var ctsLimit = d.CtsLimitPercent ?? 8m;
+        string? ctsColor = d.Cts is decimal c2 ? (c2 * 100 > ctsLimit ? "#dc2626" : "#16a34a") : null;
+        sb.Append(Rows(rows, ctsLabel, ctsColor));
 
         // Mode of Payment
         sb.Append(Section("Mode of Payment"));
@@ -121,7 +125,7 @@ public static class TasafEmailRenderer
             ("Free Goods", d.PayFreeGoodsAp + d.PayFreeGoodsSalesman),
             ("Off-Invoice", d.PayOffInvoiceAp + d.PayOffInvoiceSalesman),
         }.Where(x => x.Amount != 0).ToList();
-        sb.Append(Table(["Payment Type", "AP / Collection (₱)"], [false, true],
+        sb.Append(Table(["Payment Type", "Amount (₱)"], [false, true],
             pay.Select(x => new[] { x.Label, Num(x.Amount) }).ToList(), null));
 
         // Approval chain
@@ -168,11 +172,12 @@ public static class TasafEmailRenderer
         $"""<div style="margin:18px 0 6px;padding-bottom:3px;border-bottom:2px solid {Brand};color:{Brand};font-weight:700;font-size:14px">{E(title)}</div>""";
 
     /// <summary>Label / value rows (the form's fields).</summary>
-    private static string Rows(IEnumerable<(string Label, string? Value)> rows)
+    /// <param name="colorLabel">Row whose value is shown bold in <paramref name="color"/> (CTS over / within the limit).</param>
+    private static string Rows(IEnumerable<(string Label, string? Value)> rows, string? colorLabel = null, string? color = null)
     {
         var sb = new StringBuilder("""<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%">""");
         foreach (var (label, value) in rows)
-            sb.Append($"""<tr><td style="padding:5px 10px 5px 0;color:#555;width:190px;vertical-align:top;border-bottom:1px solid #eee">{E(label)}</td><td style="padding:5px 0;vertical-align:top;border-bottom:1px solid #eee">{(string.IsNullOrWhiteSpace(value) ? "—" : Multi(value))}</td></tr>""");
+            sb.Append($"""<tr><td style="padding:5px 10px 5px 0;color:#555;width:190px;vertical-align:top;border-bottom:1px solid #eee">{E(label)}</td><td style="padding:5px 0;vertical-align:top;border-bottom:1px solid #eee{(color is not null && label == colorLabel ? $";color:{color};font-weight:700" : "")}">{(string.IsNullOrWhiteSpace(value) ? "—" : Multi(value))}</td></tr>""");
         return sb.Append("</table>").ToString();
     }
 

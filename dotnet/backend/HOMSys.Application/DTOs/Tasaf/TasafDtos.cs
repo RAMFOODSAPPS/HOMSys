@@ -137,6 +137,8 @@ public class TasafDto : SaveTasafDto
     public decimal? IncrementalVsPrePromo { get; set; }
     /// <summary>Cost-to-sales: TotalCost / PromotedValue.</summary>
     public decimal? Cts { get; set; }
+    /// <summary>The program type's Max CTS % (e.g. 8); null = no limit (Account Support / Convention: 8 is the guide).</summary>
+    public decimal? CtsLimitPercent { get; set; }
     public decimal PaymentTotal { get; set; }
     /// <summary>TotalCost − PaymentTotal; must be 0 to submit.</summary>
     public decimal PaymentVariance { get; set; }

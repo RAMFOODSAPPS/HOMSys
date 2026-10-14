@@ -83,12 +83,19 @@ export function buildTasafPdf(t: TasafDto, logo?: string | null): jsPDF {
     doc.setTextColor(20).setFont('helvetica', 'normal');
     y += 3;
   };
-  const rows = (body: [string, string | null | undefined][]) => {
+  /** Label / value rows; `hl` shows one row's value bold in a colour (CTS over / within the limit). */
+  const rows = (body: [string, string | null | undefined][], hl?: { label: string; rgb: [number, number, number] }) => {
     autoTable(doc, {
       startY: y, theme: 'plain', margin: { left: M, right: M },
       styles: { fontSize: 9, cellPadding: 1.6, lineColor: 235, lineWidth: { bottom: 0.2 } },
       columnStyles: { 0: { textColor: 90, cellWidth: 45 } },
       body: body.map(([l, v]) => [l, v?.toString().trim() ? v : '-']),
+      didParseCell: d => {
+        if (hl && d.section === 'body' && d.column.index === 1 && body[d.row.index]?.[0] === hl.label) {
+          d.cell.styles.textColor = hl.rgb;
+          d.cell.styles.fontStyle = 'bold';
+        }
+      },
     });
     y = lastY();
   };
@@ -155,9 +162,12 @@ export function buildTasafPdf(t: TasafDto, logo?: string | null): jsPDF {
     comp.push(['Incremental Sales', n2(t.incrementalSales) + (t.incrementalVsPrePromo != null ? `  (vs pre-promo ${pct(t.incrementalVsPrePromo)})` : '')]);
   }
   comp.push(['Total Cost', n2(t.totalCost)]);
-  comp.push([`CTS (${support ? 'Annual Projected Sales' : 'Promoted Value'})`, pct(t.cts)]);
+  const ctsLabel = `CTS (${support ? 'Annual Projected Sales' : 'Promoted Value'})`;
+  comp.push([ctsLabel, pct(t.cts)]);
   if (t.ctsJustification?.trim()) comp.push(['CTS Justification', t.ctsJustification]);
-  rows(comp);
+  // Like the form: red over the program type's Max CTS % (8% guide when it has none), else green.
+  const over = t.cts != null && t.cts * 100 > (t.ctsLimitPercent ?? 8);
+  rows(comp, t.cts == null ? undefined : { label: ctsLabel, rgb: over ? [220, 38, 38] : [22, 163, 74] });
 
   // Mode of Payment
   section('Mode of Payment');
@@ -167,7 +177,7 @@ export function buildTasafPdf(t: TasafDto, logo?: string | null): jsPDF {
     ['Free Goods', t.payFreeGoodsAp + t.payFreeGoodsSalesman],
     ['Off-Invoice', t.payOffInvoiceAp + t.payOffInvoiceSalesman],
   ] as [string, number][]).filter(([, a]) => a);
-  table(['Payment Type', 'AP / Collection'], pay.map(([l, a]) => [l, n2(a)]), [1]);
+  table(['Payment Type', 'Amount'], pay.map(([l, a]) => [l, n2(a)]), [1]);
 
   // Approval chain
   if (t.steps.length) {
