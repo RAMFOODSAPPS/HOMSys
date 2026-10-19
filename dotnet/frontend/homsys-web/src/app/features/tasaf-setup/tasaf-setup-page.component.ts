@@ -193,6 +193,10 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
             <p-message severity="info" styleClass="w-full mb-2"
               text="One approval matrix per type. Link each Program Type to its Approval Type, then set the roles in Approval Rules." />
           }
+          <div class="inactive-toggle">
+            <p-toggleswitch inputId="showInactive" [ngModel]="showInactive()" (ngModelChange)="showInactive.set($event)" />
+            <label for="showInactive">Show inactive</label>
+          </div>
           <p-table [value]="filteredRows()" [loading]="loading()" [paginator]="true" [rows]="15"
             [rowsPerPageOptions]="[15, 30, 50]" [(selection)]="selected" selectionMode="single" dataKey="id"
             (onRowSelect)="noSelection.set(false)" (onRowUnselect)="noSelection.set(true)" styleClass="p-datatable-sm">
@@ -313,6 +317,7 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
     .master-btn { text-align: left; border: 0; background: none; padding: 0.5rem 0.65rem; border-radius: 6px;
       font-size: 0.85rem; color: var(--p-text-color); cursor: pointer; }
     .master-btn:hover { background: var(--p-surface-hover); }
+    .inactive-toggle { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.875rem; }
     .master-btn.active { background: rgba(128, 0, 0, 0.08); color: #800000; font-weight: 600; }
     .rows { min-width: 0; }
     .num { text-align: right; }
@@ -410,10 +415,14 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     { label: 'Over amount',  value: 'over' },
   ];
 
+  /** Off = active rows only (the default). */
+  protected showInactive = signal(false);
+
   protected filteredRows = computed(() => {
     const term = this.searchTerm().toLowerCase().trim();
-    if (!term) return this.rows();
-    return this.rows().filter(r =>
+    const rows = this.showInactive() ? this.rows() : this.rows().filter(r => r.isActive);
+    if (!term) return rows;
+    return rows.filter(r =>
       r.name.toLowerCase().includes(term) ||
       r.code.toLowerCase().includes(term) ||
       (r.description ?? '').toLowerCase().includes(term) ||

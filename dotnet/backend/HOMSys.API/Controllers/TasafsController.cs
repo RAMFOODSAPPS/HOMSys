@@ -86,7 +86,7 @@ public class TasafsController(TasafService service, SalesOrderService salesOrder
 
         // Logo of the proponent's company (TASAF print / PDF header); the PDF builder reuses it.
         var logo = await companies.LogoDataUriForUserAsync(tasaf!.ProponentUserId);
-        return Ok(new { success = true, data = new { html = TasafEmailRenderer.Render(tasaf, "", null, logo), logo } });
+        return Ok(new { success = true, data = new { html = TasafEmailRenderer.Render(tasaf, "", null, logo, email: false), logo } });
     }
 
     [HttpPost]

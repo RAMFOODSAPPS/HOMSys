@@ -20,7 +20,8 @@ public static class TasafEmailRenderer
     private static readonly CultureInfo En = CultureInfo.GetCultureInfo("en-US");
 
     /// <param name="logoDataUri">Company logo (data: URI) for print; null = the text "HOMSys" header.</param>
-    public static string Render(TasafDto d, string intro, string? decisionToken, string? logoDataUri = null)
+    /// <param name="email">False for the print document and the decision page: no "do not reply" footer.</param>
+    public static string Render(TasafDto d, string intro, string? decisionToken, string? logoDataUri = null, bool email = true)
     {
         var support = TasafService.IsSupportProgram(d.ProgramTypeName ?? "");
         var sb = new StringBuilder();
@@ -43,10 +44,10 @@ public static class TasafEmailRenderer
                 """);
         if (intro.Length > 0)
             sb.Append($"""<div style="background:#fdf2f2;border-left:4px solid {Brand};padding:8px 12px;margin:0 0 12px">{E(intro)}</div>""");
-        // Info block, 3 columns: Title / Proponent · Document No. / Date Created · Status
+        // Info block, 3 columns: Title · (blank) · Status / Proponent · Document No. · Date Created
         sb.Append(Grid(3, [
-            ("Title", d.Title), ("Document No.", d.RefNo ?? "—"), ("Status", d.Status),
-            ("Proponent", d.ProponentName), ("Date Created", Manila(d.CreatedAt)), ("", ""),
+            ("Title", d.Title), ("", ""), ("Status", d.Status),
+            ("Proponent", d.ProponentName), ("Document No.", d.RefNo ?? "—"), ("Date Created", Manila(d.CreatedAt)),
         ]));
 
         // Details
@@ -155,7 +156,9 @@ public static class TasafEmailRenderer
                   This link is for you only — please don't forward this email.</div>
                 """);
         }
-        sb.Append("""<p style="color:#888;font-size:11px;margin-top:18px">Automatic message from HOMSys — please do not reply.</p></div>""");
+        if (email)
+            sb.Append("""<p style="color:#888;font-size:11px;margin-top:18px">Automatic message from HOMSys — please do not reply.</p>""");
+        sb.Append("</div>");
         return sb.ToString();
     }
 

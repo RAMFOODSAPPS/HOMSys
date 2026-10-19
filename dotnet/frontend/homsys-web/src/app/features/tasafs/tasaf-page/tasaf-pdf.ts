@@ -58,18 +58,18 @@ export function buildTasafPdf(t: TasafDto, logo?: string | null): jsPDF {
     y += 14;
   }
 
-  // Info block, 3 columns: Title / Proponent · Document No. / Date Created · Status
+  // Info block, 3 columns: Title · (blank) · Status / Proponent · Document No. · Date Created
   autoTable(doc, {
     startY: y, theme: 'plain', margin: { left: M, right: M },
     styles: { fontSize: 9, cellPadding: 1.8, fillColor: [250, 243, 243], valign: 'top' },
     columnStyles: {
-      0: { textColor: 90, cellWidth: 19 }, 1: { fontStyle: 'bold', cellWidth: 58 },
-      2: { textColor: 90, cellWidth: 25 }, 3: { fontStyle: 'bold', cellWidth: 38 },
-      4: { textColor: 90, cellWidth: 13 }, 5: { fontStyle: 'bold' },
+      0: { textColor: 90, cellWidth: 19 }, 1: { fontStyle: 'bold', cellWidth: 48 },
+      2: { textColor: 90, cellWidth: 25 }, 3: { fontStyle: 'bold', cellWidth: 32 },
+      4: { textColor: 90, cellWidth: 22 }, 5: { fontStyle: 'bold' },
     },
     body: [
-      ['Title', t.title, 'Document No.', t.refNo ?? '-', 'Status', t.status],
-      ['Proponent', t.proponentName, 'Date Created', when(t.createdAt), '', ''],
+      ['Title', t.title, '', '', 'Status', t.status],
+      ['Proponent', t.proponentName, 'Document No.', t.refNo ?? '-', 'Date Created', when(t.createdAt)],
     ],
   });
   y = lastY();

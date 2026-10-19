@@ -460,7 +460,10 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   Channel likewise (`TasafChannelLinks` → `ChannelIds`/`ChannelNames`; migration `TasafMultipleChannels`).
   Each area lists its branches (`TasafArea.BranchCodes`, Site codes, Setup › Areas; defaults by migration
   `TasafAreaBranches`, corrected by `TasafAreaBranchesFromCustomers` from cust4win NREGION via WhseNo — NREGION is filled
-  for only ~1% of customers, so it is not a filter itself; Nationwide blank = all). With an area picked, the Branch dropdown
+  for only ~1% of customers, so it is not a filter itself; Nationwide blank = all).
+  Since migration `TasafAreasByRegion` the active areas are the NREGION names: NCR, North Luzon, South Luzon
+  (+ Bicol), Visayas, West Mindanao, Central Mindanao, MT/NKA (blank = all). The other 12 workbook areas are
+  deactivated, not deleted, because saved TASAFs still link to them (South Luzon kept its row: names are unique). With an area picked, the Branch dropdown
   lists only its Sites (no ALL … scopes) and changing the area drops branches outside it. The Cust Key dropdown (`GET tasafs/customer-options?chainId=&areaIds=&siteIds=`)
   = active customers matching the chain keywords AND belonging to the picked branches (Sites) — or, with no branch / an
   ALL … scope picked, the picked areas' branches. A customer belongs to

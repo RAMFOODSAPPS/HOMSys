@@ -937,11 +937,16 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   /**
    * Toolbar Print: the saved TASAF as a clean document (server layout, same as the approval email)
    * printed from a hidden frame — the browser's print dialog also offers "Save as PDF". An unsaved
-   * new TASAF has no document yet, so that prints the screen.
+   * new TASAF has no document yet, so that prints the form as on screen, without the app shell.
    */
   private printTasaf() {
     const t = this.current();
-    if (!t) { window.print(); return; }
+    if (!t) {
+      document.body.classList.add('print-content-only');
+      window.addEventListener('afterprint', () => document.body.classList.remove('print-content-only'), { once: true });
+      window.print();
+      return;
+    }
     this.warnUnsaved();
     this.api.document(t.id).subscribe({
       next: res => {

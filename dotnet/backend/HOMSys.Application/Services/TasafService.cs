@@ -471,7 +471,7 @@ public class TasafService(
         {
             RefNo = t.RefNo, Title = t.Title, ApproverName = step.UserName, RoleCode = step.RoleCode,
             CanDecide = why is null, Message = why,
-            Html = TasafEmailRenderer.Render(Map(t), "", null)
+            Html = TasafEmailRenderer.Render(Map(t), "", null, email: false)
         }, null);
     }
 

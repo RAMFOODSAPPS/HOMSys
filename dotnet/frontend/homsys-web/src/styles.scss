@@ -384,3 +384,19 @@ body.rc-resizing { cursor: col-resize !important; user-select: none; }
 .seg-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; min-height: 2.5rem; align-items: center; padding: 0.3rem 0.5rem;
   border: 1px solid #e5e7eb; border-radius: 6px; background: #f9fafb; }
 .seg-chip { background: #f3e6e6; color: #5c0000; border-radius: 12px; padding: 0.15rem 0.6rem; font-size: 0.8rem; }
+
+/* Print of the page content only (body.print-content-only, set by a page around window.print(),
+   e.g. an unsaved TASAF): hide the app shell and let the content flow over several pages. */
+@media print {
+  html:has(body.print-content-only) { height: auto !important; overflow: visible !important; }
+  body.print-content-only {
+    app-topbar, app-sidebar, .sidebar-backdrop, app-modulebar, .bar-separator,
+    app-tab-bar, app-page-toolbar, app-footer, p-toast { display: none !important; }
+
+    &, .layout-wrapper, .layout-body, .main-area, .layout-content {
+      position: static !important; width: auto !important; height: auto !important;
+      overflow: visible !important; display: block !important;
+    }
+    .layout-content { padding: 0 !important; background: none !important; }
+  }
+}

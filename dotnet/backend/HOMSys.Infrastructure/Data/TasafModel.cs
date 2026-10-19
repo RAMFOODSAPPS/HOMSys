@@ -249,6 +249,8 @@ internal static class TasafModel
             "CSI", "RCS Chain", "Savewise", "LCC", "Citi Mart", "Prince", "Metro Gaisano",
             "NCCC", "KCC", "Gaisano Grand", "Gaisano Capital", "Gaisano Mall", "LKA Others", "RDP Others"));
 
+        // The workbook areas. Migration TasafAreasByRegion deactivates them and adds the
+        // customer master's regions (NCR, North Luzon, … MT/NKA); old TASAFs keep these.
         mb.Entity<TasafArea>().HasData(Rows<TasafArea>(
             "GMA / NCR", "North Central Luzon", "South Luzon", "Bicol", "East Visayas", "West Visayas",
             "North Mindanao", "South Mindanao", "Total Luzon", "Total Visayas", "Total Mindanao",
