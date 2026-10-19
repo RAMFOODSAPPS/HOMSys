@@ -12,6 +12,9 @@ public class TasafLookupDto
     public string? ParentName { get; set; }
     public int? UserId { get; set; }
     public string? UserName { get; set; }
+    /// <summary>Sales groups: its users (KAMs / proponents).</summary>
+    public List<int> UserIds { get; set; } = [];
+    public string? UserNames { get; set; }
     public decimal? Amount { get; set; }
     public string? Text { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -29,6 +32,8 @@ public class SaveTasafLookupDto
     public bool IsActive { get; set; } = true;
     public int? ParentId { get; set; }
     public int? UserId { get; set; }
+    /// <summary>Sales groups: its users; null = leave unchanged.</summary>
+    public List<int>? UserIds { get; set; }
     public decimal? Amount { get; set; }
     public string? Text { get; set; }
 }
@@ -41,6 +46,8 @@ public class TasafMasterMetaDto
     public string? ParentKey { get; set; }
     public string? ParentLabel { get; set; }
     public string? UserLabel { get; set; }
+    /// <summary>Label of the optional multi-user field (sales groups: their KAMs / proponents).</summary>
+    public string? UsersLabel { get; set; }
     public string? AmountLabel { get; set; }
     /// <summary>Label of the optional text field (chains: customer-name keywords).</summary>
     public string? TextLabel { get; set; }

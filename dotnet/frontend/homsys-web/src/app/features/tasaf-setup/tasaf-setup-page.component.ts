@@ -8,6 +8,7 @@ import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TextareaModule } from 'primeng/textarea';
 import { MessageModule } from 'primeng/message';
@@ -42,7 +43,7 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
   providers: [MessageService, ConfirmationService],
   imports: [
     ReactiveFormsModule, FormsModule, DatePipe, DecimalPipe, TableModule, ButtonModule, TagModule, DialogModule,
-    InputTextModule, InputNumberModule, SelectModule, ToggleSwitchModule, TextareaModule,
+    InputTextModule, InputNumberModule, SelectModule, MultiSelectModule, ToggleSwitchModule, TextareaModule,
     MessageModule, ToastModule, ConfirmDialogModule
   ],
   template: `
@@ -206,6 +207,7 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
                 <th pSortableColumn="code" style="width:7rem">Code <p-sortIcon field="code" /></th>
                 <th pSortableColumn="name">Name <p-sortIcon field="name" /></th>
                 @if (m.parentLabel) { <th pSortableColumn="parentName">{{ m.parentLabel }} <p-sortIcon field="parentName" /></th> }
+                @if (m.usersLabel) { <th pSortableColumn="userNames">{{ shortLabel(m.usersLabel) }} <p-sortIcon field="userNames" /></th> }
                 @if (m.userLabel) { <th pSortableColumn="userName">{{ m.userLabel }} <p-sortIcon field="userName" /></th> }
                 @if (m.amountLabel) { <th pSortableColumn="amount" class="num">{{ shortLabel(m.amountLabel) }} <p-sortIcon field="amount" /></th> }
                 @if (m.textLabel) { <th>{{ shortLabel(m.textLabel) }}</th> }
@@ -219,6 +221,11 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
                 <td>{{ r.code || '—' }}</td>
                 <td>{{ r.name }}</td>
                 @if (m.parentLabel) { <td>{{ r.parentName || '—' }}</td> }
+                @if (m.usersLabel) {
+                  <td>
+                    @if (r.userNames) { {{ r.userNames }} } @else { <span class="unset">None</span> }
+                  </td>
+                }
                 @if (m.userLabel) {
                   <td>
                     @if (r.userName) { {{ r.userName }} } @else { <span class="unset">Not assigned</span> }
@@ -269,6 +276,16 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
             <label>{{ pl }}</label>
             <p-select formControlName="parentId" [options]="parentOptions()" optionLabel="name" optionValue="id"
               [showClear]="true" [filter]="true" filterBy="name" placeholder="— none —" styleClass="w-full" appendTo="body" />
+          </div>
+        }
+        @if (current()?.usersLabel; as usl) {
+          <div class="field">
+            <label>{{ usl }}</label>
+            <p-multiSelect formControlName="userIds" [options]="users()" optionLabel="fullName" optionValue="id"
+              [filter]="true" filterBy="fullName,username" display="chip" placeholder="— none —"
+              styleClass="w-full" appendTo="body">
+              <ng-template let-u pTemplate="item">{{ u.fullName }} <span class="optional-label">({{ u.username }})</span></ng-template>
+            </p-multiSelect>
           </div>
         }
         @if (current()?.userLabel; as ul) {
@@ -427,7 +444,8 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
       r.code.toLowerCase().includes(term) ||
       (r.description ?? '').toLowerCase().includes(term) ||
       (r.parentName ?? '').toLowerCase().includes(term) ||
-      (r.userName ?? '').toLowerCase().includes(term));
+      (r.userName ?? '').toLowerCase().includes(term) ||
+      (r.userNames ?? '').toLowerCase().includes(term));
   });
 
   protected form = this.fb.group({
@@ -438,6 +456,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     isActive:    [true],
     parentId:    [null as number | null],
     userId:      [null as number | null],
+    userIds:     [[] as number[]],
     amount:      [null as number | null],
     text:        [""]
   });
@@ -674,7 +693,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     this.editing.set(null);
     this.apiError.set(null);
     const nextOrder = Math.max(0, ...this.rows().map(r => r.sortOrder)) + 1;
-    this.form.reset({ name: '', code: '', sortOrder: nextOrder, description: '', isActive: true, parentId: null, userId: null, amount: null, text: '' });
+    this.form.reset({ name: '', code: '', sortOrder: nextOrder, description: '', isActive: true, parentId: null, userId: null, userIds: [], amount: null, text: '' });
     this.dialogVisible = true;
   }
 
@@ -687,7 +706,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     }
     this.form.reset({
       name: r.name, code: r.code, sortOrder: r.sortOrder, description: r.description,
-      isActive: r.isActive, parentId: r.parentId ?? null, userId: r.userId ?? null, amount: r.amount ?? null,
+      isActive: r.isActive, parentId: r.parentId ?? null, userId: r.userId ?? null, userIds: r.userIds ?? [], amount: r.amount ?? null,
       text: r.text ?? ''
     });
     this.dialogVisible = true;
@@ -704,7 +723,8 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     const dto = {
       name: v.name ?? '', code: v.code ?? '', description: v.description ?? '',
       sortOrder: v.sortOrder ?? 0, isActive: v.isActive ?? true,
-      parentId: v.parentId, userId: v.userId, amount: v.amount, text: v.text ?? ''
+      parentId: v.parentId, userId: v.userId, amount: v.amount, text: v.text ?? '',
+      userIds: m.usersLabel ? (v.userIds ?? []) : null
     };
     const editing = this.editing();
     this.saving.set(true);
@@ -758,6 +778,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
       { header: 'Code',  field: 'code' },
       { header: 'Name',  field: 'name' },
       ...(m.parentLabel ? [{ header: m.parentLabel, field: 'parentName' }] : []),
+      ...(m.usersLabel  ? [{ header: this.shortLabel(m.usersLabel), field: 'userNames' }] : []),
       ...(m.userLabel   ? [{ header: m.userLabel,   field: 'userName' }] : []),
       ...(m.amountLabel ? [{ header: this.shortLabel(m.amountLabel), field: 'amount', formatter: (v: unknown) => v == null ? '' : String(v) }] : []),
       { header: 'Description', field: 'description' },

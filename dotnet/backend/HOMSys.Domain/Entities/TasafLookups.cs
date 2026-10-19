@@ -25,7 +25,21 @@ public interface ITasafAmountLookup { decimal? Amount { get; set; } }
 public interface ITasafTextLookup   { string Text { get; set; } }
 
 /// <summary>NKA / RKA / LKA / GT. Its approvers per role are in TasafApprover (the approval matrix).</summary>
-public class TasafSalesGroup : TasafLookup { }
+public class TasafSalesGroup : TasafLookup
+{
+    /// <summary>Its users (KAMs / proponents). A proponent with groups sees only those on the TASAF form.</summary>
+    public List<TasafSalesGroupUser> Members { get; set; } = [];
+}
+
+/// <summary>A user (KAM / proponent) in a sales group — TASAF Setup › Sales Groups › Users.</summary>
+public class TasafSalesGroupUser
+{
+    public int Id { get; set; }
+    public int SalesGroupId { get; set; }
+    public TasafSalesGroup? SalesGroup { get; set; }
+    public int UserId { get; set; }
+    public User? User { get; set; }
+}
 
 /// <summary>Customer chain/account (SVI, Puregold, RCS Chain ...).</summary>
 public class TasafChain : TasafLookup, ITasafParentLookup, ITasafTextLookup

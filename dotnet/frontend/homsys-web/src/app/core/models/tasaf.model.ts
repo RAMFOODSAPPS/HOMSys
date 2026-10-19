@@ -207,6 +207,8 @@ export interface TasafFormOptions {
   branches: TasafBranch[];
   /** Sub-Categories from the product master (Products page): code, sub-category, segment, Product Category id. */
   subCategories: TasafSubCategoryOption[];
+  /** The user's own sales groups (TASAF Setup › Sales Groups › Users); empty = every group. */
+  mySalesGroupIds?: number[];
 }
 
 export interface TasafSubCategoryOption {

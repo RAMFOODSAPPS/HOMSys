@@ -10,7 +10,7 @@ public class TasafLookupRepository(AppDbContext db) : ITasafLookupRepository
 {
     private static readonly Dictionary<Type, Func<AppDbContext, IQueryable<TasafLookup>>> Sets = new()
     {
-        [typeof(TasafSalesGroup)]    = c => c.TasafSalesGroups,
+        [typeof(TasafSalesGroup)]    = c => c.TasafSalesGroups.Include(g => g.Members),
         [typeof(TasafChain)]         = c => c.TasafChains,
         [typeof(TasafArea)]          = c => c.TasafAreas,
         [typeof(TasafProgramType)]   = c => c.TasafProgramTypes,
@@ -80,6 +80,9 @@ public class TasafLookupRepository(AppDbContext db) : ITasafLookupRepository
                 FullName = (u.FirstName + " " + u.LastName).Trim()
             })
             .ToListAsync();
+
+    public async Task<List<int>> GetSalesGroupIdsOfUserAsync(int userId) =>
+        await db.TasafSalesGroupUsers.Where(m => m.UserId == userId).Select(m => m.SalesGroupId).ToListAsync();
 
     public async Task<List<TasafApprover>> GetApproversAsync() =>
         await db.TasafApprovers.AsNoTracking().ToListAsync();

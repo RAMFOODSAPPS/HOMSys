@@ -258,6 +258,11 @@ public class TasafFormOptionsDto
     public List<TasafBranchDto> Branches { get; set; } = [];
     /// <summary>Product Sub-Categories from the product master, for categories in the Product Categories list.</summary>
     public List<TasafSubCategoryOptionDto> SubCategories { get; set; } = [];
+    /// <summary>
+    /// The user's own sales groups (TASAF Setup › Sales Groups › Users) when the Sales Group dropdown is
+    /// limited to them; empty = every group (admins, View All, or a user in no group).
+    /// </summary>
+    public List<int> MySalesGroupIds { get; set; } = [];
 }
 
 /// <summary>A product master category as a TASAF Sub-Category option: "2a" · Peas · Green Peas.</summary>

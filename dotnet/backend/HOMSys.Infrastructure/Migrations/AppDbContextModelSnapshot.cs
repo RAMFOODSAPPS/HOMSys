@@ -4932,6 +4932,30 @@ namespace HOMSys.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafSalesGroupUser", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("SalesGroupId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("SalesGroupId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("TasafSalesGroupUsers", (string)null);
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafSubCategoryLink", b =>
                 {
                     b.Property<int>("Id")
@@ -5689,6 +5713,25 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("ApprovalType");
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafSalesGroupUser", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.TasafSalesGroup", "SalesGroup")
+                        .WithMany("Members")
+                        .HasForeignKey("SalesGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HOMSys.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SalesGroup");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafSubCategoryLink", b =>
                 {
                     b.HasOne("HOMSys.Domain.Entities.Tasaf", null)
@@ -5787,6 +5830,11 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("Steps");
 
                     b.Navigation("SubCategories");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafSalesGroup", b =>
+                {
+                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.User", b =>

@@ -157,6 +157,14 @@ internal static class TasafModel
             e.HasIndex(x => x.CustKey);
         });
 
+        mb.Entity<TasafSalesGroupUser>(e =>
+        {
+            e.ToTable("TasafSalesGroupUsers");
+            e.HasIndex(x => new { x.SalesGroupId, x.UserId }).IsUnique();
+            e.HasOne(x => x.SalesGroup).WithMany(g => g.Members).HasForeignKey(x => x.SalesGroupId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         mb.Entity<TasafChannelLink>(e =>
         {
             e.ToTable("TasafChannelLinks");

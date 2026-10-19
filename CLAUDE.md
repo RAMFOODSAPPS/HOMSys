@@ -478,7 +478,11 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   by migration `TasafChainSalesGroups` from `Book1.xlsx` MODERN TRADE: NKA = SVI/Puregold/Robinson/Waltermart/
   Landmark, the rest RKA; LKA Others → LKA, RDP Others → GT). The form lists only the picked group's chains — and, with branches / areas picked,
   only chains with stores there (`GET tasafs/chain-store-counts`, count in the label; keyword-less chains always shown) —
-  picking a chain fills an empty Sales Group, and switching group clears a chain from another group. Program duration = `StartDate`/`EndDate` (date pickers).
+  picking a chain fills an empty Sales Group, and switching group clears a chain from another group.
+  **Sales group users** (`TasafSalesGroupUsers`, Setup › Sales Groups › Users, migration `TasafSalesGroupUsers`
+  seeds the KAMs): a proponent in sales groups sees only those in the form's Sales Group (pre-filled when just
+  one; the server refuses another — `TasafService.OwnSalesGroupIdsAsync`). Admins, View All, and users in no
+  group see every group. Program duration = `StartDate`/`EndDate` (date pickers).
   **Account Support & Convention** program types (name starts "ACCOUNT SUPPORT" or is "Convention";
   `TasafService.IsSupportProgram` + the form's `isSupport()`): Participating Products hidden and not saved,
   no Pre-Promo / Incremental Sales, Promoted Value relabelled "Annual Projected Sales", section titled

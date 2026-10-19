@@ -153,7 +153,7 @@ function blankProduct(): TasafProduct {
           @case ('salesGroup') {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
-              <p-select [focusOnHover]="false" [ngModel]="m.salesGroupId" (ngModelChange)="onSalesGroup($event)" [options]="list('sales-groups')" optionLabel="name" optionValue="id"
+              <p-select [focusOnHover]="false" [ngModel]="m.salesGroupId" (ngModelChange)="onSalesGroup($event)" [options]="salesGroups()" optionLabel="name" optionValue="id"
                 [showClear]="true" placeholder="Select" styleClass="w-full" [disabled]="readonly()" />
             </div>
           }
@@ -774,7 +774,12 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   duration() { return programDuration(this.startDate, this.endDate); }
 
   ngOnInit() {
-    this.api.getOptions().subscribe(res => this.options.set(res.data ?? null));
+    this.api.getOptions().subscribe(res => {
+      const blank = !this.current() && JSON.stringify(this.payload()) === JSON.stringify(blankModel());
+      this.options.set(res.data ?? null);
+      // A proponent in one sales group: a new TASAF starts with it.
+      if (blank && this.ownSalesGroupId()) this.m.salesGroupId = this.ownSalesGroupId();
+    });
     this.layoutApi.get(TASAF_FORM_KEY).subscribe({
       next: res => this.layout.set(mergeLayout(TASAF_FIELDS, res.data?.layout)),
       error: () => {} // keep the default layout
@@ -828,7 +833,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     this.tabBar.unregisterDirtyChecker(this.currentTabKey);
     this.current.set(null);
     this.apiError.set(null);
-    this.setModel(blankModel());
+    this.setModel(this.newModel());
     this.currentTabKey = TAB;
     this.tabBar.updateTabState(TAB, undefined);
     this.tabBar.registerDirtyChecker(TAB, () => this.isDirty());
@@ -894,7 +899,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   private isDirty() {
     if (this.readonly()) return false;
     const now = JSON.stringify(this.payload());
-    return this.current() ? now !== this.snapshot : now !== JSON.stringify(blankModel());
+    return this.current() ? now !== this.snapshot : now !== JSON.stringify(this.newModel());
   }
 
   private syncToolbar() {
@@ -1083,6 +1088,27 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   isReq(it: FormLayoutItem) { return !!this.fieldDefs.get(it.key)?.required; }
 
   // ── Lookups ────────────────────────────────────────────────
+  /**
+   * Sales Group options: a proponent in sales groups (TASAF Setup › Sales Groups › Users) sees only
+   * those, plus the TASAF's current group; admins / View All / users in no group see all of them.
+   */
+  salesGroups(): TasafOption[] {
+    const all = this.list('sales-groups');
+    const mine = this.options()?.mySalesGroupIds ?? [];
+    return mine.length ? all.filter(o => mine.includes(o.id) || o.id === this.m.salesGroupId) : all;
+  }
+
+  /** The proponent's only sales group (pre-filled on a new TASAF), else null. */
+  private ownSalesGroupId(): number | null {
+    const mine = this.options()?.mySalesGroupIds ?? [];
+    return mine.length === 1 ? mine[0] : null;
+  }
+
+  /** A blank new TASAF (with the proponent's own sales group when they have just one). */
+  private newModel(): SaveTasafDto {
+    return { ...blankModel(), salesGroupId: this.ownSalesGroupId() };
+  }
+
   /** "01 — Tom Sauce/Paste" for dropdowns whose entries have a code. */
   codeName(o: TasafOption | null | undefined) {
     if (!o) return '';
@@ -1199,7 +1225,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     this.m.chainId = chainId;
     // A chain belongs to one sales group (TASAF Setup › Customers / Chains) — fill it in.
     const sg = this.list('chains').find(o => o.id === chainId)?.parentId;
-    if (sg && !this.m.salesGroupId) this.m.salesGroupId = sg;
+    if (sg && !this.m.salesGroupId && this.salesGroups().some(o => o.id === sg)) this.m.salesGroupId = sg;
     // No chain = Cust Key is disabled, so stores picked for the old chain go too.
     if (!chainId && this.customers().length) {
       const n = this.customers().length;

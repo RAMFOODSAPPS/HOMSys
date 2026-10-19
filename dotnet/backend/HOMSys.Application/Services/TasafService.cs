@@ -55,6 +55,7 @@ public class TasafService(
             .Concat(BranchScopes.Select(b => new TasafBranchDto { Name = b }))
             .ToList();
         dto.SubCategories = await SubCategoryOptionsAsync();
+        dto.MySalesGroupIds = await OwnSalesGroupIdsAsync(CurrentUserId);
         return dto;
     }
 
@@ -815,6 +816,13 @@ public class TasafService(
             .ToList();
     }
 
+    /// <summary>
+    /// Sales groups a proponent may pick: their own (TASAF Setup › Sales Groups › Users). Empty = no limit —
+    /// admins, View All users, and users in no group yet.
+    /// </summary>
+    private async Task<List<int>> OwnSalesGroupIdsAsync(int userId) =>
+        IsAdmin || CanViewAll || userId == 0 ? [] : await lookups.GetSalesGroupIdsOfUserAsync(userId);
+
     /// <summary>Validates the body and copies it onto t, recomputing every derived amount.</summary>
     private async Task<string?> ApplyAsync(Tasaf t, SaveTasafDto dto)
     {
@@ -837,6 +845,13 @@ public class TasafService(
         foreach (var (lookupId, key, label) in checks)
             if (lookupId is int lid && !await LookupExistsAsync(key, lid))
                 return $"{label} not found.";
+
+        // A proponent in sales groups files only for those (a group already on the TASAF may stay).
+        if (dto.SalesGroupId is int sgPick && sgPick != t.SalesGroupId)
+        {
+            var own = await OwnSalesGroupIdsAsync(t.ProponentUserId != 0 ? t.ProponentUserId : CurrentUserId);
+            if (own.Count > 0 && !own.Contains(sgPick)) return "You can only pick your own Sales Group (TASAF Setup › Sales Groups).";
+        }
 
         // Account Support & Convention: no products, no pre-promo / incremental sales
         // (Promoted Value is entered as the Annual Projected Sales).

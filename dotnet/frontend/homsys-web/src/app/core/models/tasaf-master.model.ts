@@ -5,6 +5,8 @@ export interface TasafMasterMeta {
   parentKey?: string | null;
   parentLabel?: string | null;
   userLabel?: string | null;
+  /** Multi-user field (sales groups: their KAMs / proponents). */
+  usersLabel?: string | null;
   amountLabel?: string | null;
   textLabel?: string | null;
 }
@@ -48,6 +50,9 @@ export interface TasafLookupDto {
   parentName?: string | null;
   userId?: number | null;
   userName?: string | null;
+  /** Sales groups: their users (KAMs / proponents). */
+  userIds?: number[];
+  userNames?: string | null;
   amount?: number | null;
   /** Chains: customer-name keywords for the TASAF Cust Key dropdown. */
   text?: string | null;
@@ -65,6 +70,7 @@ export interface SaveTasafLookupDto {
   isActive: boolean;
   parentId?: number | null;
   userId?: number | null;
+  userIds?: number[] | null;
   amount?: number | null;
   text?: string | null;
 }

@@ -10,7 +10,7 @@ namespace HOMSys.Application.Services;
 public record TasafMasterDef(
     string Key, string Label, Type EntityType,
     string? ParentKey = null, string? ParentLabel = null,
-    string? UserLabel = null, string? AmountLabel = null, string? TextLabel = null);
+    string? UserLabel = null, string? AmountLabel = null, string? TextLabel = null, string? UsersLabel = null);
 
 public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccessor http)
 {
@@ -20,7 +20,8 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
     // Order = order shown on the TASAF Setup page.
     public static readonly IReadOnlyList<TasafMasterDef> Masters =
     [
-        new("sales-groups",    "Sales Groups",     typeof(TasafSalesGroup)),
+        new("sales-groups",    "Sales Groups",     typeof(TasafSalesGroup),
+            UsersLabel: "Users (KAMs / proponents — they see only their own groups on the TASAF form)"),
         new("chains",          "Customers / Chains", typeof(TasafChain),       ParentKey: "sales-groups", ParentLabel: "Sales Group",
             TextLabel: "Customer name keywords (comma-separated; blank = all customers)"),
         new("areas",           "Areas",            typeof(TasafArea),
@@ -52,6 +53,7 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         ParentKey   = m.ParentKey,
         ParentLabel = m.ParentLabel,
         UserLabel   = m.UserLabel,
+        UsersLabel  = m.UsersLabel,
         AmountLabel = m.AmountLabel,
         TextLabel   = m.TextLabel
     });
@@ -245,6 +247,12 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
             && !(await repo.GetActiveUsersAsync()).Any(u => u.Id == dto.UserId))
             return $"{def.UserLabel}: user not found or inactive.";
 
+        if (def.UsersLabel is not null && dto.UserIds is { Count: > 0 } ids)
+        {
+            var active = (await repo.GetActiveUsersAsync()).Select(u => u.Id).ToHashSet();
+            if (ids.Any(id => !active.Contains(id))) return "Users: a selected user was not found or is inactive.";
+        }
+
         return null;
     }
 
@@ -259,6 +267,13 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         if (e is ITasafUserLookup u)   u.UserId   = dto.UserId;
         if (e is ITasafAmountLookup a) a.Amount   = dto.Amount;
         if (e is ITasafTextLookup t)   t.Text     = (dto.Text ?? "").Trim();
+        if (e is TasafSalesGroup g && dto.UserIds is not null)
+        {
+            var want = dto.UserIds.ToHashSet();
+            g.Members.RemoveAll(m => !want.Contains(m.UserId));
+            foreach (var id in want.Where(id => g.Members.All(m => m.UserId != id)))
+                g.Members.Add(new TasafSalesGroupUser { UserId = id });
+        }
     }
 
     private async Task<List<TasafLookupDto>> MapAsync(TasafMasterDef def, IEnumerable<TasafLookup> rows)
@@ -269,7 +284,8 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         if (def.ParentKey is not null)
             parentNames = (await repo.GetAllAsync(Find(def.ParentKey)!.EntityType)).ToDictionary(p => p.Id, p => p.Name);
 
-        var userIds = list.OfType<ITasafUserLookup>().Where(u => u.UserId is not null).Select(u => u.UserId!.Value).Distinct();
+        var userIds = list.OfType<ITasafUserLookup>().Where(u => u.UserId is not null).Select(u => u.UserId!.Value)
+            .Concat(list.OfType<TasafSalesGroup>().SelectMany(g => g.Members.Select(m => m.UserId))).Distinct();
         var userNames = await repo.GetUserNamesAsync(userIds);
 
         return list.Select(e =>
@@ -288,6 +304,10 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
                 ParentName  = parentId is int pid ? parentNames.GetValueOrDefault(pid) : null,
                 UserId      = userId,
                 UserName    = userId is int uid ? userNames.GetValueOrDefault(uid) : null,
+                UserIds     = (e as TasafSalesGroup)?.Members.Select(m => m.UserId).ToList() ?? [],
+                UserNames   = e is TasafSalesGroup sg
+                    ? string.Join(", ", sg.Members.Select(m => userNames.GetValueOrDefault(m.UserId)).Where(n => n is not null).Order())
+                    : null,
                 Amount      = (e as ITasafAmountLookup)?.Amount,
                 Text        = (e as ITasafTextLookup)?.Text,
                 CreatedAt   = e.CreatedAt,

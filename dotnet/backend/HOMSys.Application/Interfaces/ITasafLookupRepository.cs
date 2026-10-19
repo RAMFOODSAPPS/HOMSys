@@ -15,6 +15,8 @@ public interface ITasafLookupRepository
     Task<bool> DeleteAsync(TasafLookup entity);
     Task<List<TasafUserOptionDto>> GetActiveUsersAsync();
     Task<Dictionary<int, string>> GetUserNamesAsync(IEnumerable<int> ids);
+    /// <summary>Sales groups the user is a member of (TASAF Setup › Sales Groups › Users).</summary>
+    Task<List<int>> GetSalesGroupIdsOfUserAsync(int userId);
 
     /// <summary>Every assigned approval-matrix cell (rows with a null UserId are vacant).</summary>
     Task<List<TasafApprover>> GetApproversAsync();
