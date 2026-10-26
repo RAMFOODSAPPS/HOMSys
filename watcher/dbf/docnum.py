@@ -29,15 +29,19 @@ from .locking import lock_record
 from .writer import DbfWriter
 
 
-def claim_number(docnum_path: str, doctype: str, timeout_s: float = 10.0) -> int:
+def claim_number(docnum_path: str, doctype: str, timeout_s: float = 10.0, create_missing: bool = True) -> int:
     """Returns the freshly-incremented LASTNUM for doctype, having just
     reserved it under docnum.dbf's own record lock. Caller must persist
     this number (ledger) before doing anything else — it is now spent.
+    create_missing=False never appends (HOMS DOCNUM.DBF has a CDX a raw append
+    would leave stale): a missing doctype raises instead.
     """
     doctype = doctype.upper()
     with DbfWriter(docnum_path) as w:
         found = w.find("DOCTYPE", doctype)
         if found is None:
+            if not create_missing:
+                raise LookupError(f"{doctype} has no row in {docnum_path}")
             recno = w.append_record({"DOCTYPE": doctype, "LASTNUM": 0})
         else:
             recno, _ = found

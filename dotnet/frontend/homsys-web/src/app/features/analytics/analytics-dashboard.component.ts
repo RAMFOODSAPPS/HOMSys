@@ -180,6 +180,8 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
 
   /** Embedded on /home: read-only, no toolbar/tab handling. */
   readonly homeMode = input(false);
+  /** Embedded (homeMode) view of this dashboard instead of the Home one — e.g. the Collections Dashboard page. */
+  readonly embedId = input<number | null>(null);
 
   private widgets = viewChildren(AnalyticsWidgetComponent);
 
@@ -256,10 +258,13 @@ export class AnalyticsDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Embedded dashboard: the given one, else the user's Home pick, else a system template, else the first dashboard shared with them.
+   *  The list only holds what this user may see (system templates need access to their datasets). */
   private loadHome() {
-    const home = readHomeId();
+    const want = this.embedId() ?? readHomeId();
     this.api.items().subscribe(items => {
-      const dash = items.find(i => i.kind === 'dashboard' && i.id === home) ?? items.find(i => i.kind === 'dashboard' && i.isSystem);
+      const dashes = items.filter(i => i.kind === 'dashboard');
+      const dash = dashes.find(i => i.id === want) ?? (this.embedId() ? undefined : dashes.find(i => i.isSystem) ?? dashes[0]);
       if (dash) this.api.item(dash.id).subscribe(it => this.apply(it));
     });
   }

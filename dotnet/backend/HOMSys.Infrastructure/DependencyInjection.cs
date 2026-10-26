@@ -1,7 +1,9 @@
 using HOMSys.Application.Interfaces;
 using HOMSys.Application.Services;
 using HOMSys.Infrastructure.Data;
+using HOMSys.Infrastructure.Collections;
 using HOMSys.Infrastructure.Repositories;
+using HOMSys.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -53,6 +55,7 @@ public static class DependencyInjection
         services.AddScoped<SiteTypeService>();
         services.AddScoped<SalesOrderService>();
         services.AddScoped<SalesOrderBridgeService>();
+        services.AddScoped<CustomerWithholdingService>();
         services.AddScoped<CustomerBranchResolver>();
         services.AddScoped<PriceCalculationService>();
         services.AddScoped<PricelistExportService>();
@@ -63,6 +66,23 @@ public static class DependencyInjection
         services.AddScoped<GroupedPricelistExcelBuilder>();
         services.AddScoped<PricingDataImporter>();
         services.AddScoped<PricingDeltaImporter>();
+        services.AddScoped<PostedInvoiceSyncImporter>();
+        services.AddScoped<InvoiceSyncRequestService>();
+        services.AddScoped<HomsPostingService>();
+        services.AddScoped<BankMatchService>();
+        services.AddScoped<CollectionService>();
+        services.AddScoped<BankStatementService>();
+        services.AddScoped<BmsCollectionImporter>();
+        services.AddScoped<UserBranchService>();
+
+        // Collection receipt soft copies: Azure Blob when configured (production), else a local
+        // folder for dev/test. Production MUST set Attachments:BlobConnectionString — App Service
+        // local disk is not durable.
+        var blob = config["Attachments:BlobConnectionString"];
+        services.AddSingleton<IAttachmentStore>(string.IsNullOrWhiteSpace(blob)
+            ? new LocalAttachmentStore(config["Attachments:LocalPath"] is { Length: > 0 } p ? p
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HOMSys", "attachments"))
+            : new BlobAttachmentStore(blob, config["Attachments:Container"] ?? "collection-attachments"));
         services.AddScoped<SyncStatusService>();
         services.AddScoped<AnalyticsService>();
         services.AddScoped<AnalyticsExcelBuilder>();

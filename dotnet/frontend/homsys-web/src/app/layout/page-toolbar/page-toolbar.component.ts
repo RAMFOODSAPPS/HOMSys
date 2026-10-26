@@ -165,17 +165,17 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
             }
             @if (cfg().export) {
               <p-menu #exportMenu [model]="exportMenuItems()" [popup]="true" appendTo="body" />
-              <span class="tooltip-wrap" pTooltip="Export" tooltipPosition="bottom">
-                <p-button icon="pi pi-file-export"
-                  [text]="true"
+              <span class="tooltip-wrap" [pTooltip]="cfg().export!.label ? '' : 'Export'" tooltipPosition="bottom">
+                <p-button [icon]="cfg().export!.label ? '' : 'pi pi-file-export'" [label]="cfg().export!.label"
+                  [text]="!cfg().export!.label" [outlined]="!!cfg().export!.label" [size]="cfg().export!.label ? 'small' : undefined"
                   [disabled]="cfg().export!.disabled ? cfg().export!.disabled!() : false"
                   (onClick)="exportMenu.toggle($event)" />
               </span>
             }
             @if (cfg().import) {
-              <span class="tooltip-wrap" pTooltip="Import by Custkey" tooltipPosition="bottom">
-                <p-button icon="pi pi-file-import"
-                  [text]="true"
+              <span class="tooltip-wrap" [class.word-first]="!!cfg().import!.label" [pTooltip]="cfg().import!.label ? '' : 'Import by Custkey'" tooltipPosition="bottom">
+                <p-button [icon]="cfg().import!.label ? '' : 'pi pi-file-import'" [label]="cfg().import!.label"
+                  [text]="!cfg().import!.label" [outlined]="!!cfg().import!.label" [size]="cfg().import!.label ? 'small' : undefined"
                   [disabled]="cfg().import!.disabled ? cfg().import!.disabled!() : false"
                   (onClick)="cfg().import!.onClick()" />
               </span>
@@ -201,6 +201,16 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
                 [disabled]="cfg().design!.disabled ? cfg().design!.disabled!() : false"
                 (onClick)="cfg().design!.onClick()" />
             </span>
+          </div>
+        }
+
+        <!-- View switch (right end) -->
+        @if (cfg().views; as v) {
+          <div class="action-group view-switch" role="group" aria-label="View">
+            @for (o of v.options; track o.value) {
+              <p-button [icon]="o.icon" [text]="true" [pTooltip]="o.label" tooltipPosition="bottom" [ariaLabel]="o.label"
+                [styleClass]="v.value() === o.value ? 'view-on' : ''" (onClick)="v.onChange(o.value)" />
+            }
           </div>
         }
 
@@ -230,6 +240,13 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
       align-items: center;
       gap: 0;
     }
+
+    /* Word buttons (e.g. Bank Statements' Export / Import statement) need breathing room; icon buttons stay tight. */
+    .action-group:has(.p-button-label) { gap: 0.5rem; }
+    /* A worded Import (the page's main action) goes before Export. */
+    .word-first { order: -1; }
+
+    .view-switch { margin-left: auto; }
 
     .search-group {
       display: flex;
@@ -269,6 +286,13 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
       font-size: 1rem;
     }
 
+    /* The active view: maroon tint, like a pressed toggle. */
+    ::ng-deep .page-toolbar .p-button.p-button-text.view-on,
+    ::ng-deep .page-toolbar .p-button.p-button-text.view-on:not(.p-disabled):hover {
+      background: rgba(128, 0, 0, 0.1);
+      color: #800000;
+    }
+
     ::ng-deep .page-toolbar .p-divider.p-divider-vertical {
       margin: 0 0.25rem;
       height: 18px;
@@ -292,7 +316,7 @@ export class PageToolbarComponent {
 
   protected hasAnyAction() {
     const c = this.cfg();
-    return c.save || c.submit || c.approve || c.return || c.reject || c.revert || c.cancelDoc || c.cancel || c.clearForm || c.add || c.edit || c.history || c.delete || c.refresh || c.find || c.search || c.print || c.export || c.import || c.importByName || c.design;
+    return c.save || c.submit || c.approve || c.return || c.reject || c.revert || c.cancelDoc || c.cancel || c.clearForm || c.add || c.edit || c.history || c.delete || c.refresh || c.find || c.search || c.print || c.export || c.import || c.importByName || c.design || c.views;
   }
 
   protected exportMenuItems(): MenuItem[] {

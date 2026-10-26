@@ -24,6 +24,7 @@ import { UserService } from '../../../core/services/user.service';
 import { CompanyService } from '../../../core/services/company.service';
 import { DepartmentService } from '../../../core/services/department.service';
 import { SiteService } from '../../../core/services/site.service';
+import { CollectionService } from '../../../core/services/collection.service';
 import { UserDto, RoleDto } from '../../../core/models/user.model';
 import { CompanyDto } from '../../../core/models/company.model';
 import { DepartmentDto } from '../../../core/models/department.model';
@@ -119,6 +120,13 @@ import { SiteDto } from '../../../core/models/site.model';
         </div>
 
         @if (selectedUser()) {
+          <div class="field">
+            <label>Collection branches <span class="user-sub">(Invoice Custodian — branches they may encode collections for)</span></label>
+            <p-multiselect formControlName="collectionSiteIds" [options]="sites()"
+              optionLabel="name" optionValue="id" [filter]="true"
+              placeholder="None" styleClass="w-full" />
+          </div>
+
           <div class="field">
             <label>New Password (leave blank to keep current)</label>
             <p-password formControlName="password" [feedback]="true"
@@ -246,6 +254,7 @@ export class UserPageComponent implements OnInit, OnDestroy {
   private companyService    = inject(CompanyService);
   private departmentService = inject(DepartmentService);
   private siteService       = inject(SiteService);
+  private collectionService = inject(CollectionService);
   private fb                = inject(FormBuilder);
   private router            = inject(Router);
   private globalToolbar     = inject(GlobalToolbarService);
@@ -293,6 +302,7 @@ export class UserPageComponent implements OnInit, OnDestroy {
     siteId:       [null as number | null],
     branchCode:   [null as string | null],
     roleIds:      [[] as number[], Validators.required],
+    collectionSiteIds: [[] as number[]],
     password:     [''],
     isActive:     [true]
   });
@@ -479,7 +489,10 @@ export class UserPageComponent implements OnInit, OnDestroy {
       companyId: user.companyId ?? null, departmentId: user.departmentId ?? null,
       siteId: user.siteId ?? null, branchCode: user.branchCode ?? null,
       roleIds: user.roleIds ?? [],
-      isActive: user.isActive, password: ''
+      isActive: user.isActive, password: '', collectionSiteIds: []
+    });
+    this.collectionService.userBranches(user.id).subscribe({
+      next: res => this.form.patchValue({ collectionSiteIds: res.data ?? [] }, { emitEvent: false })
     });
     this.form.get('username')?.clearValidators();
     this.form.get('password')?.clearValidators();
@@ -523,8 +536,16 @@ export class UserPageComponent implements OnInit, OnDestroy {
         newPassword: v.password || undefined
       }).subscribe({
         next: () => {
-          this.loading.set(false);
-          this.successMessage.set('User updated successfully.');
+          this.collectionService.setUserBranches(u.id, v.collectionSiteIds ?? []).subscribe({
+            next: () => {
+              this.loading.set(false);
+              this.successMessage.set('User updated successfully.');
+            },
+            error: (err) => {
+              this.loading.set(false);
+              this.errorMessage.set(err?.error?.message ?? 'User saved, but the collection branches could not be saved.');
+            }
+          });
         },
         error: (err) => {
           this.loading.set(false);

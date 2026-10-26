@@ -145,4 +145,15 @@ public class CustomerRepository(AppDbContext db) : ICustomerRepository
                 return (rep.CusName, g.Count());
             });
     }
+
+    public async Task<int> SetWithholdingAsync(string custKey, bool withholding, string updatedBy)
+    {
+        var now = DateTime.UtcNow;
+        return await db.Customers
+            .Where(c => c.CustKey == custKey)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(c => c.Withholding, withholding)
+                .SetProperty(c => c.WithholdingUpdatedAt, now)
+                .SetProperty(c => c.WithholdingUpdatedBy, updatedBy));
+    }
 }

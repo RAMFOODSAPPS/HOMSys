@@ -2,16 +2,19 @@
 live VFP6 session can safely interleave record-level locks on the same
 open DBF the way two VFP processes would.
 
-Convention (documented in the plan/ANALYSIS.md research, matches VFP's
-own RLOCK()/FLOCK() byte-offset scheme):
-  - record lock (RLOCK(n)):  byte offset 0x7FFFFFFE - n   (1 byte)
-  - header/file lock (FLOCK): byte offset 0x7FFFFFFF      (1 byte)
+VFP's byte-offset scheme — MEASURED 2026-10-08 against VFP6 and VFP9 (a live
+VFP holding each lock while LockFileEx probed every byte up to 2^33):
+  - record lock RLOCK(n):          byte 0x7FFFFFFE - n
+  - header lock RLOCK("0") / APPEND: byte 0x7FFFFFFE          (n = 0)
+  - FLOCK():                        a range that always starts at 0x7FA7AD36
+    (its end varies), and does NOT include the header byte.
+(An earlier assumption of 0x7FFFFFFF for the header was wrong: VFP appended
+while Python "held" it and Python overwrote VFP's new record.)
 
-The header lock is what VFP takes for APPEND BLANK (mutates RECCOUNT()
-in the header, so no single RECNO() applies yet) and is also the right
-lock to hold across the whole "read header, decide to insert, write
-record, update header" sequence this bridge uses for POFILES/oowkhdr/
-oowkdet appends.
+lock_append() is the one to hold across "read RECCOUNT, write records,
+update RECCOUNT" on a table VFP may have open: it takes the header byte
+(blocks / is blocked by any VFP APPEND or RLOCK("0")) and the first FLOCK
+byte (blocks / is blocked by any VFP FLOCK()). Record locks are unaffected.
 
 docnum.dbf's GETSAVE increment locks the specific SO-doctype record via
 RLOCK, i.e. the record-lock helper, spun exactly like docnum.prg's
@@ -26,7 +29,8 @@ import win32con
 import win32file
 
 _RECORD_BASE = 0x7FFFFFFE
-_HEADER_BYTE = 0x7FFFFFFF
+_HEADER_BYTE = 0x7FFFFFFE
+_FLOCK_FIRST_BYTE = 0x7FA7AD36
 
 
 class LockTimeout(TimeoutError):
@@ -63,7 +67,9 @@ class _ByteRangeLock:
         flags = win32con.LOCKFILE_EXCLUSIVE_LOCK | win32con.LOCKFILE_FAIL_IMMEDIATELY
         while True:
             try:
-                win32file.LockFileEx(handle, flags, 0, 1, _overlapped(self._offset))
+                # pywin32: LockFileEx(h, flags, nbytesLow, nbytesHigh, ol) — exactly 1 byte (was (0, 1) = 4 GB,
+                # which reached past the header byte and made two locks on one handle collide).
+                win32file.LockFileEx(handle, flags, 1, 0, _overlapped(self._offset))
                 self._locked = True
                 return self
             except pywintypes.error:
@@ -76,7 +82,7 @@ class _ByteRangeLock:
             return
         handle = _handle(self._fileobj)
         try:
-            win32file.UnlockFileEx(handle, 0, 1, _overlapped(self._offset))
+            win32file.UnlockFileEx(handle, 1, 0, _overlapped(self._offset))
         finally:
             self._locked = False
 
@@ -93,4 +99,32 @@ def lock_record(fileobj, recno: int, timeout_s: float = 10.0) -> _ByteRangeLock:
 
 
 def lock_header(fileobj, timeout_s: float = 10.0) -> _ByteRangeLock:
+    """VFP's RLOCK("0") byte only — prefer lock_append() for appends."""
     return _ByteRangeLock(fileobj, _HEADER_BYTE, timeout_s)
+
+
+class _AppendLock:
+    """Header byte + first FLOCK byte, both held (see module doc)."""
+
+    def __init__(self, fileobj, timeout_s: float):
+        self._locks = [_ByteRangeLock(fileobj, _FLOCK_FIRST_BYTE, timeout_s), _ByteRangeLock(fileobj, _HEADER_BYTE, timeout_s)]
+
+    def __enter__(self):
+        taken = []
+        try:
+            for lk in self._locks:
+                taken.append(lk.acquire())
+        except BaseException:
+            for lk in reversed(taken):
+                lk.release()
+            raise
+        return self
+
+    def __exit__(self, *exc):
+        for lk in reversed(self._locks):
+            lk.release()
+
+
+def lock_append(fileobj, timeout_s: float = 10.0) -> _AppendLock:
+    """Hold while appending to a table VFP may have open (waits for any VFP APPEND / FLOCK, and makes VFP wait)."""
+    return _AppendLock(fileobj, timeout_s)

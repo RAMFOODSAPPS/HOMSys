@@ -265,7 +265,211 @@ public static class AnalyticsCatalog
     private static Join ProductJoin(string alias) => new("p", $"LEFT JOIN Products p ON p.CProdNo = {alias}.CProdNo");
     private static readonly Join CategoryJoin = new("pc", "LEFT JOIN ProductCategories pc ON pc.CategoryCode = p.Category", "p");
 
-    public static readonly Ds[] All =
+    // ── collections (finance) ────────────────────────────────────────────────
+
+    /// <summary>Finance only (verifier or manager), all branches — branch custodians work from the Collections pages.</summary>
+    private const string FinancePermission = "collections-verify|collections-manage";
+
+    /// <summary>A collection that counts: not voided. A bounced PDC still counts as a receipt but not as money collected.</summary>
+    private const string ColLive = "c.VerificationStatus <> 'Voided'";
+    private const string ColGood = "c.VerificationStatus <> 'Voided' AND ISNULL(c.PdcOutcome, '') <> 'Bounced'";
+
+    private const string PdcStateSql = """
+        CASE WHEN c.PaymentMode <> 'PostDatedCheck' THEN NULL WHEN c.PdcOutcome IS NOT NULL THEN c.PdcOutcome
+             WHEN c.PaymentStatus = 'Deposited' THEN 'Deposited' WHEN c.CheckDate > @today THEN 'Immature' ELSE 'Matured' END
+        """;
+
+    /// <summary>Bounced PDC follow-up, same rules as CollectionService.DishonorState.</summary>
+    private const string DishonorStateSql = """
+        CASE WHEN ISNULL(c.PdcOutcome, '') <> 'Bounced' OR c.VerificationStatus = 'Voided' THEN NULL
+             WHEN c.SettledByCollectionId IS NOT NULL THEN 'Settled' WHEN c.LegalEndorsedDate IS NOT NULL THEN 'For Legal Action'
+             WHEN c.LodIssuedDate IS NULL THEN 'For LOD' WHEN c.LodDueDate IS NULL THEN 'LOD Issued'
+             WHEN c.LodDueDate < @today THEN 'Overdue' ELSE 'Awaiting Settlement' END
+        """;
+
+    private const string CollectionsAsOf =
+        "SELECT MAX(v) FROM (VALUES ((SELECT MAX(CreatedAt) FROM Collections)), ((SELECT MAX(UpdatedAt) FROM Collections)), ((SELECT MAX(VerifiedAt) FROM Collections)), ((SELECT MAX(MatchedAt) FROM DepositBatches))) t(v)";
+
+    /// <summary>Cash applied + deductions per posted invoice from counting collections.</summary>
+    private const string InvoicePaidApply = """
+        OUTER APPLY (SELECT SUM(x.Amt) AS Paid FROM (
+            SELECT ci.AmountApplied AS Amt FROM CollectionInvoices ci JOIN Collections c ON c.Id = ci.CollectionId
+             WHERE ci.PostedInvoiceId = pi.Id AND c.VerificationStatus <> 'Voided' AND ISNULL(c.PdcOutcome, '') <> 'Bounced'
+            UNION ALL
+            SELECT d.Amount FROM CollectionDeductions d JOIN Collections c ON c.Id = d.CollectionId
+             WHERE d.PostedInvoiceId = pi.Id AND c.VerificationStatus <> 'Voided' AND ISNULL(c.PdcOutcome, '') <> 'Bounced') x) pd
+        """;
+
+    private const string InvBalance = "(pi.Total + pi.RfcTotal - ISNULL(pd.Paid, 0))";
+    private const string InvDaysPastDue = "DATEDIFF(day, DATEADD(day, pi.Term, pi.DocDate), @today)";
+    private static readonly string[] Pd = ["pd"];
+
+    private static readonly Ds[] CollectionDatasets =
+    [
+        new("collections", "Collections", "One row per encoded collection receipt (CR / PR / AR)",
+            "Collections c JOIN Sites s ON s.Id = c.SiteId LEFT JOIN DepositBatches dp ON dp.Id = c.DepositBatchId",
+            [
+                Dim("branch", "Branch", "s.Code", caption: "s.Name", drill: "custKey"),
+                Dim("custKey", "Customer", "c.CustKey", caption: "c.CustName"),
+                Dim("receiptType", "Receipt Type", "c.ReceiptType", desc: "CR = Collection Receipt; PR / AR = Provisional / Acknowledgement Receipt (post-dated check)."),
+                Dim("receiptNo", "Receipt #", "c.ReceiptNo"),
+                Dim("paymentMode", "Payment Mode", "c.PaymentMode"),
+                Dim("paymentStatus", "Payment Status", "c.PaymentStatus", desc: "Draft = incomplete; Collected = complete CR; Pending = complete PDC (check on hand, not yet collected); Deposited = bank match approved by the verifier."),
+                Dim("verificationStatus", "Verification Status", "c.VerificationStatus",
+                    sort: "CASE c.VerificationStatus WHEN 'Draft' THEN 1 WHEN 'Returned' THEN 2 WHEN 'ForVerification' THEN 3 WHEN 'Verified' THEN 4 ELSE 5 END"),
+                Dim("pdcState", "PDC State", PdcStateSql,
+                    sort: "CASE " + PdcStateSql + " WHEN 'Immature' THEN 1 WHEN 'Matured' THEN 2 WHEN 'Deposited' THEN 3 WHEN 'Succeeded' THEN 4 WHEN 'Bounced' THEN 5 ELSE 6 END",
+                    desc: "Post-dated checks only: Immature -> Matured (check date) -> Deposited (bank matched) -> Succeeded / Bounced."),
+                Dim("dishonorState", "Bounced PDC Follow-up", DishonorStateSql,
+                    desc: "Bounced PDCs only: For LOD -> LOD Issued -> Awaiting Settlement / Overdue -> Settled (new CR) or For Legal Action."),
+                Dim("depositAccount", "Deposit Account", "dp.Bank"),
+                Dim("slipRefNo", "Deposit Slip #", "dp.SlipRefNo"),
+                Dim("drawee", "Check Bank (drawee)", "c.Bank"),
+                Dim("encoder", "Encoded By", "c.CreatedBy"),
+                Dim("verifiedBy", "Verified By", "c.VerifiedBy"),
+                Flag("bankMatched", "Bank Matched?", "dp.MatchConfirmedAt IS NOT NULL", desc: "Matched and approved by the verifier (a pending automatic match counts as no)."),
+                Flag("onAccount", "Has On-account Amount?", "c.UnappliedAmount > 0"),
+                Flag("isPdc", "Post-dated Check?", "c.PaymentMode = 'PostDatedCheck'"),
+                Flag("voided", "Voided?", "c.VerificationStatus = 'Voided'"),
+                Dt("receiptDate", "Receipt Date", "c.ReceiptDate"),
+                Dt("depositDate", "Deposit Date", "dp.DepositDate"),
+                Dt("checkDate", "Check Date", "c.CheckDate"),
+                Dt("submittedAt", "Submitted At", "c.SubmittedAt", utc: true),
+                Dt("verifiedAt", "Verified At", "c.VerifiedAt", utc: true),
+                Dt("createdAt", "Encoded At", "c.CreatedAt", utc: true),
+                Calc("collections", "Collections", $"SUM(CASE WHEN {ColLive} THEN 1 ELSE 0 END)", "int", "int", desc: "Receipts, voided excluded."),
+                Msr("amount", "Amount Collected", $"CASE WHEN {ColGood} THEN c.Amount END", format: "php", desc: "Amount received; voided receipts and bounced PDCs excluded."),
+                Msr("applied", "Applied to Invoices", $"CASE WHEN {ColGood} THEN c.Amount - c.UnappliedAmount END", format: "php"),
+                Msr("unapplied", "On-account (Unapplied)", $"CASE WHEN {ColGood} THEN c.UnappliedAmount END", format: "php"),
+                Msr("deductions", "Deductions (EWT, discounts…)", $"CASE WHEN {ColGood} THEN dd.Amt END", format: "php", joins: ["dd"]),
+                Msr("depositedAmt", "Deposited (bank matched)", $"CASE WHEN {ColGood} AND c.PaymentStatus = 'Deposited' THEN c.Amount END", format: "php"),
+                Msr("notDepositedAmt", "Not Yet on Bank Statement",
+                    $"CASE WHEN {ColGood} AND c.PaymentStatus <> 'Deposited' AND (c.PaymentMode <> 'PostDatedCheck' OR c.CheckDate <= @today) THEN c.Amount END",
+                    format: "php", desc: "Cash / checks (and matured PDCs) whose deposit isn't matched to a bank credit yet."),
+                Msr("forVerificationAmt", "Waiting Verification", $"CASE WHEN c.VerificationStatus = 'ForVerification' THEN c.Amount END", format: "php"),
+                Msr("verifiedAmt", "Verified Amount", $"CASE WHEN c.VerificationStatus = 'Verified' AND ISNULL(c.PdcOutcome, '') <> 'Bounced' THEN c.Amount END", format: "php"),
+                Msr("immaturePdcAmt", "PDCs Not Yet Due", $"CASE WHEN {ColLive} AND c.PaymentMode = 'PostDatedCheck' AND c.CheckDate > @today AND c.PdcOutcome IS NULL THEN c.Amount END", format: "php"),
+                Msr("bouncedAmt", "Bounced PDCs", "CASE WHEN c.VerificationStatus <> 'Voided' AND c.PdcOutcome = 'Bounced' THEN c.Amount END", format: "php"),
+                Msr("waitingDays", "Days Waiting Verification",
+                    "CASE WHEN c.VerificationStatus = 'ForVerification' THEN DATEDIFF(day, DATEADD(hour, 8, c.SubmittedAt), @today) END",
+                    "max", "daysSev", "int", additive: false),
+                Msr("verifyDays", "Verification Turnaround (days)",
+                    "CASE WHEN c.VerifiedAt IS NOT NULL AND c.SubmittedAt IS NOT NULL THEN DATEDIFF(hour, c.SubmittedAt, c.VerifiedAt) / 24.0 END",
+                    "avg", "dec", additive: false),
+                Msr("depositLagDays", "Receipt to Deposit (days)",
+                    $"CASE WHEN {ColLive} AND c.PaymentMode <> 'PostDatedCheck' AND dp.DepositDate >= c.ReceiptDate THEN DATEDIFF(day, c.ReceiptDate, dp.DepositDate) END",
+                    "avg", "dec", additive: false),
+                Msr("daysToMaturity", "Days to Maturity",
+                    $"CASE WHEN {ColLive} AND c.PaymentMode = 'PostDatedCheck' AND c.PdcOutcome IS NULL THEN DATEDIFF(day, @today, c.CheckDate) END",
+                    "min", "int", "int", additive: false),
+            ],
+            null, National: true, Permission: FinancePermission, DefaultDate: "receiptDate",
+            Joins: [new("dd", "OUTER APPLY (SELECT SUM(d.Amount) AS Amt FROM CollectionDeductions d WHERE d.CollectionId = c.Id) dd")],
+            AsOfSql: CollectionsAsOf,
+            Detail: ["branch", "receiptType", "receiptNo", "receiptDate", "custKey", "paymentMode", "verificationStatus", "paymentStatus", "amount"]),
+
+        new("posted_invoices", "Invoices & Open Balances", "One row per posted invoice synced into HOMSys (fetched by branches from the SL files) — not the full BMS AR",
+            "PostedInvoices pi LEFT JOIN Sites s ON s.Id = pi.SiteId",
+            [
+                Dim("branch", "Branch", "s.Code", caption: "s.Name", drill: "custKey"),
+                Dim("custKey", "Customer", "pi.CustKey", caption: "pi.CustName"),
+                Dim("invNo", "Invoice #", "pi.DocNo", "int"),
+                Dim("termDays", "Term (days)", "pi.Term", "int"),
+                Dim("aging", "Aging",
+                    $"CASE WHEN {InvBalance} <= 0 THEN 'Paid' WHEN {InvDaysPastDue} <= 0 THEN 'Current' WHEN {InvDaysPastDue} <= 30 THEN '1-30 days' WHEN {InvDaysPastDue} <= 60 THEN '31-60 days' WHEN {InvDaysPastDue} <= 90 THEN '61-90 days' ELSE 'Over 90 days' END",
+                    joins: Pd,
+                    sort: $"CASE WHEN {InvBalance} <= 0 THEN 6 WHEN {InvDaysPastDue} <= 0 THEN 1 WHEN {InvDaysPastDue} <= 30 THEN 2 WHEN {InvDaysPastDue} <= 60 THEN 3 WHEN {InvDaysPastDue} <= 90 THEN 4 ELSE 5 END",
+                    desc: "Days past the due date (invoice date + term) of the open balance."),
+                Flag("open", "Has Open Balance?", $"{InvBalance} > 0", Pd),
+                Flag("overpaid", "Overpaid (RFC after payment)?", $"{InvBalance} < 0", Pd, desc: "An RFC posted after the collection pushed the balance below zero — credit for finance to resolve."),
+                Flag("hasRfc", "Has RFC?", "pi.RfcTotal <> 0"),
+                Dt("invDate", "Invoice Date", "pi.DocDate"),
+                Dt("dueDate", "Due Date", "DATEADD(day, pi.Term, pi.DocDate)"),
+                Calc("invoices", "Invoices", "COUNT(*)", "int", "int"),
+                Msr("invTotal", "Invoice Amount", "pi.Total", format: "php"),
+                Msr("rfcAmt", "RFC Amount", "-pi.RfcTotal", format: "php"),
+                Msr("paid", "Collected + Deductions", "ISNULL(pd.Paid, 0)", format: "php", joins: Pd),
+                Msr("balance", "Open Balance", $"CASE WHEN {InvBalance} > 0 THEN {InvBalance} END", format: "php", joins: Pd),
+                Msr("overdueBalance", "Overdue Balance", $"CASE WHEN {InvBalance} > 0 AND {InvDaysPastDue} > 0 THEN {InvBalance} END", format: "php", joins: Pd),
+                Msr("daysPastDue", "Days Past Due", $"CASE WHEN {InvBalance} > 0 AND {InvDaysPastDue} > 0 THEN {InvDaysPastDue} END",
+                    "max", "daysSev", "int", additive: false, joins: Pd),
+                Msr("bmsPaid", "Collected per BMS", "ISNULL(bp.Ar, 0)", format: "php", joins: ["bp"],
+                    desc: "A/R credited to the invoice by BMS posted ORs (OH03/OD03 mirror, synced months only)."),
+                Flag("bmsDiffers", "HOMSys ≠ BMS?", "ABS(ISNULL(pd.Paid, 0) - ISNULL(bp.Ar, 0)) >= 0.01", ["pd", "bp"],
+                    desc: "Collected in HOMSys (cash + deductions) differs from what BMS has posted against the invoice."),
+            ],
+            null, National: true, Permission: FinancePermission, DefaultDate: "invDate",
+            Joins:
+            [
+                new("pd", InvoicePaidApply),
+                new("bp", """
+                    OUTER APPLY (SELECT SUM(l.CrAmt - l.DrAmt) AS Ar FROM BmsPostedCollectionLines l
+                                 JOIN BmsPostedCollections b ON b.Id = l.BmsPostedCollectionId
+                                 WHERE l.RefNo = pi.DocNo AND l.RefId = 1 AND l.AcctNo = 10301 AND b.Removed = 0 AND b.Cancelled = 0) bp
+                    """),
+            ],
+            AsOfSql: "SELECT MAX(SyncedAt) FROM PostedInvoices",
+            Detail: ["branch", "invNo", "invDate", "custKey", "dueDate", "invTotal", "rfcAmt", "paid", "balance"]),
+
+        new("bms_collections", "BMS Posted Collections", "One row per OR / RPDC posted in BMS (HO archives OH03/OD03 mirror, synced months)",
+            "BmsPostedCollections b LEFT JOIN Sites s ON s.Id = b.SiteId",
+            [
+                Dim("branch", "Branch", "s.Code", caption: "s.Name", drill: "custKey", desc: "From the OR / invoice number prefix."),
+                Dim("custKey", "Customer", "b.CustKey", caption: "ISNULL(cn.CusName, b.CustKey)", joins: ["cn"]),
+                Dim("docNo", "OR #", "b.DocNo", "int"),
+                Dim("postedBy", "Posted By (BMS user)", "b.UserName"),
+                Dim("status", "BMS Status", "b.StatDesc"),
+                Dim("depBank", "Deposit Account", "b.DepBank"),
+                Dim("drawee", "Check Bank (drawee)", "b.DraweeBank"),
+                Flag("bounced", "Bounced (BADCQF)?", "b.Bounced = 1"),
+                Flag("hasEwt", "With 2307 / CEWT?", "b.Ewt <> 0"),
+                Flag("inHomsys", "Encoded in HOMSys?", "b.CollectionId IS NOT NULL"),
+                Flag("isCheck", "Check Payment?", "b.CheckNo IS NOT NULL"),
+                Dt("docDate", "OR Date", "b.DocDate"),
+                Dt("postedDate", "Posted Date", "b.Posted"),
+                Dt("checkDate", "Check Date", "b.CheckDate"),
+                Calc("receipts", "ORs", "SUM(CASE WHEN b.Cancelled = 0 THEN 1 ELSE 0 END)", "int", "int"),
+                Calc("customers", "Customers", "COUNT(DISTINCT CASE WHEN b.Cancelled = 0 THEN b.CustKey END)", "int", "int", additive: false),
+                Msr("received", "Collected (cash / check)", "CASE WHEN b.Cancelled = 0 AND b.Bounced = 0 THEN b.Received END", format: "php",
+                    desc: "Money side of the OR (cash-in-bank debits); bounced checks excluded."),
+                Msr("ewt", "CEWT (2307)", "CASE WHEN b.Cancelled = 0 THEN b.Ewt END", format: "php"),
+                Msr("arApplied", "A/R Settled", "CASE WHEN b.Cancelled = 0 AND b.Bounced = 0 THEN b.ArApplied END", format: "php",
+                    desc: "Collected + CEWT credited to invoices."),
+                Msr("bouncedAmt", "Bounced Checks", "CASE WHEN b.Cancelled = 0 AND b.Bounced = 1 THEN b.Received END", format: "php"),
+                Msr("postingLagDays", "OR to Posting (days)", "CASE WHEN b.Posted >= b.DocDate THEN DATEDIFF(day, b.DocDate, b.Posted) END",
+                    "avg", "dec", additive: false),
+            ],
+            null, National: true, Permission: FinancePermission, DefaultDate: "docDate",
+            Joins: [new("cn", "OUTER APPLY (SELECT TOP 1 c.CusName FROM Customers c WHERE c.CustKey = b.CustKey ORDER BY c.ImportedAt DESC, c.Id DESC) cn")],
+            Where: "b.Removed = 0",
+            AsOfSql: "SELECT MAX(SyncedAt) FROM BmsPostedCollections",
+            Detail: ["docNo", "docDate", "branch", "custKey", "postedBy", "postedDate", "received", "ewt", "arApplied"]),
+
+        new("bank_lines", "Bank Statement Lines", "One row per uploaded bank-statement transaction",
+            "BankStatementLines bl JOIN BankAccounts ba ON ba.Id = bl.BankAccountId LEFT JOIN DepositBatches dp ON dp.Id = bl.MatchedDepositBatchId LEFT JOIN Sites s ON s.Id = dp.SiteId",
+            [
+                Dim("account", "Account", "ba.BankCode + ' ' + ba.AccountNo", caption: "ba.BankCode + ' ' + ba.AccountNo + ' ' + ba.AccountName"),
+                Dim("bankCode", "Bank", "ba.BankCode", drill: "account"),
+                Dim("branch", "Matched Branch", "s.Code", caption: "s.Name"),
+                Dim("matchMethod", "Match Method", "ISNULL(bl.MatchMethod, 'Open')"),
+                Dim("description", "Description", "bl.Description"),
+                Dim("bankBranch", "Bank Branch", "bl.BankBranch"),
+                Flag("isCredit", "Credit?", "bl.Credit > 0"),
+                Flag("matched", "Matched to a Deposit?", "bl.MatchedDepositBatchId IS NOT NULL"),
+                Dt("txnDate", "Transaction Date", "bl.TxnDate"),
+                Calc("lines", "Lines", "COUNT(*)", "int", "int"),
+                Msr("credit", "Credits", "bl.Credit", format: "php"),
+                Msr("debit", "Debits", "bl.Debit", format: "php"),
+                Msr("matchedCredit", "Matched Credits", "CASE WHEN bl.MatchedDepositBatchId IS NOT NULL THEN bl.Credit END", format: "php"),
+                Msr("unmatchedCredit", "Unidentified Credits", "CASE WHEN bl.Credit > 0 AND bl.MatchedDepositBatchId IS NULL THEN bl.Credit END", format: "php",
+                    desc: "Credits with no deposit slip matched — not encoded yet, or a non-collection credit (transfers, trade)."),
+            ],
+            null, National: true, Permission: FinancePermission, DefaultDate: "txnDate",
+            AsOfSql: "SELECT MAX(UploadedAt) FROM BankStatementUploads",
+            Detail: ["txnDate", "account", "description", "bankBranch", "credit", "debit", "matchMethod", "branch"]),
+    ];
+
+    private static readonly Ds[] Base =
     [
         // ── D1 Sales Orders ──────────────────────────────────────────────────
         new("sales_orders", "Sales Orders", "One row per HOMSys-encoded sales order",
@@ -608,7 +812,18 @@ public static class AnalyticsCatalog
             "u.BranchCode = @scSite", Permission: "users", DefaultDate: "createdAt",
             AsOfSql: "SELECT MAX(CreatedAt) FROM RefreshTokens",
             Detail: ["username", "branchCode", "createdAt", "revoked"]),
+
+        // ── D11–D13 Collections, invoices & bank (finance) ───────────────────
+        .. CollectionDatasets,
     ];
+
+    /// <summary>Sales &amp; pricing datasets: only roles on the sales side (or analytics admins) — not finance-only roles.</summary>
+    private const string SalesPermission = "sales-orders|oos-report|pricelist-export|data-analytics-admin";
+    private static readonly string[] SalesSide =
+        ["sales_orders", "sales_lines", "po_logs", "customers", "products", "price_history", "zone_addons", "zone2_addons"];
+
+    public static readonly Ds[] All =
+        Base.Select(d => d.Permission is null && SalesSide.Contains(d.Key) ? d with { Permission = SalesPermission } : d).ToArray();
 
     public static readonly IReadOnlyDictionary<string, Ds> ByKey =
         All.ToDictionary(d => d.Key, StringComparer.OrdinalIgnoreCase);

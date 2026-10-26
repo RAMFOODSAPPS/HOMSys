@@ -25,9 +25,13 @@ can edit directly, no env vars / setx / reboot required:
 "path" is the local root this exe reads F:\\-style pricing DBFs from
 (expects \\PMDM, \\AUTOPROG\\ADDON\\{branch}, \\AUTOPROG\\CUSTOMER\\{branch}
 under it) — read locally only, never sent to the server. Optional, defaults
-to "F:\\". "syncs" stays a list for parity with the config shape, but today
-every entry is a pricing sync; a future second legacy-master data family
-would need its own reader function here, not just a new config line.
+to "F:\\". Every entry is a pricing sync except one with "type": "collection-requests"
+(url = https://<host>/api/collections/sync, path = the SL ARCHIVES folder,
+default F:\\HOMS\\RAM\\ARCHIVES): branch "Fetch invoices" requests for
+Collections, answered by sl_sync.py. That entry runs ONLY with --requests
+(its own 1-minute task, see register-task.ps1); the plain 5-minute run skips it.
+"type": "bms-collections" (same url, path = ARCHIVES, optional "since" = first month "YYYY-MM", default 2023-01)
+mirrors BMS's posted ORs from OH03/OD03{MMYY} read-only — bms_collections_sync.py.
 See config.example.json for a filled-in template.
 
 Local diff state lives in %LOCALAPPDATA%\\HOMSys\\pricing-snapshot.json — the
@@ -48,11 +52,16 @@ import logging
 import requests
 
 from dbf_reader import DbfReader
+from sl_sync import process_pending_requests
+from bms_collections_sync import sync_bms_collections
+from homs_post import process_pending_postings
 
 LOG_DIR = os.path.join(os.environ.get("LOCALAPPDATA", "."), "HOMSys")
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, "legacy_master_watcher.log")
 SNAPSHOT_FILE = os.path.join(LOG_DIR, "pricing-snapshot.json")
+DEFAULT_ARCHIVES = "F:\\HOMS\\RAM\\ARCHIVES"
+DEFAULT_HOMS_RAM = "F:\\HOMS\\RAM"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -276,6 +285,11 @@ def read_customer_branch_zones(branch_dir: str) -> dict:
                     "consoMax2": r.get_string("CONSOMAX2"),
                     "firstOrder": r.get_date("FIRSTORDER"),
                     "inactive": r.get_bool("INACTIVE"),
+                    "nRegion": r.get_string("NREGION"),
+                    "nSlGrp": r.get_string("NSLGRP"),
+                    "nAccount": r.get_string("NACCOUNT"),
+                    "territory": r.get_string("TERRITORY"),
+                    "nSlGrp1": r.get_string("NSLGRP1"),
                 }
     return result
 
@@ -534,16 +548,44 @@ def main() -> int:
 
     results = []
     conn_failures: list[str] = []
+    # "--requests" = the 1-minute task that only answers branch "Fetch invoices" requests; the default
+    # (5-minute) run does everything else, so the heavy pricing parse isn't repeated every minute.
+    requests_mode = "--requests" in sys.argv
     for entry in syncs:
+        # The 1-minute task also writes verified collections into HOMS (homs-posting).
+        if isinstance(entry, dict) and requests_mode != (entry.get("type") in ("collection-requests", "homs-posting")):
+            continue
         url = entry.get("url") if isinstance(entry, dict) else None
         if not url:
             log.error("Skipping sync entry with no \"url\": %s", entry)
             results.append(False)
             continue
         root = (entry.get("path") if isinstance(entry, dict) else None) or DEFAULT_ROOT
+        if entry.get("type") == "collection-requests":
+            # url = .../api/collections/sync ; path = the SL ARCHIVES folder
+            results.append(process_pending_requests(url, api_key, entry.get("path") or DEFAULT_ARCHIVES, _post, conn_failures))
+            continue
+        if entry.get("type") == "homs-posting":
+            # url = .../api/collections/sync ; path = ARCHIVES (OH03/OD03, GH03/GD03{MMYY}) ; docnum = HOMS DOCNUM.DBF (JV no.)
+            # live = folder of HOMS's live or_hdr/or_det + gatr_hdr/gatr_det ; runner = HOMSPOST.EXE (default: next to this exe)
+            runner = entry.get("runner") or os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "HOMSPOST.EXE")
+            results.append(process_pending_postings(url, api_key, entry.get("path") or DEFAULT_ARCHIVES,
+                                                    entry.get("docnum") or os.path.join(DEFAULT_HOMS_RAM, "DOCNUM.DBF"), _post, conn_failures,
+                                                    entry.get("live"), [runner] if isinstance(runner, str) else runner))
+            continue
+        if entry.get("type") == "homs-banks":
+            # Removed 2026-10-16: bank accounts are kept in HOMSys now (Bank accounts dialog), not synced from BANKS4W.
+            log.info("homs-banks entry ignored: the BANKS4W sync was removed; delete it from config.json")
+            continue
+        if entry.get("type") == "bms-collections":
+            # url = .../api/collections/sync ; path = ARCHIVES (OH03/OD03{MMYY}) ; since = first month "YYYY-MM" (default 2023-01)
+            since = entry.get("since") if isinstance(entry.get("since"), str) else "2023-01"
+            results.append(sync_bms_collections(url, api_key, entry.get("path") or DEFAULT_ARCHIVES, since, _post, conn_failures))
+            continue
         results.append(sync_pricing(url, api_key, root, conn_failures))
 
-    if conn_failures:
+    # No popup from the 1-minute requests task: an outage would raise one every minute.
+    if conn_failures and not requests_mode:
         show_timed_messagebox(
             "HOMSys Sync - Connection Failed",
             "Could not reach:\n" + "\n".join(conn_failures) + "\n\nCheck network/VPN. See log for details.",

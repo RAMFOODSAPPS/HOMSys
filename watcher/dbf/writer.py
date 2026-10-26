@@ -27,7 +27,9 @@ def _encode_value(field: DbfField, value) -> bytes:
             s = f"{float(value):.{field.decimals}f}"
         else:
             s = str(int(value))
-        raw = s.encode("ascii")[: field.length]
+        raw = s.encode("ascii")
+        if len(raw) > field.length:  # never silently cut a number (VFP would show asterisks)
+            raise ValueError(f"{value} doesn't fit {field.name} (N{field.length},{field.decimals})")
         return raw.rjust(field.length, b" ")
 
     if field.type == "D":
@@ -45,6 +47,8 @@ def _encode_value(field: DbfField, value) -> bytes:
         # touches (e.g. EXPECTDEL) at their blank/false default — not unknown.
         if value is None:
             return b"F"
+        if value == "":  # explicitly blank, as HOMS leaves e.g. OD03.BADCQF on CEWT lines
+            return b" "
         return b"T" if value else b"F"
 
     if field.type == "T":
@@ -98,7 +102,9 @@ class DbfWriter:
 
     def __init__(self, path: str):
         self.path = path
-        self._fh = open(path, "r+b")
+        # Unbuffered: under a lock the header (RECCOUNT) and records must be re-read from disk, never from
+        # Python's own buffer — a stale count made an append overwrite a record VFP had just added.
+        self._fh = open(path, "r+b", buffering=0)
         self.header = DbfHeader(self._fh)
 
     @property
@@ -128,6 +134,7 @@ class DbfWriter:
 
         self._fh.seek(self.header.header_length + (new_recno - 1) * self.header.record_length)
         self._fh.write(bytes(buf))
+        self._fh.write(b"\x1a")  # keep the end-of-file marker after the last record (VFP writes one)
 
         self._fh.seek(4)
         self._fh.write(struct.pack("<i", new_recno))
@@ -172,6 +179,18 @@ class DbfWriter:
         self._fh.seek(self.header.header_length + (recno - 1) * self.header.record_length + f.offset)
         self._fh.write(raw)
         self._fh.flush()
+
+    def mark_deleted(self, recno: int) -> None:
+        """VFP DELETE: sets the record's deletion flag ('*'). Caller holds the table's header lock."""
+        self._fh.seek(self.header.header_length + (recno - 1) * self.header.record_length)
+        self._fh.write(b"*")
+        self._fh.flush()
+
+    def read_all(self) -> bytes:
+        """Every record's bytes in one read (for scanning a table while holding its lock)."""
+        count = self._reread_record_count()
+        self._fh.seek(self.header.header_length)
+        return self._fh.read(count * self.header.record_length)
 
     def read_field_raw(self, recno: int, field_name: str) -> str:
         f = self.header.field(field_name)

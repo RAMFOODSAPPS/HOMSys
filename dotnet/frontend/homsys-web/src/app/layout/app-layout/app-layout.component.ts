@@ -81,6 +81,15 @@ import { LayoutService } from '../../core/services/layout.service';
       padding: 0;
     }
 
+    /* The collection page is edge-to-edge (Receipt Verification design) and its header is sticky:
+       shell padding would leave a gap above the stuck header. */
+    .layout-content:has(app-collection-page),
+    .layout-content:has(app-bank-statement-page),
+    .layout-content:has(app-collection-verify-page),
+    .layout-content:has(app-remittance-page) {
+      padding: 0 !important;
+    }
+
     .sidebar-backdrop { display: none; }
 
     /* ── Sidebar hidden by default, slides in as overlay over main-area only ──

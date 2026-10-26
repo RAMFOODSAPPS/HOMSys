@@ -7,7 +7,7 @@ interface DashboardCard {
   label: string;
   icon: string;
   route: string;
-  permission?: string;
+  permission?: string | string[];
 }
 
 interface DashboardGroup {
@@ -50,6 +50,17 @@ const GROUPS: DashboardGroup[] = [
     cards: [
       { label: 'TASAF',         icon: 'pi-file-edit', route: '/tasafs/list', permission: 'tasaf' },
       { label: 'TASAF Setup',   icon: 'pi-cog',    route: '/tasaf-setup',  permission: 'tasaf-masters' }
+    ]
+  },
+  {
+    title: 'Collections',
+    cards: [
+      { label: 'Collections', icon: 'pi-wallet', route: '/collections/list', permission: ['collections-encode', 'collections-verify', 'collections-manage'] },
+      { label: 'Remittance Advice', icon: 'pi-file-import', route: '/collections/remittance', permission: ['collections-ra-encode', 'collections-verify', 'collections-manage'] },
+      { label: 'Verification Queue', icon: 'pi-check-square', route: '/collections/verify', permission: 'collections-verify' },
+      { label: 'Bank Statements', icon: 'pi-building-columns', route: '/collections/bank', permission: ['collections-manage', 'collections-verify'] },
+      { label: 'Collections Dashboard', icon: 'pi-chart-bar', route: '/collections/dashboard', permission: 'collections-manage' },
+      { label: 'PDC Monitor', icon: 'pi-calendar-clock', route: '/pdc', permission: ['pdc-view', 'pdc-tag'] }
     ]
   },
   {
@@ -166,7 +177,7 @@ export class DashboardPageComponent {
     return GROUPS
       .map(group => ({
         title: group.title,
-        cards: group.cards.filter(c => isAdmin || (c.permission && this.auth.hasPermission(c.permission)))
+        cards: group.cards.filter(c => isAdmin || (c.permission && ([] as string[]).concat(c.permission).some(p => this.auth.hasPermission(p))))
       }))
       .filter(group => group.cards.length > 0);
   });
