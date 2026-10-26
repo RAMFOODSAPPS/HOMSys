@@ -126,6 +126,10 @@ export interface CollectionDto {
   canRetryHoms: boolean;
   /** RA CR: its Remittance Advice, HOMS desk (32 Luzon / 31 VisMin) and typed DCR no. */
   remittanceId: number | null; homsDeptCode: number | null; dcrNo: number | null;
+  /** PDC pulled out / replaced before deposit: its RPDC is cancelled in HOMS, then the PDC is voided. */
+  canPulloutPdc: boolean;
+  pdcPullout: string | null; pdcPulloutReason: string | null;
+  pdcPulloutRequestedAt: string | null; pdcPulloutRequestedBy: string | null;
 }
 
 // ── Remittance Advice (NKA chains) ──────────────────────────────────────────

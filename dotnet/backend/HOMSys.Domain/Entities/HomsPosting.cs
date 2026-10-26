@@ -1,8 +1,10 @@
 namespace HOMSys.Domain.Entities;
 
 /// <summary>Or = CR into OH03/OD03; Rpdc = PR/AR into GH03/GD03 (DR 10552 / CR 10301);
-/// PdcJv = matured PDC's JV into GH03/GD03 (DR cash in bank + 10507 / CR 10552).</summary>
-public enum HomsPostingKind { Or, Rpdc, PdcJv }
+/// PdcJv = matured PDC's JV into GH03/GD03 (DR cash in bank + 10507 / CR 10552);
+/// RpdcCancel = a pulled-out / replaced PDC's RPDC cancelled in HOMS the way HOMS cancels one
+/// (header STATUS "3" / STATDESC "Cancelled", header and lines deleted) — LinesJson = the RPDC's lines, to recognise it.</summary>
+public enum HomsPostingKind { Or, Rpdc, PdcJv, RpdcCancel }
 
 /// <summary>Held = needs a fix in HOMSys first (reason in Message); Cancelled = the collection was voided before it was written.</summary>
 public enum HomsPostingStatus { Pending, Processing, Done, Held, Failed, Cancelled }

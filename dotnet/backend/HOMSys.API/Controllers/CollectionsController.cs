@@ -77,6 +77,9 @@ public class CollectionsController(CollectionService collections) : ControllerBa
     [HttpPost("{id:int}/return"), Authorize(Policy = "collections-verify")]
     public async Task<IActionResult> Return(int id, [FromBody] ReasonDto dto) => Result(await collections.ReturnAsync(Me, id, dto?.Reason));
 
+    [HttpPost("{id:int}/pdc-pullout"), Authorize(Policy = "collections-manage")]
+    public async Task<IActionResult> PdcPullout(int id, [FromBody] PdcPulloutDto dto) => Result(await collections.PulloutPdcAsync(Me, id, dto));
+
     [HttpPost("{id:int}/homs-posting/retry"), Authorize(Policy = "collections-manage")]
     public async Task<IActionResult> RetryHoms(int id) => Result(await collections.RetryHomsAsync(Me, id));
 

@@ -226,7 +226,8 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             c.CreatedBy, Utc(c.CreatedAt), c.SubmittedAt is { } s ? Utc(s) : null, c.VerifiedAt is { } v ? Utc(v) : null, c.VerifiedBy,
             CanEdit: single && canWrite && editable,
             CanSubmit: single && canWrite && editable,
-            CanVoid: single && c.VerificationStatus != VerificationStatus.Voided && (u.CanManage || (canWrite && editable)),
+            CanVoid: single && c.VerificationStatus != VerificationStatus.Voided && c.PdcPulloutRequestedAt is null
+                     && (u.CanManage || (canWrite && editable)),
             CanRecordDeposit: (canWrite || u.CanVerify || u.CanConfirmPdc) && isPdc && c.VerificationStatus != VerificationStatus.Voided
                               && c.PdcOutcome is null && c.CheckDate <= today && c.DepositBatch?.MatchedBankLineId is null,
             CanVerify: CanVerifyThis(u, c),
@@ -242,7 +243,10 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             Missing: editable ? Missing(c) : [],
             HomsPostings: postings,
             CanRetryHoms: u.CanManage && postings.Any(p => p.Status is "Held" or "Failed"),
-            RemittanceId: c.RemittanceId, HomsDeptCode: c.HomsDeptCode, DcrNo: c.DcrNo);
+            RemittanceId: c.RemittanceId, HomsDeptCode: c.HomsDeptCode, DcrNo: c.DcrNo,
+            CanPulloutPdc: u.CanManage && isPdc && await PulloutGateAsync(c) is null,
+            PdcPullout: c.PdcPullout, PdcPulloutReason: c.PdcPulloutReason,
+            PdcPulloutRequestedAt: c.PdcPulloutRequestedAt is { } pr ? Utc(pr) : null, PdcPulloutRequestedBy: c.PdcPulloutRequestedBy);
     }
 
     /// <summary>Finance Manager, after fixing what held it (e.g. the deposit account's GL): build / send it again.</summary>
@@ -541,6 +545,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (c is null || !await CanReadSiteAsync(u, c.SiteId)) return (null, "Collection not found.");
         if (c.VerificationStatus == VerificationStatus.Voided) return (null, "Already voided.");
         if (c.RemittanceId is { } raId) return (null, InRa(raId));
+        if (c.PdcPulloutRequestedAt is not null) return (null, $"{c.PdcPullout} — it is voided once HOMS has cancelled its RPDC.");
         var editable = c.VerificationStatus is VerificationStatus.Draft or VerificationStatus.Returned;
         if (!u.CanManage && !(editable && await CanWriteSiteAsync(u, c.SiteId)))
             return (null, "Only the Finance Manager can void a collection that was already submitted.");
@@ -558,6 +563,50 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         History(c, "Voided", from, c.VerificationStatus, c.VoidReason, u.Name);
         // Voided rows keep their invoice lines for the audit trail; balances ignore them.
         return await SaveAndReturnAsync(u, c, c.DepositBatchId);
+    }
+
+    /// <summary>Why a PDC can't be pulled out / replaced here, or null. Only before deposit: a deposited check
+    /// clears or bounces (TagPdcAsync). An unverified PDC never reached HOMS, so it is simply voided.</summary>
+    private async Task<string?> PulloutGateAsync(Collection c) =>
+        c.PaymentMode != PaymentMode.PostDatedCheck ? "Only a post-dated check can be pulled out or replaced."
+        : c.RemittanceId is { } raId ? InRa(raId)
+        : c.VerificationStatus == VerificationStatus.Voided ? "This PDC is voided."
+        : c.VerificationStatus != VerificationStatus.Verified ? "This PDC isn't verified yet (nothing in HOMS) — void it instead."
+        : c.PdcPulloutRequestedAt is not null ? $"{c.PdcPullout} — waiting for HOMS to cancel its RPDC."
+        : c.PdcOutcome is not null ? $"This PDC already {(c.PdcOutcome == PdcOutcome.Bounced ? "bounced" : "cleared")}."
+        : c.DepositBatchId is not null ? "This PDC was already deposited — tag it Bounced if the bank returned it."
+        : await db.Collections.AnyAsync(x => x.SettledByCollectionId == c.Id)
+            ? "This PDC settles a bounced PDC — remove that settlement on the PDC Monitor first."
+        : null;
+
+    /// <summary>Finance Manager: the customer took the check back (Pulled out) or gave another for it (Replaced; the new
+    /// one is encoded as its own collection). Its RPDC is cancelled in HOMS too; the PDC is voided once that's done.</summary>
+    public async Task<(CollectionDto? dto, string? error)> PulloutPdcAsync(CollectionUser u, int id, PdcPulloutDto dto)
+    {
+        if (!u.CanManage) return (null, "Only the Finance Manager can pull out or replace a PDC.");
+        var c = await LoadAsync(id);
+        if (c is null) return (null, "Collection not found.");
+        if (await PulloutGateAsync(c) is { } gate) return (null, gate);
+        var kind = dto?.Type switch { "PulledOut" => "Pulled out", "Replaced" => "Replaced", _ => null };
+        if (kind is null) return (null, "Choose Pulled out or Replaced.");
+        var reason = dto!.Reason?.Trim() is { Length: > 0 } r ? r[..Math.Min(r.Length, 400)] : null;
+        if (reason is null) return (null, kind == "Replaced" ? "Give the reason and the replacing check / receipt." : "Give the reason.");
+
+        var (viaHoms, error) = await homs.CancelRpdcAsync(c, u.Name);
+        if (error is not null) return (null, error);
+        c.PdcPullout = kind;
+        c.PdcPulloutReason = reason;
+        c.PdcPulloutRequestedAt = DateTime.UtcNow;
+        c.PdcPulloutRequestedBy = u.Name;
+        if (viaHoms) History(c, $"PDC {kind.ToLowerInvariant()}", null, null, $"{reason} — cancelling its RPDC in HOMS first", u.Name);
+        else
+        {
+            var from = c.VerificationStatus;
+            c.VerificationStatus = VerificationStatus.Voided;
+            c.VoidReason = $"{kind}: {reason}";
+            History(c, "Voided", from, c.VerificationStatus, c.VoidReason, u.Name);
+        }
+        return await SaveAndReturnAsync(u, c);
     }
 
     /// <summary>Finance Verifier, on a submitted collection someone else encoded (four-eyes).</summary>

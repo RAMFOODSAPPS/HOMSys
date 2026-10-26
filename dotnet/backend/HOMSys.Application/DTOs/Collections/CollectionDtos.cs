@@ -82,7 +82,12 @@ public record CollectionDto(
     List<string>? Missing = null,
     List<HomsPostingDto>? HomsPostings = null,
     bool CanRetryHoms = false,
-    int? RemittanceId = null, int? HomsDeptCode = null, int? DcrNo = null);
+    int? RemittanceId = null, int? HomsDeptCode = null, int? DcrNo = null,
+    bool CanPulloutPdc = false, string? PdcPullout = null, string? PdcPulloutReason = null,
+    DateTime? PdcPulloutRequestedAt = null, string? PdcPulloutRequestedBy = null);
+
+/// <summary>Type: "PulledOut" (customer took the check back) or "Replaced" (another check / payment took its place).</summary>
+public record PdcPulloutDto(string? Type, string? Reason);
 
 /// <summary>The bank credit the deposit slip is matched to. Confirmed = approved by a Finance Verifier
 /// (DepositMatched is true only then); otherwise it's an automatic match awaiting approval.</summary>

@@ -17,7 +17,10 @@ public class HomsPostingService(AppDbContext db)
     private static DateOnly TodayPh => DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8));
     private static DateTime Utc(DateTime d) => DateTime.SpecifyKind(d, DateTimeKind.Utc);
 
-    public static string Label(HomsPostingKind k) => k switch { HomsPostingKind.Or => "OR", HomsPostingKind.Rpdc => "RPDC", _ => "JV" };
+    public static string Label(HomsPostingKind k) => k switch
+    {
+        HomsPostingKind.Or => "OR", HomsPostingKind.Rpdc => "RPDC", HomsPostingKind.RpdcCancel => "RPDC-CANCEL", _ => "JV",
+    };
 
     private static readonly HomsPostingStatus[] Open = [HomsPostingStatus.Pending, HomsPostingStatus.Held, HomsPostingStatus.Failed];
 
@@ -76,6 +79,33 @@ public class HomsPostingService(AppDbContext db)
         p.LinesJson = HomsPostingBuilder.Json(doc.Lines);
     }
 
+    /// <summary>PDC pulled out / replaced (not saved). Its RPDC never reached HOMS → cancelled here, the PDC can be voided
+    /// now (viaHoms false). Written, or tried already (an interrupted run may have left part of it) → an RpdcCancel is
+    /// queued: the watcher cancels whatever HOMS has of it, then <see cref="CompleteAsync"/> voids the PDC (viaHoms true).</summary>
+    public async Task<(bool viaHoms, string? error)> CancelRpdcAsync(Collection c, string user)
+    {
+        var list = await db.HomsPostings.Where(p => p.CollectionId == c.Id && p.Status != HomsPostingStatus.Cancelled).ToListAsync();
+        if (list.Any(p => p.Kind == HomsPostingKind.PdcJv))
+            return (false, "Its JV (the deposit) is already queued or in HOMS — a deposited PDC can't be pulled out.");
+        if (list.Any(p => p.Kind == HomsPostingKind.RpdcCancel)) return (false, "Its RPDC is already being cancelled in HOMS.");
+        if (list.Any(p => p.Status == HomsPostingStatus.Processing)) return (false, "It is being written to HOMS right now — try again in a minute.");
+
+        var rpdc = list.FirstOrDefault(p => p.Kind == HomsPostingKind.Rpdc);
+        if (rpdc is null) return (false, null);
+        if (rpdc.Status == HomsPostingStatus.Held || (rpdc.Status != HomsPostingStatus.Done && rpdc.Attempts == 0))
+        {
+            rpdc.Status = HomsPostingStatus.Cancelled;
+            return (false, null);
+        }
+        if (rpdc.Status != HomsPostingStatus.Done) rpdc.Status = HomsPostingStatus.Cancelled;   // never written again
+        db.HomsPostings.Add(new HomsPosting
+        {
+            Collection = c, Kind = HomsPostingKind.RpdcCancel, Table = rpdc.Table, MonthKey = rpdc.MonthKey, DocId = rpdc.DocId,
+            DocNo = rpdc.DocNo, LinesJson = rpdc.LinesJson, CreatedBy = user,
+        });
+        return (true, null);
+    }
+
     // ── watcher ─────────────────────────────────────────────────────────────
 
     /// <summary>Claims up to 20 postings (oldest first). A JV waits until its RPDC is written.</summary>
@@ -130,6 +160,34 @@ public class HomsPostingService(AppDbContext db)
             p.Message = Cut(dto.Error);
             p.Collection.History.Add(new CollectionHistory { Action = $"HOMS {Label(p.Kind)} failed", Reason = p.Message, By = "watcher" });
         }
+        else if (p.Kind == HomsPostingKind.RpdcCancel)
+        {
+            // AlreadyPresent here = HOMS had none of it (never written, or cancelled there by hand).
+            p.Status = HomsPostingStatus.Done;
+            p.File = dto.File is { Length: > 0 } f ? f[..Math.Min(f.Length, 40)] : null;
+            p.CompletedAt = DateTime.UtcNow;
+            p.Message = dto.AlreadyPresent ? "HOMS didn't have it — nothing to cancel there." : null;
+            var c = p.Collection;
+            foreach (var rpdc in await db.HomsPostings.Where(x => x.CollectionId == p.CollectionId && x.Kind == HomsPostingKind.Rpdc
+                                                                   && x.Status == HomsPostingStatus.Done).ToListAsync())
+                rpdc.Message = $"Cancelled in HOMS {DateTime.UtcNow.AddHours(8):yyyy-MM-dd} ({c.PdcPullout ?? "pulled out"}).";
+            c.History.Add(new CollectionHistory
+            {
+                Action = dto.AlreadyPresent ? "RPDC not in HOMS" : "RPDC cancelled in HOMS",
+                Reason = dto.AlreadyPresent ? $"RPDC {p.DocNo}" : $"RPDC {p.DocNo} in {p.File}", By = "watcher",
+            });
+            if (c.VerificationStatus != VerificationStatus.Voided && c.PdcPullout is { } kind)
+            {
+                var from = c.VerificationStatus;
+                c.VerificationStatus = VerificationStatus.Voided;
+                c.VoidReason = Cut($"{kind}: {c.PdcPulloutReason}");
+                c.History.Add(new CollectionHistory
+                {
+                    Action = "Voided", FromStatus = from.ToString(), ToStatus = c.VerificationStatus.ToString(), Reason = c.VoidReason,
+                    By = c.PdcPulloutRequestedBy ?? "watcher",
+                });
+            }
+        }
         else
         {
             p.Status = HomsPostingStatus.Done;
@@ -174,7 +232,9 @@ public class HomsPostingService(AppDbContext db)
     {
         var list = await db.HomsPostings.Where(p => p.CollectionId == collectionId && kinds.Contains(p.Kind)).ToListAsync();
         if (list.FirstOrDefault(p => p.Status == HomsPostingStatus.Done) is { } done)
-            return $"{Label(done.Kind)} {done.DocNo} is already posted in HOMS — cancel it there first.";
+            return done.Kind == HomsPostingKind.Rpdc && !list.Any(p => p.Kind == HomsPostingKind.PdcJv && p.Status != HomsPostingStatus.Cancelled)
+                ? $"RPDC {done.DocNo} is already posted in HOMS — use Pull out / Replace, which cancels it there too."
+                : $"{Label(done.Kind)} {done.DocNo} is already posted in HOMS — cancel it there first.";
         if (list.Any(p => p.Status == HomsPostingStatus.Processing)) return "It is being written to HOMS right now — try again in a minute.";
         foreach (var p in list.Where(p => Open.Contains(p.Status))) p.Status = HomsPostingStatus.Cancelled;
         return null;

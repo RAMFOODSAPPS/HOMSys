@@ -580,6 +580,21 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("PdcPullout")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("PdcPulloutReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("PdcPulloutRequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PdcPulloutRequestedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<DateTime?>("PostedToHomsAt")
                         .HasColumnType("datetime2");
 

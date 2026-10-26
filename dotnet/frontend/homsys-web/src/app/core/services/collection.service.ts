@@ -46,6 +46,9 @@ export class CollectionService {
   // Finance Verifier
   verify(id: number) { return this.http.post<ApiResponse<CollectionDto>>(`${this.base}/${id}/verify`, {}); }
   returnToBranch(id: number, reason: string) { return this.http.post<ApiResponse<CollectionDto>>(`${this.base}/${id}/return`, { reason }); }
+  pulloutPdc(id: number, type: 'PulledOut' | 'Replaced', reason: string) {
+    return this.http.post<ApiResponse<CollectionDto>>(`${this.base}/${id}/pdc-pullout`, { type, reason });
+  }
   retryHoms(id: number) { return this.http.post<ApiResponse<CollectionDto>>(`${this.base}/${id}/homs-posting/retry`, {}); }
   confirmMatch(id: number) { return this.http.post<ApiResponse<CollectionDto>>(`${this.base}/${id}/bank-match/confirm`, {}); }
   rejectMatch(id: number, reason: string | null) { return this.http.post<ApiResponse<CollectionDto>>(`${this.base}/${id}/bank-match/reject`, { reason }); }

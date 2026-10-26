@@ -76,6 +76,14 @@ public class Collection
     public string? LegalEndorsedTo { get; set; }
     public string? LegalRemarks { get; set; }
 
+    // PDC pulled out / replaced before deposit (user 2026-10-26), by the Finance Manager. An RPDC already in HOMS is
+    // cancelled there first (HomsPostingKind.RpdcCancel); the PDC is voided with this reason once HOMS no longer has it.
+    /// <summary>"Pulled out" or "Replaced".</summary>
+    public string? PdcPullout { get; set; }
+    public string? PdcPulloutReason { get; set; }
+    public DateTime? PdcPulloutRequestedAt { get; set; }
+    public string? PdcPulloutRequestedBy { get; set; }
+
     /// <summary>When its OR (CR) / RPDC (PDC) was written into the HOMS ARCHIVES files (see HomsPosting).</summary>
     public DateTime? PostedToHomsAt { get; set; }
     public ICollection<HomsPosting> HomsPostings { get; set; } = [];

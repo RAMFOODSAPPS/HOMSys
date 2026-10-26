@@ -80,6 +80,7 @@ const NEW_KEY = '/collections';
           @if (col(); as c) {
             <div class="rv-actions">
               @if (c.canVoid) { <button type="button" class="btn btn-danger" (click)="voidVisible = true">Void</button> }
+              @if (c.canPulloutPdc) { <button type="button" class="btn btn-danger" (click)="pulloutVisible = true">Pull out / Replace</button> }
               @if (c.canRecordDeposit) { <button type="button" class="btn" (click)="openDeposit()">Record PDC deposit</button> }
               @if (c.canSubmit) {
                 <span [pTooltip]="c.missing.length ? 'Still a draft: ' + c.missing.join(' ') : undefined" tooltipPosition="bottom">
@@ -147,6 +148,11 @@ const NEW_KEY = '/collections';
           }
           @if (c.verificationStatus === 'Voided') {
             <p-message severity="error" styleClass="w-full">Voided: {{ c.voidReason }}</p-message>
+          } @else if (c.pdcPulloutRequestedAt) {
+            <p-message severity="warn" styleClass="w-full">
+              {{ c.pdcPullout }} ({{ c.pdcPulloutRequestedBy }}, {{ c.pdcPulloutRequestedAt | date:'MM/dd/yy hh:mm a' }}): {{ c.pdcPulloutReason }} —
+              cancelling its RPDC in HOMS; the PDC is voided once that's done.
+            </p-message>
           }
           @for (p of c.homsPostings; track p.id) {
             @if (p.status !== 'Cancelled') {
@@ -441,6 +447,22 @@ const NEW_KEY = '/collections';
       </ng-template>
     </p-dialog>
 
+    <p-dialog header="Pull out / Replace PDC" [(visible)]="pulloutVisible" [modal]="true" [style]="{ width: '440px' }">
+      <div class="flex gap-3 mb-2">
+        <label class="flex align-items-center gap-1"><input type="radio" name="pullout" value="PulledOut" [(ngModel)]="pulloutType" /> Pulled out</label>
+        <label class="flex align-items-center gap-1"><input type="radio" name="pullout" value="Replaced" [(ngModel)]="pulloutType" /> Replaced</label>
+      </div>
+      <textarea pTextarea [(ngModel)]="pulloutReason" rows="3" class="w-full"
+        [placeholder]="pulloutType === 'Replaced' ? 'Reason and the replacing check / receipt (required)' : 'Reason (required)'"></textarea>
+      <small class="block mt-2 text-color-secondary">
+        Its RPDC is cancelled in HOMS too; the PDC is voided once that's done. Encode a replacing check or payment as its own collection.
+      </small>
+      <ng-template pTemplate="footer">
+        <p-button label="Cancel" [text]="true" (onClick)="pulloutVisible = false" />
+        <p-button [label]="pulloutType === 'Replaced' ? 'Replace' : 'Pull out'" severity="danger" [disabled]="!pulloutReason.trim()" [loading]="busy()" (onClick)="doPullout()" />
+      </ng-template>
+    </p-dialog>
+
     <p-dialog header="Return to branch" [(visible)]="returnVisible" [modal]="true" [style]="{ width: '420px' }">
       <textarea pTextarea [(ngModel)]="returnReason" rows="3" class="w-full" placeholder="What the custodian must fix (required)"></textarea>
       <ng-template pTemplate="footer">
@@ -564,6 +586,9 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
 
   voidVisible = false;
   voidReason = '';
+  pulloutVisible = false;
+  pulloutType: 'PulledOut' | 'Replaced' = 'PulledOut';
+  pulloutReason = '';
   returnVisible = false;
   returnReason = '';
   depositVisible = false;
@@ -927,6 +952,22 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
     this.busy.set(true);
     this.api.void(c.id, this.voidReason.trim()).subscribe({
       next: res => { this.busy.set(false); this.voidVisible = false; this.voidReason = ''; this.show(res.data!); },
+      error: err => this.fail(err, () => this.busy.set(false))
+    });
+  }
+
+  doPullout() {
+    const c = this.col();
+    if (!c) return;
+    this.busy.set(true);
+    this.api.pulloutPdc(c.id, this.pulloutType, this.pulloutReason.trim()).subscribe({
+      next: res => {
+        this.busy.set(false); this.pulloutVisible = false; this.pulloutReason = '';
+        const d = res.data!;
+        this.toast.add({ severity: 'success', summary: d.pdcPullout ?? 'PDC',
+          detail: d.verificationStatus === 'Voided' ? 'Voided — it was not in HOMS.' : 'Its RPDC is being cancelled in HOMS.' });
+        this.show(d);
+      },
       error: err => this.fail(err, () => this.busy.set(false))
     });
   }
