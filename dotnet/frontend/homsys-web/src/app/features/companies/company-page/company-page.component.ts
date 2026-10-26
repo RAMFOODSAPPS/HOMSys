@@ -18,6 +18,7 @@ import { GlobalToolbarService } from '../../../core/services/global-toolbar.serv
 import { ExportService, ExportColumn } from '../../../core/services/export.service';
 import { TabBarService } from '../../../core/services/tab-bar.service';
 import { CompanyService } from '../../../core/services/company.service';
+import { shrinkImage } from '../../../core/utils/image-shrink';
 import { CompanyDto } from '../../../core/models/company.model';
 
 @Component({
@@ -85,6 +86,28 @@ import { CompanyDto } from '../../../core/models/company.model';
           <textarea pTextarea formControlName="address" class="w-full" rows="2"
             autoResize="true"></textarea>
         </div>
+
+        @if (selectedCompany(); as c) {
+          <!-- Logo: resized in the browser to a few KB, stored in Azure Blob Storage. Used on TASAF print / PDF. -->
+          <div class="field">
+            <label>Logo <span class="optional-label">(PNG or JPG — shown on TASAF print / PDF)</span></label>
+            <div class="logo-box">
+              @if (c.hasLogo) {
+                <img [src]="logoUrl(c)" alt="Company logo" class="logo-preview" />
+                <span class="logo-meta">{{ c.logoSizeKb }} KB</span>
+              } @else {
+                <span class="logo-meta">No logo yet</span>
+              }
+              <input #logoInput type="file" accept="image/png,image/jpeg" hidden (change)="onLogoFile($event)" />
+              <p-button [label]="c.hasLogo ? 'Replace' : 'Upload logo'" icon="pi pi-upload" size="small" [outlined]="true"
+                [loading]="logoBusy()" (onClick)="logoInput.click()" />
+              @if (c.hasLogo) {
+                <p-button label="Remove" icon="pi pi-trash" size="small" [text]="true" severity="danger"
+                  [disabled]="logoBusy()" (onClick)="removeLogo()" />
+              }
+            </div>
+          </div>
+        }
 
         @if (selectedCompany()) {
           <div class="field-inline">
@@ -363,6 +386,56 @@ export class CompanyPageComponent implements OnInit, OnDestroy {
     this.companyService.getAll().subscribe({
       next: res => { this.companies.set(res.data ?? []); this.drawerLoading.set(false); },
       error: () => this.drawerLoading.set(false)
+    });
+  }
+
+  // ── Logo ───────────────────────────────────────────────────
+  protected logoBusy = signal(false);
+  protected logoUrl(c: CompanyDto) { return this.companyService.logoUrl(c); }
+
+  /** Picked a file: shrink it in the browser (a few KB), then upload. */
+  async onLogoFile(ev: Event) {
+    const input = ev.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = ''; // the same file can be picked again
+    const c = this.selectedCompany();
+    if (!file || !c) return;
+    this.logoBusy.set(true);
+    try {
+      const img = await shrinkImage(file);
+      this.companyService.uploadLogo(c.id, img.blob, img.fileName).subscribe({
+        next: res => {
+          this.logoBusy.set(false);
+          if (res.data) this.selectedCompany.set(res.data);
+          this.messageService.add({ severity: 'success', summary: 'Logo saved',
+            detail: `${file.name}: ${img.originalKb.toLocaleString()} KB → ${img.kb.toLocaleString()} KB` });
+        },
+        error: err => {
+          this.logoBusy.set(false);
+          this.messageService.add({ severity: 'error', summary: 'Logo', detail: err?.error?.message ?? 'Upload failed.' });
+        }
+      });
+    } catch (e) {
+      this.logoBusy.set(false);
+      this.messageService.add({ severity: 'warn', summary: 'Logo', detail: (e as Error).message });
+    }
+  }
+
+  removeLogo() {
+    const c = this.selectedCompany();
+    if (!c) return;
+    this.confirmSvc.confirm({
+      header: 'Remove logo', message: `Remove the logo of ${c.name}?`, icon: 'pi pi-trash',
+      accept: () => {
+        this.logoBusy.set(true);
+        this.companyService.removeLogo(c.id).subscribe({
+          next: res => { this.logoBusy.set(false); if (res.data) this.selectedCompany.set(res.data); },
+          error: err => {
+            this.logoBusy.set(false);
+            this.messageService.add({ severity: 'error', summary: 'Logo', detail: err?.error?.message ?? 'Remove failed.' });
+          }
+        });
+      }
     });
   }
 

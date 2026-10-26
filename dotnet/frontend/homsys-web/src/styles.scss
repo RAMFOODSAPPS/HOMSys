@@ -61,6 +61,10 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  // clip, not just hidden: "hidden" still lets the browser scroll the body from code — e.g. focusing a
+  // dropdown's search box in a panel appended to <body> near the bottom of the window. That shifted the
+  // whole page and PrimeNG closed the dropdown on the scroll. Pages scroll inside .layout-content instead.
+  overflow: clip;
 }
 
 body {
@@ -322,3 +326,77 @@ p-sorticon svg {
 .cdk-drag-preview { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18); border-radius: 3px; opacity: 0.95; }
 .cdk-drag-placeholder { opacity: 0.35; }
 .cdk-drag-animating, .an-chip-list.cdk-drop-list-dragging .an-chip:not(.cdk-drag-placeholder) { transition: transform 200ms cubic-bezier(0, 0, 0.2, 1); }
+
+// Dropdowns with [focusOnHover]="false" (TASAF form): hovering only highlights. With focus-on-hover,
+// the option under the mouse got "focused" — the list jumped while wheel-scrolling, and Tab/Enter
+// picked whatever the pointer rested on.
+.p-select-option:not(.p-select-option-selected):not(.p-disabled):hover,
+.p-multiselect-option:not(.p-disabled):hover {
+  background: var(--p-select-option-focus-background, var(--p-highlight-background, #f3e6e6));
+}
+
+// Multi-select panel footer with a Done (close) button — TASAF Area / Cust Key / Branch.
+.ms-footer {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  padding: 0.5rem 0.75rem; border-top: 1px solid var(--p-content-border-color, #e5e7eb);
+  font-size: 0.8rem; color: var(--p-text-muted-color);
+}
+
+// ── Two-line dropdown options in a virtual-scroll list (TASAF Cust Key / SKU) ──
+// The virtual scroller needs every row at exactly virtualScrollItemSize (48px): fixed height,
+// one line each for title and detail, long text cut with "…".
+.opt2-panel {
+  // The theme's 2px gap between options breaks the virtual scroller's row math (it assumes rows
+  // are flush), so the list drifted and jumped while scrolling.
+  .p-multiselect-list, .p-select-list { gap: 0; }
+  .p-multiselect-option, .p-select-option { height: 48px; box-sizing: border-box; padding-top: 0.25rem; padding-bottom: 0.25rem; overflow: hidden; }
+  .cust-opt { flex: 1; min-width: 0; }
+  .cust-opt > * { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+
+// ── Resizable table columns (shared/resizable-columns.directive.ts) ──
+table.rc-table.rc-fixed { table-layout: fixed; }  // only once a column was resized
+table.rc-table th { position: relative; overflow: hidden; text-overflow: ellipsis; }
+table.rc-table.rc-fixed td { overflow: hidden; }
+table.rc-table.rc-fixed td .p-inputnumber, table.rc-table.rc-fixed td .p-select,
+table.rc-table.rc-fixed td .p-inputtext { width: 100%; min-width: 0; }
+.rc-handle {
+  position: absolute; top: 0; right: 0; width: 7px; height: 100%; cursor: col-resize; z-index: 1;
+  border-right: 2px solid transparent;
+  &:hover { border-right-color: #800000; }
+}
+body.rc-resizing { cursor: col-resize !important; user-select: none; }
+
+/* TASAF LSP / Case: note under the input, and the mixed-price bar under Participating Products. */
+.lsp-note { display: block; font-size: 0.7rem; color: #6b7280; text-align: right; margin-top: 2px; white-space: nowrap;
+  &.warn { color: #b45309; }
+  &.link { cursor: pointer; text-decoration: underline dotted; }
+}
+.lsp-mixed { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.5rem; padding: 0.4rem 0.6rem;
+  border: 1px solid #fcd34d; background: #fffbeb; border-radius: 4px; font-size: 0.8rem; color: #92400e; }
+
+/* Company page logo (company-page.component). */
+.logo-box { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; padding: 0.5rem; border: 1px dashed #d9d9d9; border-radius: 6px; }
+.logo-preview { max-height: 56px; max-width: 220px; object-fit: contain; background: #fff; }
+.logo-meta { font-size: 0.8rem; color: #6b7280; }
+
+/* TASAF Segment field: the segments of the picked sub-categories (read-only chips). */
+.seg-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; min-height: 2.5rem; align-items: center; padding: 0.3rem 0.5rem;
+  border: 1px solid #e5e7eb; border-radius: 6px; background: #f9fafb; }
+.seg-chip { background: #f3e6e6; color: #5c0000; border-radius: 12px; padding: 0.15rem 0.6rem; font-size: 0.8rem; }
+
+/* Print of the page content only (body.print-content-only, set by a page around window.print(),
+   e.g. an unsaved TASAF): hide the app shell and let the content flow over several pages. */
+@media print {
+  html:has(body.print-content-only) { height: auto !important; overflow: visible !important; }
+  body.print-content-only {
+    app-topbar, app-sidebar, .sidebar-backdrop, app-modulebar, .bar-separator,
+    app-tab-bar, app-page-toolbar, app-footer, p-toast { display: none !important; }
+
+    &, .layout-wrapper, .layout-body, .main-area, .layout-content {
+      position: static !important; width: auto !important; height: auto !important;
+      overflow: visible !important; display: block !important;
+    }
+    .layout-content { padding: 0 !important; background: none !important; }
+  }
+}

@@ -31,6 +31,11 @@ public class CompanyRepository(AppDbContext db) : ICompanyRepository
             .SetProperty(c => c.Email,         company.Email)
             .SetProperty(c => c.ContactPerson, company.ContactPerson)
             .SetProperty(c => c.IsActive,      company.IsActive)
+            .SetProperty(c => c.LogoBlob,        company.LogoBlob)
+            .SetProperty(c => c.LogoContentType, company.LogoContentType)
+            .SetProperty(c => c.LogoSize,        company.LogoSize)
+            .SetProperty(c => c.LogoUpdatedAt,   company.LogoUpdatedAt)
+            .SetProperty(c => c.UpdatedBy,     company.UpdatedBy)
             .SetProperty(c => c.UpdatedAt,     company.UpdatedAt));
     }
 

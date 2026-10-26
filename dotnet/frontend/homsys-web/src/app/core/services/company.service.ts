@@ -15,4 +15,13 @@ export class CompanyService {
   create(dto: CreateCompanyDto) { return this.http.post<ApiResponse<CompanyDto>>(this.base, dto); }
   update(id: number, dto: UpdateCompanyDto) { return this.http.put<ApiResponse<CompanyDto>>(`${this.base}/${id}`, dto); }
   delete(id: number) { return this.http.delete<ApiResponse<null>>(`${this.base}/${id}`); }
+
+  /** Logo (Azure Blob Storage via the API). The image is resized in the browser before upload. */
+  uploadLogo(id: number, file: Blob, fileName: string) {
+    const body = new FormData();
+    body.append('file', file, fileName);
+    return this.http.post<ApiResponse<CompanyDto>>(`${this.base}/${id}/logo`, body);
+  }
+  removeLogo(id: number) { return this.http.delete<ApiResponse<CompanyDto>>(`${this.base}/${id}/logo`); }
+  logoUrl(c: CompanyDto) { return `${this.base}/${c.id}/logo?v=${c.logoVersion ?? 0}`; }
 }

@@ -1,5 +1,7 @@
 using System.Text;
+using HOMSys.API.Email;
 using HOMSys.API.Middleware;
+using HOMSys.Application.Interfaces;
 using HOMSys.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -11,6 +13,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// Notification emails (Azure Communication Services) — off until the "Email" section is configured.
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
+builder.Services.AddSingleton<EmailQueue>();
+builder.Services.AddSingleton<IEmailQueue>(sp => sp.GetRequiredService<EmailQueue>());
+builder.Services.AddHostedService<EmailSenderService>();
 
 // JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"]
@@ -44,7 +52,11 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("customer-search", p => p.RequireClaim("permission", "sales-orders", "pricelist-export"))
     .AddPolicy("legacy-monitoring", p => p.RequireClaim("permission", "legacy-monitoring"))
     .AddPolicy("data-analytics", p => p.RequireClaim("permission", "data-analytics"))
-    .AddPolicy("offshore-encode", p => p.RequireClaim("permission", "offshore-encode"));
+    .AddPolicy("offshore-encode", p => p.RequireClaim("permission", "offshore-encode"))
+    .AddPolicy("tasaf-masters", p => p.RequireClaim("permission", "tasaf-masters"))
+    .AddPolicy("tasaf", p => p.RequireClaim("permission", "tasaf"))
+    .AddPolicy("products", p => p.RequireClaim("permission", "products"))
+    .AddPolicy("customers", p => p.RequireClaim("permission", "customers"));
 
 // CORS — allow specific origins and credentials (required for HttpOnly cookie)
 builder.Services.AddCors(options =>

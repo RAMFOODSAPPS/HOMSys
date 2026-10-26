@@ -22,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<IPermissionRepository, PermissionRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<ICompanyRepository, CompanyRepository>();
+        services.AddSingleton<IFileStorage, HOMSys.Infrastructure.Storage.BlobFileStorage>();
         services.AddScoped<IDepartmentRepository, DepartmentRepository>();
         services.AddHttpContextAccessor();
         services.AddScoped<ISiteRepository, SiteRepository>();
@@ -38,6 +39,11 @@ public static class DependencyInjection
         services.AddScoped<IPricingRepository, PricingRepository>();
         services.AddScoped<ICustomerIdentifierMapRepository, CustomerIdentifierMapRepository>();
         services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
+        services.AddScoped<ITasafLookupRepository, TasafLookupRepository>();
+        services.AddScoped<ITasafRepository, TasafRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<IFormLayoutRepository, FormLayoutRepository>();
+        services.AddScoped<ICustomerMasterRepository, CustomerMasterRepository>();
 
         services.AddScoped<AuthService>();
         services.AddScoped<UserService>();
@@ -60,6 +66,13 @@ public static class DependencyInjection
         services.AddScoped<SyncStatusService>();
         services.AddScoped<AnalyticsService>();
         services.AddScoped<AnalyticsExcelBuilder>();
+        services.AddScoped<TasafMasterService>();
+        services.AddScoped<TasafPriceService>();
+        services.AddScoped<TasafService>();
+        services.AddScoped<NotificationService>();
+        services.AddScoped<FormLayoutService>();
+        services.AddScoped<ProductCatalogService>();
+        services.AddScoped<CustomerMasterService>();
 
         return services;
     }

@@ -14,6 +14,12 @@ export const routes: Routes = [
       import('./features/auth/change-password/change-password.component').then(m => m.ChangePasswordComponent)
   },
   {
+    // Approval email's Approve / Reject button — no login (the link's token is the approver's key).
+    path: 'tasaf-decision',
+    loadComponent: () =>
+      import('./features/tasafs/tasaf-decision/tasaf-decision-page.component').then(m => m.TasafDecisionPageComponent)
+  },
+  {
     path: '',
     canActivate: [authGuard],
     // routeRoleGuard auto-applies to every child route.
@@ -119,6 +125,37 @@ export const routes: Routes = [
         data: { permission: 'legacy-monitoring' },
         loadComponent: () =>
           import('./features/legacy-monitoring/legacy-monitoring-page.component').then(m => m.LegacyMonitoringPageComponent)
+      },
+      {
+        path: 'products',
+        data: { permission: 'products' },
+        loadComponent: () =>
+          import('./features/products/products-page.component').then(m => m.ProductsPageComponent)
+      },
+      {
+        path: 'customers',
+        data: { permission: 'customers' },
+        loadComponent: () =>
+          import('./features/customers/customers-page.component').then(m => m.CustomersPageComponent)
+      },
+      {
+        path: 'tasafs',
+        data: { permission: 'tasaf' },
+        loadChildren: () =>
+          import('./features/tasafs/tasaf.routes').then(m => m.tasafRoutes)
+      },
+      {
+        // Master Data › Product Categories: the TASAF Setup editor limited to that list.
+        path: 'product-categories',
+        data: { permission: 'tasaf-masters', masters: ['product-groups'], title: 'Product Categories' },
+        loadComponent: () =>
+          import('./features/tasaf-setup/tasaf-setup-page.component').then(m => m.TasafSetupPageComponent)
+      },
+      {
+        path: 'tasaf-setup',
+        data: { permission: 'tasaf-masters' },
+        loadComponent: () =>
+          import('./features/tasaf-setup/tasaf-setup-page.component').then(m => m.TasafSetupPageComponent)
       }
     ]
   },

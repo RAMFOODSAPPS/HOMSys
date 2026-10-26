@@ -27,12 +27,25 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
               [disabled]="cfg().save!.disabled ? cfg().save!.disabled!() : false"
               (onClick)="cfg().save!.onClick()" />
           }
+          @if (cfg().submit) {
+            <p-button icon="pi pi-send" [pTooltip]="cfg().submit!.label" tooltipPosition="bottom"
+              [text]="true"
+              [loading]="cfg().submit!.loading ? cfg().submit!.loading!() : false"
+              [disabled]="cfg().submit!.disabled ? cfg().submit!.disabled!() : false"
+              (onClick)="cfg().submit!.onClick()" />
+          }
           @if (cfg().cancel) {
             <p-button icon="pi pi-times" pTooltip="Cancel" tooltipPosition="bottom"
-              [text]="true" severity="secondary"
+              [text]="true"
               [loading]="cfg().cancel!.loading ? cfg().cancel!.loading!() : false"
               [disabled]="cfg().cancel!.disabled ? cfg().cancel!.disabled!() : false"
               (onClick)="cfg().cancel!.onClick()" />
+          }
+          @if (cfg().clearForm) {
+            <p-button icon="pi pi-eraser" pTooltip="Clear" tooltipPosition="bottom"
+              [text]="true"
+              [disabled]="cfg().clearForm!.disabled ? cfg().clearForm!.disabled!() : false"
+              (onClick)="cfg().clearForm!.onClick()" />
           }
           @if (cfg().add) {
             <p-button icon="pi pi-plus" pTooltip="Add" tooltipPosition="bottom"
@@ -62,6 +75,12 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
               [disabled]="cfg().refresh!.disabled ? cfg().refresh!.disabled!() : false"
               (onClick)="cfg().refresh!.onClick()" />
           }
+          @if (cfg().history) {
+            <p-button icon="pi pi-history" pTooltip="History" tooltipPosition="bottom"
+              [text]="true"
+              [disabled]="cfg().history!.disabled ? cfg().history!.disabled!() : false"
+              (onClick)="cfg().history!.onClick()" />
+          }
           @if (cfg().list) {
             <p-button icon="pi pi-list" pTooltip="List" tooltipPosition="bottom"
               [text]="true"
@@ -76,6 +95,43 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
               (onClick)="cfg().find!.onClick()" />
           }
         </div>
+
+        <!-- Workflow decisions (current approver only) -->
+        @if (cfg().approve || cfg().return || cfg().reject || cfg().revert || cfg().cancelDoc) {
+          <p-divider layout="vertical" />
+          <div class="action-group">
+            @if (cfg().approve) {
+              <p-button icon="pi pi-check" [pTooltip]="cfg().approve!.label" tooltipPosition="bottom"
+                [text]="true" severity="success"
+                [disabled]="cfg().approve!.disabled ? cfg().approve!.disabled!() : false"
+                (onClick)="cfg().approve!.onClick()" />
+            }
+            @if (cfg().return) {
+              <p-button icon="pi pi-undo" pTooltip="Return to proponent" tooltipPosition="bottom"
+                [text]="true" severity="secondary"
+                [disabled]="cfg().return!.disabled ? cfg().return!.disabled!() : false"
+                (onClick)="cfg().return!.onClick()" />
+            }
+            @if (cfg().reject) {
+              <p-button icon="pi pi-ban" pTooltip="Reject" tooltipPosition="bottom"
+                [text]="true" severity="danger"
+                [disabled]="cfg().reject!.disabled ? cfg().reject!.disabled!() : false"
+                (onClick)="cfg().reject!.onClick()" />
+            }
+            @if (cfg().revert) {
+              <p-button icon="pi pi-replay" pTooltip="Revert (Admin) — back to the proponent" tooltipPosition="bottom"
+                [text]="true" severity="warn"
+                [disabled]="cfg().revert!.disabled ? cfg().revert!.disabled!() : false"
+                (onClick)="cfg().revert!.onClick()" />
+            }
+            @if (cfg().cancelDoc) {
+              <p-button icon="pi pi-times-circle" [pTooltip]="cfg().cancelDoc!.label" tooltipPosition="bottom"
+                [text]="true" severity="danger"
+                [disabled]="cfg().cancelDoc!.disabled ? cfg().cancelDoc!.disabled!() : false"
+                (onClick)="cfg().cancelDoc!.onClick()" />
+            }
+          </div>
+        }
 
         <!-- Search box (live filter — list pages only) -->
         @if (cfg().search) {
@@ -135,6 +191,19 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
           </div>
         }
 
+        <!-- Form Designer (Admin) -->
+        @if (cfg().design) {
+          <p-divider layout="vertical" />
+          <div class="action-group">
+            <span class="tooltip-wrap" pTooltip="Design Layout" tooltipPosition="bottom">
+              <p-button icon="pi pi-objects-column"
+                [text]="true"
+                [disabled]="cfg().design!.disabled ? cfg().design!.disabled!() : false"
+                (onClick)="cfg().design!.onClick()" />
+            </span>
+          </div>
+        }
+
       </div>
     }
   `,
@@ -143,9 +212,9 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
       display: flex;
       align-items: center;
       padding: 0 0.75rem;
-      background: var(--p-surface-card);
-      /* 1px grey rule + soft shadow onto the page; lives here so it disappears with the toolbar (e.g. Home) */
-      border-bottom: 1px solid #d1d5db;
+      background: #faf3f3;
+      /* 1px rule + soft shadow onto the page; lives here so it disappears with the toolbar (e.g. Home) */
+      border-bottom: 1px solid #ecdcdc;
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
       position: relative;
       z-index: 1;
@@ -185,12 +254,15 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
       opacity: 1;
     }
 
-    ::ng-deep .page-toolbar .p-button.p-button-text:not(.p-disabled):hover {
+    ::ng-deep .page-toolbar .p-button.p-button-text:not(:disabled):hover {
       background: var(--p-primary-100);
     }
 
-    ::ng-deep .page-toolbar .p-button.p-button-text.p-disabled {
-      opacity: 0.35;
+    /* Disabled = grey whatever the button's colour. PrimeNG 19 marks it with the native disabled attribute (no p-disabled class). */
+    ::ng-deep .page-toolbar .p-button.p-button-text:disabled {
+      opacity: 1;
+      color: #b8bcc4 !important;
+      filter: grayscale(1);
     }
 
     ::ng-deep .page-toolbar .p-button .p-button-icon {
@@ -220,7 +292,7 @@ export class PageToolbarComponent {
 
   protected hasAnyAction() {
     const c = this.cfg();
-    return c.save || c.cancel || c.add || c.edit || c.delete || c.refresh || c.find || c.search || c.print || c.export || c.import || c.importByName;
+    return c.save || c.submit || c.approve || c.return || c.reject || c.revert || c.cancelDoc || c.cancel || c.clearForm || c.add || c.edit || c.history || c.delete || c.refresh || c.find || c.search || c.print || c.export || c.import || c.importByName || c.design;
   }
 
   protected exportMenuItems(): MenuItem[] {

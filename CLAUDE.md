@@ -422,6 +422,148 @@ Logs to `%LOCALAPPDATA%\HOMSys\legacy_master_watcher.log`.
 default 30s was observed failing mid-batch on the ~105k-row `ZoneAddOn`
 truncate+reload under load.
 
+## Products / Customers pages (read-only master data)
+
+`/products` (`ProductCatalogService`, permission `products` 19) and `/customers`
+(`CustomerMasterService`, permission `customers` 20) only *view* the synced BMS
+masters — never edit them (the next sync would overwrite). Customers holds every
+branch folder's cust4win (~236k rows, ~10.6k active), so `/api/customers` is
+server-side paged/searched/sorted (sort fields whitelisted; export capped at 20,000).
+Product status: Delisted = category group "Delisted", else Phased Out = `PhOut`.
+
+## File storage (Azure Blob) and company logos
+
+`IFileStorage` → `Infrastructure\Storage\BlobFileStorage` on storage account **`sthomsyssea`** (rg-homsys-sea,
+private containers, created 2026-10-14). Connection string = App Service setting `Storage__ConnectionString` (local:
+`appsettings.Development.json`, never committed). `Storage:ContainerSuffix` (`-dev` locally) keeps a test API on a
+live-DB copy from overwriting live files. **Company logo** (`Company.LogoBlob/ContentType/Size/UpdatedAt`, migration
+`CompanyLogo`, container `company-logos`): PNG/JPG only (checked by magic bytes), shrunk in the browser first
+(`core/utils/image-shrink.ts`, ≤600×240, usually a few KB; size shown in KB), server cap 300 KB.
+`GET api/companies/{id}/logo` is anonymous (for `<img>`, `?v=LogoVersion`). Used on the TASAF print / PDF header:
+the proponent's company, else the first active company (`CompanyService.LogoDataUriForUserAsync`).
+
+## TASAF module (Trade Activity Spend Approval Form)
+
+Web version of `TASA Form_MT version template 2026.xlsx` (trade marketing; source:
+OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
+
+- **Masters** (`TasafLookups.cs`, mapping + seed from the workbook's DATA sheet in
+  `Infrastructure\Data\TasafModel.cs`): 11 tables sharing `TasafLookup`, all served by
+  one `TasafMasterService`/`TasafMastersController` (`api/tasaf-masters/{key}`) and one
+  page `/tasaf-setup`. Adding a list = entity + DbSet + entry in
+  `TasafMasterService.Masters` + `TasafLookupRepository.Sets`. Referenced rows can't be
+  deleted (FK Restrict) — deactivate instead.
+- **Form** (`Tasaf` + Branches/Products/Costs/Actions, `TasafService`, `/tasafs`). A saved TASAF opens read-only;
+  the toolbar **Edit** unlocks it (proponent, Draft / Returned only) until the next Save or Cancel (`editing` signal).
+  Branches = active Sites + "ALL BRANCHES/LUZON/VISAYAS/MINDANAO" (SiteId null).
+  Area is MULTI-select (`TasafAreaLinks` child rows → `AreaIds`/`AreaNames`; migration `TasafMultipleAreas`).
+  Channel likewise (`TasafChannelLinks` → `ChannelIds`/`ChannelNames`; migration `TasafMultipleChannels`).
+  Each area lists its branches (`TasafArea.BranchCodes`, Site codes, Setup › Areas; defaults by migration
+  `TasafAreaBranches`, corrected by `TasafAreaBranchesFromCustomers` from cust4win NREGION via WhseNo — NREGION is filled
+  for only ~1% of customers, so it is not a filter itself; Nationwide blank = all).
+  Since migration `TasafAreasByRegion` the active areas are the NREGION names: NCR, North Luzon, South Luzon
+  (+ Bicol), Visayas, West Mindanao, Central Mindanao, MT/NKA (blank = all). The other 12 workbook areas are
+  deactivated, not deleted, because saved TASAFs still link to them (South Luzon kept its row: names are unique). With an area picked, the Branch dropdown
+  lists only its Sites (no ALL … scopes) and changing the area drops branches outside it. The Cust Key dropdown (`GET tasafs/customer-options?chainId=&areaIds=&siteIds=`)
+  = active customers matching the chain keywords AND belonging to the picked branches (Sites) — or, with no branch / an
+  ALL … scope picked, the picked areas' branches. A customer belongs to
+  a Site when its `WhseNo` is in the Site's `Cuwhsenos` (any folder); a Site with no Cuwhsenos (HON-B) owns its
+  folder's unclaimed WhseNos (hon 22 = GMA). Shared hon WhseNos (21/26/23/45) land in several sites. Max 8000.
+  Cust Key is MULTI-select (`TasafCustomers` child rows, names re-read from cust4win on save, max 2000).
+  Picking a Customer / Chain loads its stores into a multi-select (`GET tasafs/chain-customers/{id}`)
+  — active `Customers` whose CusName matches any of the chain's `CustomerMatch` keywords (comma-separated
+  LIKE fragments, edited in Setup › Customers / Chains; defaults seeded by migration
+  `TasafChainCustomerMatch`). cust4win has no chain column, so the name is the only link. No keywords
+  or no match → the free customer search. Each chain has a Sales Group (`TasafChain.SalesGroupId`, seeded
+  by migration `TasafChainSalesGroups` from `Book1.xlsx` MODERN TRADE: NKA = SVI/Puregold/Robinson/Waltermart/
+  Landmark, the rest RKA; LKA Others → LKA, RDP Others → GT). The form lists only the picked group's chains — and, with branches / areas picked,
+  only chains with stores there (`GET tasafs/chain-store-counts`, count in the label; keyword-less chains always shown) —
+  picking a chain fills an empty Sales Group, and switching group clears a chain from another group.
+  **Sales group users** (`TasafSalesGroupUsers`, Setup › Sales Groups › Users, migration `TasafSalesGroupUsers`
+  seeds the KAMs): a proponent in sales groups sees only those in the form's Sales Group (pre-filled when just
+  one; the server refuses another — `TasafService.OwnSalesGroupIdsAsync`). Admins, View All, and users in no
+  group see every group. Program duration = `StartDate`/`EndDate` (date pickers).
+  **Account Support & Convention** program types (name starts "ACCOUNT SUPPORT" or is "Convention";
+  `TasafService.IsSupportProgram` + the form's `isSupport()`): Participating Products hidden and not saved,
+  no Pre-Promo / Incremental Sales, Promoted Value relabelled "Annual Projected Sales", section titled
+  "Account Support & Convention Computation". Listing Fee is NOT included (same approval matrix, but not this rule).
+  **Product scope** (Book2.xlsx, 2026-10-14; migration `TasafProductHierarchy`): **Product Category** = the
+  `product-groups` list (`TasafProductGroup`, code 01–10 = product master GroupNo; CORP deactivated), edited on
+  **Master Data › Product Categories** (`/product-categories`, the TASAF Setup editor with route data `masters`; no
+  longer in TASAF Setup). **Sub-Category** and **Segment** have no HOMSys list: they are the product master's
+  `ProductCategories` rows (the Products page) for the picked categories — code "2a", Sub-Category = SubCat ("Peas"),
+  Segment = GroupDesc ("Green Peas"). Category + Sub-Category are multi-select (`TasafProductCategoryLinks`;
+  `TasafSubCategoryLinks` holds Code + a Name / Segment snapshot taken on save); Segments show automatically. None
+  picked for a category = the whole category. SKU list: a Sub-Category = its code, a bare category = its GroupNo.
+  **LSP / Case** = the picked Cust Keys' price **with VAT** as of StartDate (today if blank): base price + ZONE + ZONE2 add-ons,
+  the Sales Order rule, bulk-priced by `TasafPriceService` (`POST tasafs/product-prices`, grouped by price; `IncludesVat`
+  const). Blank until Cust Keys are picked. All picked stores must share ONE price per SKU — Submit is refused otherwise
+  and the form offers "keep only the stores at X". LSP stays editable; `TasafProduct.LspComputed` (set on save) shows
+  approvers the computed price when it was changed.
+  Server recomputes TotalCost, product PromotedValue (vol × LSP), and promoted /
+  incremental sales and PrePromoSales (Σ P3Mo Avg cs × LSP, SPLY when P3M is blank) from products when any
+  are listed (a row counts once it has a SKU — blank rows are dropped).
+- **Workflow** ("Simplified Approval Matrix", `Data Fields for IT.xlsx` › TASAF):
+  Draft → For Approval → Approved, signed **sequentially** by a chain built at submit
+  into `TasafApprovalStep`s. Two approval matrices = `TasafApprovalType` (1 Promo /
+  Near Ex Moveout, 2 Listing Fees, Conventions, Other Account Support); each
+  `TasafProgramType.ApprovalTypeId` picks one. `TasafApprovalRule` (type × role, setup ›
+  Approval Rules) says when a role signs: `OverAmount` null = always, else only when
+  the total is **more than** it (Promo: GKAM, TMM, NSM >20k, NSD >50k, COO >100k;
+  Support: GKAM, TMM, NSM >20k, NSD + COO always). No rule = not required. Signing
+  order = role `SortOrder`. The person per role is per sales group in `TasafApprover`
+  (setup › Approval Matrix); a vacant cell = step `Skipped`.
+  Any approver can Return (→ Returned, editable; resubmit rebuilds the chain) or
+  Reject; both need a comment. Mode of Payment = ONE payment type per TASAF (dropdown), carrying the whole
+  TotalCost (saved into that type's `PayXxxAp` field; the Salesman fields are no longer used → 0). Submit
+  requires exactly one payment type, payment total = TotalCost and
+  CTS ≤ the program type's `MaxCtsPercent` (8% on PROMO- types) — or, when over it, a `CtsJustification`
+  (textarea under Computation, shown to approvers; migration `TasafCtsJustification`).
+  RefNo `YEAR-SG-INITIALS-NN` (workbook GUIDE sheet, e.g. `2025-RKA-ER-03`) assigned on the FIRST
+  SAVE that has a Sales Group (user decision 2026-10-14; was first submit) and kept for good
+  (`TasafService.PrepareRefNoAsync` → `TasafRepository.SaveWithRefNoAsync`, retries on the
+  unique index; a changed Sales Group only re-labels SG while editable). YEAR = Manila date at first save; SG = sales group Code; INITIALS = first letter
+  of the proponent's FirstName + LastName (`Juan Dela Cruz Jr.` → `JD`); NN = ONE continuous
+  series across all TASAFs (every year, sales group and proponent), never resets, no 99 cap
+  (`2026-RKA-ER-01`, `2026-NKA-MV-02`, … `2027-RKA-ER-58`, … `100`). The form header previews `2026-RKA-ER-NN` before the first save. Deleted drafts leave gaps in the series.
+  The number is stored in `Tasaf.RefSeq` (unique index → concurrent submits retry) and comes from
+  **TASAF Setup › Numbering** (`TasafNumbering`, single row Id 1, `api/tasaf-masters/numbering`):
+  next = max(NextNumber, highest RefSeq + 1), zero-padded to MinDigits (default 2). Admins can
+  raise NextNumber (e.g. to continue the Excel series) but never to a number already used.
+- **Access**: `tasaf` (17) create/see own + those you review/approve; `tasaf-view-all`
+  (18); `tasaf-masters` (16). GKAMs and approvers also need `tasaf` to open the page.
+  **Delete is Admin-only** (`[Authorize(Roles = "Admin")]` + `TasafService.CanDelete`), and
+  **Approved / Cancelled are never deleted** (kept for the record). Mistakes are fixed with:
+  - **Revert** (Admin, `POST {id}/revert`, reason required): For Approval / Approved / Rejected →
+    Returned to the proponent; signed steps stay as history, resubmit rebuilds the chain.
+  - **Cancel** (proponent or Admin, `POST {id}/cancel`, reason required): any status except
+    Approved (revert first) → **Cancelled**, terminal; unsigned steps become Skipped.
+  Both log a `TasafAction` and notify the proponent, the waiting approver and everyone who signed.
+- **Email approval (no login)**: the "TASAF for your approval" email is the whole TASAF (`TasafEmailRenderer`, form  order) with ONE **Review & Decide** button → `/tasaf-decision?t=` (Approve / Return / Reject + comment there, nothing pre-selected; public route, `TasafEmailController`  `api/tasaf-email`, `[AllowAnonymous]`). The token is a one-time 256-bit secret per approval step; only its SHA-256  is stored (`TasafApprovalStep.EmailTokenHash`/`EmailTokenExpires`, 30 days, migration `TasafStepEmailToken`) and it  works only while that step is the current pending one. GET never decides (mail scanners open links); the POST  needs a comment. Logged as "Approved / Returned / Rejected via email". A comment is required for EVERY decision  (app and email, `DecideCoreAsync`); the approve comment is quoted in the proponent's progress / approved message.
+- **Notifications**: generic `Notification` table + `NotificationService.SendAsync` (also queues an email per active
+  recipient with an Email — `IEmailQueue` → `HOMSys.API/Email/EmailSenderService` via Azure Communication Services;
+  off until `Email:Enabled`/`ConnectionString`/`FromAddress` are set as App Service settings `Email__…`; the link is
+  `{WebUrl}{Link}?id={EntityId}`, which the TASAF page opens, and login honours `returnUrl`)
+  (any module), `api/notifications`, topbar bell polls every 60 s. A notification's
+  `Link` is navigated with state `{ <EntityType>Id: EntityId }`.
+
+## Form Designer (admin-arranged form layouts)
+
+VB-style designer on a 12-column snap grid: move/resize fields, relabel, hide optional
+ones, set tab order. **Admin only** (toolbar `design` action, set by the page only for `isAdmin()`;
+`PUT/DELETE api/form-layouts/{formKey}` are `[Authorize(Roles = "Admin")]`, GET is any
+signed-in user). One `FormLayouts` row per form (`LayoutJson`, shape owned by the
+frontend); no row = the built-in default. Only the TASAF form uses it so far.
+
+- Frontend: `core/models/form-layout.model.ts` (types, `mergeLayout`, push-down
+  collision resolve), `shared/form-designer/` (the designer), `FormLayoutService`.
+- Converting a form: declare its `FormFieldDef[]` with default positions (see
+  `tasafs/tasaf-page/tasaf-layout.ts`; `required` = can't be hidden — keep it in sync
+  with the server's submit checks), render `@for (it of shown()) <div class="fl-cell"
+  [style]="cellStyle(it)">@switch (it.key) …`. Items render in tab order, so DOM/Tab
+  order follows the layout; under 800px it falls back to one column. Renaming a field
+  key orphans its saved placement (it reappears at the bottom with defaults).
+
 ## Working with DBF files
 
 `Infrastructure\Data\Dbf\DbfReader.cs` handles reads. Two traps already paid for:

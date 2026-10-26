@@ -19,7 +19,10 @@ const GROUPS: DashboardGroup[] = [
   {
     title: 'Master Data',
     cards: [
-      { label: 'Companies',         icon: 'pi-building',           route: '/companies/list',    permission: 'companies' },
+      { label: 'Customers',         icon: 'pi-id-card',            route: '/customers',         permission: 'customers' },
+      { label: 'Products',          icon: 'pi-box',                route: '/products',          permission: 'products' },
+      { label: 'Product Categories', icon: 'pi-tags',              route: '/product-categories', permission: 'tasaf-masters' },
+      { label: 'Companies',        icon: 'pi-building',           route: '/companies/list',    permission: 'companies' },
       { label: 'Departments',       icon: 'pi-sitemap',            route: '/departments/list',  permission: 'departments' },
       { label: 'Sites',             icon: 'pi-map-marker',         route: '/sites/list',        permission: 'sites' },
       { label: 'Site Types',        icon: 'pi-tag',                route: '/site-types/list',   permission: 'site-types' },
@@ -40,6 +43,13 @@ const GROUPS: DashboardGroup[] = [
       { label: 'Sales Orders',      icon: 'pi-file-edit',              route: '/sales-orders/list', permission: 'sales-orders' },
       { label: 'OOS Report',        icon: 'pi-exclamation-triangle',   route: '/oos-report',        permission: 'oos-report' },
       { label: 'Pricelist Export',  icon: 'pi-file-excel',             route: '/pricelist-export',  permission: 'pricelist-export' }
+    ]
+  },
+  {
+    title: 'Trade Marketing',
+    cards: [
+      { label: 'TASAF',         icon: 'pi-file-edit', route: '/tasafs/list', permission: 'tasaf' },
+      { label: 'TASAF Setup',   icon: 'pi-cog',    route: '/tasaf-setup',  permission: 'tasaf-masters' }
     ]
   },
   {

@@ -32,8 +32,35 @@ import { LayoutService } from '../../core/services/layout.service';
         </li>
         <li class="menu-sub-divider"></li>
 
-        @if (auth.isAdmin() || auth.hasPermission('companies') || auth.hasPermission('departments') || auth.hasPermission('sites') || auth.hasPermission('site-types') || auth.hasPermission('legacy-monitoring')) {
+        @if (auth.isAdmin() || auth.hasPermission('companies') || auth.hasPermission('departments') || auth.hasPermission('sites') || auth.hasPermission('site-types') || auth.hasPermission('legacy-monitoring') || auth.hasPermission('products') || auth.hasPermission('customers') || auth.hasPermission('tasaf-masters')) {
           <li class="menu-group">Master Data</li>
+        }
+        @if (auth.isAdmin() || auth.hasPermission('customers')) {
+          <li>
+            <a routerLink="/customers" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" (click)="onNavClick()">
+              <i class="pi pi-id-card"></i>
+              <span>Customers</span>
+            </a>
+          </li>
+        }
+        @if (auth.isAdmin() || auth.hasPermission('products')) {
+          <li>
+            <a routerLink="/products" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" (click)="onNavClick()">
+              <i class="pi pi-box"></i>
+              <span>Products</span>
+            </a>
+          </li>
+        }
+        @if (auth.isAdmin() || auth.hasPermission('tasaf-masters')) {
+          <li>
+            <a routerLink="/product-categories" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" (click)="onNavClick()">
+              <i class="pi pi-tags"></i>
+              <span>Product Categories</span>
+            </a>
+          </li>
+        }
+        @if (auth.isAdmin() || auth.hasPermission('customers') || auth.hasPermission('products') || auth.hasPermission('tasaf-masters')) {
+          <li class="menu-sub-divider"></li>
         }
         @if (auth.isAdmin() || auth.hasPermission('companies')) {
           <li>
@@ -162,6 +189,33 @@ import { LayoutService } from '../../core/services/layout.service';
           </li>
         }
 
+        @if (auth.isAdmin() || auth.hasPermission('tasaf') || auth.hasPermission('tasaf-masters')) {
+          <li class="menu-group">Trade Marketing</li>
+        }
+        @if (auth.isAdmin() || auth.hasPermission('tasaf')) {
+          <li>
+            <a routerLink="/tasafs" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" (click)="onNavClick()">
+              <i class="pi pi-file-edit"></i>
+              <span>New TASAF</span>
+            </a>
+          </li>
+          <li>
+            <a routerLink="/tasafs/list" routerLinkActive="active" (click)="onNavClick()">
+              <i class="pi pi-list"></i>
+              <span>TASAF List</span>
+            </a>
+          </li>
+        }
+        @if (auth.isAdmin() || auth.hasPermission('tasaf-masters')) {
+          <li class="menu-sub-divider"></li>
+          <li>
+            <a routerLink="/tasaf-setup" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" (click)="onNavClick()">
+              <i class="pi pi-cog"></i>
+              <span>TASAF Setup</span>
+            </a>
+          </li>
+        }
+
         @if (auth.isAdmin() || auth.hasPermission('users') || auth.hasPermission('roles') || auth.hasPermission('authorization')) {
           <li class="menu-group">User Management</li>
         }
@@ -283,14 +337,20 @@ import { LayoutService } from '../../core/services/layout.service';
       padding: 0.55rem 0.875rem;
       color: rgba(255,255,255,0.82);
       text-decoration: none;
-      border-radius: 3px;
+      border-radius: 8px;
       margin: 0.1rem 0.5rem;
       font-size: 0.83rem;
-      transition: background 0.15s;
+      transition: background 0.15s, color 0.15s;
     }
 
     .sidebar-menu a:hover  { background: rgba(255,255,255,0.1); color: #fff; }
-    .sidebar-menu a.active { background: rgba(255,255,255,0.18); color: #fff; font-weight: 600; }
+    .sidebar-menu a.active,
+    .sidebar-menu a.active:hover {
+      background: #fff;
+      color: #800000;
+      font-weight: 700;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+    }
 
     .menu-sub-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 0.3rem 0.75rem; }
 

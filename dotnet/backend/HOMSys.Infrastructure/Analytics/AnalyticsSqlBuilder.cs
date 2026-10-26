@@ -58,8 +58,25 @@ public static partial class AnalyticsSqlBuilder
             }
         }
 
-        public string JoinSql() =>
-            string.Join("\n", (ds.Joins ?? []).Where(j => Joins.Contains(j.Alias)).Select(j => j.Sql));
+        /// <summary>
+        /// The needed joins in declaration order, but each one after the joins it depends on — an
+        /// OUTER APPLY can only read aliases defined above it (e.g. sw reads cu.WhseNo).
+        /// </summary>
+        public string JoinSql()
+        {
+            var all = ds.Joins ?? [];
+            var done = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var sql = new List<string>();
+            void Emit(Join j)
+            {
+                if (!done.Add(j.Alias)) return;
+                foreach (var dep in j.DependsOn)
+                    if (all.FirstOrDefault(x => string.Equals(x.Alias, dep, StringComparison.OrdinalIgnoreCase)) is { } d) Emit(d);
+                sql.Add(j.Sql);
+            }
+            foreach (var j in all.Where(j => Joins.Contains(j.Alias))) Emit(j);
+            return string.Join("\n", sql);
+        }
     }
 
     private static SqlParameter NewParam(string name, SqlDbType type, object? value)

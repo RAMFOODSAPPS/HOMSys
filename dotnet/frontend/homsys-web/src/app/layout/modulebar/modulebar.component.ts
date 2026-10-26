@@ -111,6 +111,10 @@ export class ModulebarComponent {
       label: 'Master Data',
       icon: 'pi-database',
       items: [
+        { label: 'Customers',         icon: 'pi pi-id-card',  routerLink: '/customers',    permission: 'customers' },
+        { label: 'Products',          icon: 'pi pi-box',      routerLink: '/products',     permission: 'products' },
+        { label: 'Product Categories', icon: 'pi pi-tags',    routerLink: '/product-categories', permission: 'tasaf-masters' },
+        { separator: true, permission: 'products' },
         { label: 'New Company',       icon: 'pi pi-building', routerLink: '/companies',    permission: 'companies' },
         { label: 'Companies List',    icon: 'pi pi-list',     routerLink: '/companies/list', permission: 'companies' },
         { separator: true, permission: 'companies' },
@@ -143,6 +147,16 @@ export class ModulebarComponent {
         { label: 'Data Analytics', icon: 'pi pi-chart-bar', routerLink: '/analytics',           permission: 'data-analytics' },
         { label: 'New Report',     icon: 'pi pi-plus',      routerLink: '/analytics/report',    permission: 'data-analytics' },
         { label: 'New Dashboard',  icon: 'pi pi-th-large',  routerLink: '/analytics/dashboard', permission: 'data-analytics' }
+      ]
+    },
+    {
+      label: 'Trade Marketing',
+      icon: 'pi-megaphone',
+      items: [
+        { label: 'New TASAF',   icon: 'pi pi-file-edit', routerLink: '/tasafs',      permission: 'tasaf' },
+        { label: 'TASAF List',  icon: 'pi pi-list',      routerLink: '/tasafs/list', permission: 'tasaf' },
+        { separator: true, permission: 'tasaf-masters' },
+        { label: 'TASAF Setup', icon: 'pi pi-cog',       routerLink: '/tasaf-setup', permission: 'tasaf-masters' }
       ]
     },
     {

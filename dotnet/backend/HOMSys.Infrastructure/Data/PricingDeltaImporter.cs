@@ -125,9 +125,9 @@ public class PricingDeltaImporter(AppDbContext db)
             product.PriceFrom = d.PriceFrom;
             product.OldPrice1 = d.OldPrice1;
             product.Srp = d.Srp;
-            product.Category = d.Category;
-            product.Barcode = d.Barcode;
-            product.CaseBarcode = d.CaseBarcode;
+            product.Category = d.Category ?? string.Empty;
+            product.Barcode = d.Barcode ?? string.Empty;
+            product.CaseBarcode = d.CaseBarcode ?? string.Empty;
         }
 
         await db.SaveChangesAsync();
@@ -167,8 +167,8 @@ public class PricingDeltaImporter(AppDbContext db)
             if (existing.Remove(u.CategoryCode, out var row))
             {
                 row.GroupNo = u.GroupNo;
-                row.GroupDesc = u.GroupDesc;
-                row.SubCat = u.SubCat;
+                row.GroupDesc = u.GroupDesc ?? string.Empty;
+                row.SubCat = u.SubCat ?? string.Empty;
                 row.SeqNo = u.SeqNo;
                 updated++;
             }
@@ -178,8 +178,8 @@ public class PricingDeltaImporter(AppDbContext db)
                 {
                     CategoryCode = u.CategoryCode,
                     GroupNo = u.GroupNo,
-                    GroupDesc = u.GroupDesc,
-                    SubCat = u.SubCat,
+                    GroupDesc = u.GroupDesc ?? string.Empty,
+                    SubCat = u.SubCat ?? string.Empty,
                     SeqNo = u.SeqNo,
                 });
                 inserted++;

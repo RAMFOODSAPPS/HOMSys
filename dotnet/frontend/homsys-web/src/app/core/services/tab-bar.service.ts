@@ -33,6 +33,12 @@ const ROUTE_META: Record<string, { label: string; icon: string }> = {
   '/oos-report':        { label: 'OOS Report',       icon: 'pi-exclamation-triangle' },
   '/pricelist-export':  { label: 'Pricelist Export', icon: 'pi-file-export' },
   '/legacy-monitoring': { label: 'Legacy Monitoring', icon: 'pi-sync' },
+  '/products':          { label: 'Products',         icon: 'pi-box' },
+  '/customers':         { label: 'Customers',        icon: 'pi-id-card' },
+  '/tasafs':            { label: 'New TASAF',        icon: 'pi-file-edit' },
+  '/tasafs/list':       { label: 'TASAF List',       icon: 'pi-list' },
+  '/tasaf-setup':       { label: 'TASAF Setup',      icon: 'pi-cog' },
+  '/product-categories': { label: 'Product Categories', icon: 'pi-tags' },
 };
 
 const TABS_STORAGE_KEY   = 'homsys_tabs';
@@ -64,7 +70,7 @@ export class TabBarService {
 
       // If navigating with an entity state, the page component will call openTab explicitly
       const navState = history.state as Record<string, unknown>;
-      if (navState?.['userId'] || navState?.['roleId'] || navState?.['companyId'] || navState?.['departmentId'] || navState?.['siteId'] || navState?.['siteTypeId'] || navState?.['soId'] || navState?.['draftKey'] || navState?.['reportId'] || navState?.['dashboardId'] || navState?.['analyticsSpec']) return;
+      if (navState?.['userId'] || navState?.['roleId'] || navState?.['companyId'] || navState?.['departmentId'] || navState?.['siteId'] || navState?.['siteTypeId'] || navState?.['soId'] || navState?.['tasafId'] ||navState?.['draftKey'] || navState?.['reportId'] || navState?.['dashboardId'] || navState?.['analyticsSpec']) return;
 
       const key = url;
       this.activeKey.set(key);

@@ -1,4 +1,5 @@
 using HOMSys.Application.DTOs.Pricing;
+using HOMSys.Application.DTOs.Products;
 using HOMSys.Domain.Entities;
 
 namespace HOMSys.Application.Interfaces;
@@ -18,4 +19,12 @@ public interface IProductRepository
     /// renders in.
     /// </summary>
     Task<List<PriceListProductRow>> GetPriceListWithCategoryAsync();
+
+    /// <summary>Every product joined to its category (Products page), ordered GroupNo, SeqNo, ProdNo. Status is left blank.</summary>
+    Task<List<ProductCatalogDto>> GetCatalogAsync();
+    /// <summary>Product master categories (prodcat): code, SubCat, GroupDesc, GroupNo — by GroupNo, SeqNo.</summary>
+    Task<List<HOMSys.Domain.Entities.ProductCategory>> GetCategoriesAsync();
+
+    /// <summary>PRCHST rows for one product, newest first.</summary>
+    Task<List<PriceHistory>> GetPriceHistoryAsync(int prodNo);
 }
