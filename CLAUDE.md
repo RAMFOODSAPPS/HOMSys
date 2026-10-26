@@ -45,14 +45,6 @@ launcher card, a route in `app.routes.ts` with `data: { permission: '...' }`, a
 seeded `Permission` + `RolePermission` in `AppDbContext.OnModelCreating` (+
 migration), and an `AddPolicy` line in `Program.cs`.
 
-**Permission IDs are shared with other branches of work.** Before seeding a new
-`Permission`, check `origin/main` and the prod `Permissions` table for the next
-free Id. On 2026-10-26 Collections (local) and TASAF (GitHub, already on prod)
-both used 16–20; Collections was renumbered to 21–27 (TASAF keeps 16–20). Apply
-prod schema with `dotnet ef database update --connection`, not the idempotent
-script (an older migration fails SQL Server's compile check), and pass `-I` to
-sqlcmd for anything that creates filtered indexes.
-
 ## legacy\
 
 Read-only reference material for the BMS system being replaced. **Nothing here is
@@ -279,74 +271,6 @@ This automates the old UTIL18 TCODE 31 (`download7`) → emailed `B#######.ZIP` 
   - The bridge queues `offshore_received` and the order becomes **Transferred**. It keeps a `REPORTED.txt` folder until HOMSys stops listing the order.
   - Reconcile skips offshore orders until they are received.
 - **Not carried:** oowkhdr's four T (datetime) columns (encode-speed stamps) and tparprod.
-
-### Deposit slip / transfer ref. no. — optional
-
-Since 2026-10-15 a deposit (CR, PDC deposit, RA payment) needs only the **bank account and date**; the slip / transfer ref. no. may be empty.
-- **With a ref. no.:** it still groups the collections deposited together (find-or-create per branch + bank + ref).
-- **Without one:** the deposit is the collection's (or RA's) own and is never shared. `AssignDepositAsync` / `AssignRaDepositAsync` reuse their own empty-ref batch on edit.
-- **Unique index:** `IX_DepositBatches_SiteId_Bank_SlipRefNo` is filtered to `[SlipRefNo] <> ''` (migration `DepositSlipRefOptional`).
-- **Bank matching:** an empty ref simply never matches by reference (`SlipInLine` needs 4+ characters); matching falls back to amount + date.
-
-### Bank accounts and statements
-
-**Bank accounts are kept in HOMSys** (Bank Statement page → Bank accounts). The BANKS4W sync was removed on 2026-10-16 (user): `homs_banks_sync.py` and `HomsBankImporter` are deleted, and `LegacyMasterWatcher.exe` skips (and logs) any old `homs-banks` config entry. `POST collections/sync/homs-banks` still answers an older exe with success but changes nothing.
-- **Add / edit:** bank code, account no., name, HOMS GL (`HomsAcctNo`, required: the deposit picklist and the HOMS OR need it), HOMS bank abbreviation (RECBANK, defaults to the code) and branches. Statements can be imported only for the layout banks (BDO, BPI, MBTC, PBCOM, CBC, SBC). Slips keep the label they were made with (`DepositBatch.Bank`), so a number in use can still be corrected.
-- **The 29 accounts that came from BANKS4W** (`Synced`) keep BANKS4W's number in `HomsBankAc`; the HOMS posting writes that in DEPBANK, even after the number is corrected in HOMSys.
-- **Delete** only works on an account with no deposits and no statement uploads. One that came from BANKS4W becomes a hidden row (`DeletedAt`, it still holds its GL and number); a HOMSys one is removed. Migration `BankAccountEditDelete`.
-- **CSV quotes.** SBC doesn't escape quotes inside its Narrative (`"DB REF NO. SE-101226-00119"Pymt to PhilHealth "`). The reader ends a quoted field only at a quote followed by a comma, a line break or the end of the file. The old reader merged the next rows into one cell, and SBC_10152026.csv lost 4 of its 16 lines (fixed and re-imported 2026-10-16).
-- **Re-uploads** (user 2026-10-16): the same day, or even the same file, can be uploaded again; only lines the account doesn't have yet come in. Lines are matched by date + debit + credit + running balance, counted, not by their text (portals reword or re-time lines between downloads). A file with nothing new is refused ("Nothing new to import") and the preview's Import button says how many are new.
-- **Account no. check on upload** ignores formatting and leading zeros (PBCOM's statement prints 224101003715 for HOMS's 0224101003715).
-- **Land Bank (LBP)** statements import since 2026-10-16 (sample `templatesanks\data\LBP_10152026.xlsx`: .xlsx, typed dates, newest first by balance, "Check No." / "Other Details" columns). The account's code was changed from LAND BANK to LBP; HOMS RECBANK stays LAND BANK.
-- **CBC dates** come both as `10/7/2026 8:46` and (since 2026-10-16) `10/15/26 9:04 PM`; both are in `DateFormats`. A row whose date doesn't parse is skipped, so a new date style shows as "The file has no transactions".
-
-### Remittance Advice (NKA chains)
-
-Added 2026-10-15 and revised after a review against HOMS the same day. An NKA chain (e.g. SVI) pays one check that covers several ORs, and sends one **RA Excel** per OR. Samples: `C:\dump\SVI - LUZON 28571.XLS`, `SVI - VISMIN 23897.XLS`, plus already-posted ones `SVI- LUZON 21312- done.xls` and `SVI 21764 1.xlsx`. All chains use the same layout.
-- **Who.** Permission 27 `collections-ra-encode` is seeded with the **Custodian Verifier** role (27, 21, 24). They work at Head Office and can open every branch. They encode a normal CR, or a Remittance Advice on `/collections/remittance`.
-- **Model.**
-  - `Remittance` is the payment: chain, check, amount, one `DepositBatch`.
-  - It holds 1+ `Collection` CRs (`RemittanceId`, site **HO**).
-  - Each CR has `RemittanceLine`s, one per invoice block of its Excel.
-  - The **OR no. and DCR no. are pre-filled from the Excel's OR NO. / DCR NO. and stay editable.** They match HOMS (OR 21312 / DCR 291262, OR 21764 / DCR 287886). The OR date, amount, desk and invoice lines also come from the Excel.
-  - `HomsDeptCode` is 32 for `FOR LUZON` and 31 for `FOR VISMIN`. `DcrNo` goes into the OR header's DCRNO. `HomsDocMap` has `HO` at prefix 0.
-  - An upload is refused if its chain, check no. or DEPOSIT BANK ACCTNO (the HOMS GL of the deposit account) doesn't match the RA.
-- **How HOMS posts NKA ORs, so how HOMSys applies them.** Checked on OR 21312 and OR 21764:
-  - DR bank GL (10212) for the check amount, and CR 10301 per invoice for the **net** only.
-  - **No CEWT or deduction lines.** The chain's deductions (CEWT, RFC/BO/RTV, rebates, portal / crossdock fees, "unidentified") stay open on A/R in HOMS and BMS; BMS RFCs close some of them later.
-  - So an RA CR applies **only the net** of each line that matches its invoice and has **no `CollectionDeductions`**. The deductions are kept on the lines (`DeductionsJson`, `Cewt` / `RfcBoRtv` / `Other`) for the checks and the verifier.
-  - Its HOMS OR is never held for deductions. Don't reintroduce deductions for RA CRs: a later BMS RFC would count twice.
-- **Parser.** `RemittanceAdviceParser` reads columns by their label. Each block is one custkey row, then deduction rows, then a `Total` row with the net. The `Total:` row must equal CHECK AMOUNT.
-  - `Cewit` → CEWT.
-  - `Rfc/Bo/Rtv`, or a remark starting with RTV/RFC/BO → RfcBoRtv.
-  - Any other Amount with a deal code or remark → Other, with that remark.
-  - ExcelDataReader closes the stream it reads, so parse a copy.
-- **Counter-check.** `ResolveLinesAsync` in `CollectionService.Remittance.cs`, a partial of `CollectionService`. It re-runs on upload, on re-match and at submit.
-  - The warehouse is the invoice no.'s first two digits (DocNo / 1,000,000).
-  - Invoices not in HOMSys are queued per warehouse as `InvoiceSyncRequest`s (flag Fetching). The page re-matches every 8 s until they arrive.
-  - **No accepting differences** (user 2026-10-15). A line that doesn't match its invoice blocks submit until the uploader corrects the RA Excel and uploads it again (Replace).
-    - Blocking flags: GrossDiff, **VatExcluded** ("VAT excluded?": RA gross = invoice total ÷ 1.12 within rounding, e.g. SVI's Butuan invoices), CustDiff, DateDiff, RfcDiff, NetMismatch, OverBalance, Duplicate, Fetching, NotFound.
-    - **RfcDiff** (the RA's RFC/BO/RTV vs the RFCs posted in BMS) **blocks too** (user 2026-10-15, reversing the earlier "information only"): an RTV the chain deducted with no matching RFC in BMS means the records aren't aligned.
-      - SVI types RTVs as a remark ("RTV") with the figure in the Amount column; the Rfc/Bo/Rtv column is empty in every sample. Past RTVs (OR 21764) still had no RFC against their invoice a year later, so expect RAs to wait on BMS.
-      - It clears when BMS posts the RFC: `QueueFetchesAsync` re-requests the invoice from HO for every RfcDiff line (at most every 30 min per line, `RfcRecheckEvery`), and the line shows Fetching until the watcher answers. Opening the RA page calls re-match once when it has RfcDiff lines, so a re-check happens without re-uploading.
-    - The label also shows the invoice's **RFC #s** (first two + "+N"; dates and amounts on hover).
-      - Since 2026-10-15, `sl_sync.read_sl_file` sends one entry per RFC: the DOCID=6 row's DOCNO as `rfcNo`, plus `rfcDate`. `PostedRfc` keeps `RfcNo` / `RfcDate` (migration `PostedRfcNumbers`; unique on WhseNo + SourceFile + InvoiceNo + RfcNo).
-      - An older watcher's per-invoice sum arrives as `RfcNo` 0 ("RFC # not synced yet") and is replaced the next time the invoice is fetched.
-      - **Rebuild and redeploy `LegacyMasterWatcher.exe` for production to send RFC #s.**
-    - The acceptance columns were dropped by migration `RemoveRemittanceLineAcceptance`.
-  - The gross is compared with the BMS invoice total **with VAT, after its trade discount**. That is what chains pay: 49 of 56 SVI invoices match it. List price w/ VAT matches none, because 54 of 56 carry DISCOUNT2.
-  - Flags that have to be fixed by re-uploading: Fetching, NotFound, OverBalance (net > open balance), Duplicate.
-  - The line table's **Variance** column = Gross (RA) − System (0.00 = match; negative = the RA shows less, e.g. −604.32 on a Butuan VAT-excluded line).
-  - Hovering **Over balance** shows the open balance: invoice total + RFCs posted in BMS − every other live receipt on it, drafts included. It also names those receipts (`OtherReceiptsAsync`, e.g. "CR 23897 DAV-B (Draft) 7,606.08").
-- **Page** (`remittance-page`, claude.ai/design "Remittance Advice", project d9fee8dd…).
-  - Layout: RA list (search, status chips, ↑/↓), then Payment / History column, then Collection receipts (CR cards, CR fields, tiles, Needs review / Matched / All, line table with Variance).
-  - The list opens an RA **in place**: one tab, whose state remembers `remittanceId`.
-  - The RA list is always shown; there is no page header (user 2026-10-15).
-  - Void / Submit (or Return / Verify) sit in the Collection receipts header, and **+ Add CR** is always the first tile of the CR row.
-  - **Export** (beside the Check column header) downloads the lines shown, with the current filter and search, to Excel (`ExportService.exportExcelRows`). Money columns stay numeric (`#,##0.00`), and the sheet adds the full check text, every RFC # and the deduction remarks.
-  - Styles live in `styles.scss` under `.ra-*`.
-- **Workflow.** The single-CR submit / verify / return / void / edit refuse RA members (`InRa`). Submit needs, for every CR: the Excel, OR + DCR no. and every line matching its invoice. The CRs must also add up to the payment. An OR soft copy is optional. The Finance Verifier verifies or returns the **RA**; Verify runs `VerifyCoreAsync` on each CR, giving one OR per CR. The Verification Queue lists RAs as their own rows and opens the RA page.
-- **Sample data (2026-10-15).** 56 invoices. 7 BUT invoices show the gross without VAT. 73014123 has a different custkey, 73014078 a different date. 32019017 (PAN) has an RFC posted in BMS larger than its total (OverBalance). Local RA test data was cleared on 2026-10-16 (backup `HOMSysDb_pre_ra_clear_20261016.bak`), so every OR no. is free again.
 
 ### Reference data import — removed
 

@@ -13,8 +13,7 @@ Usage: SalesOrderBridge.exe <marker-file-path> [bms-directory] [so-no] [action] 
        SalesOrderBridge.exe --drain [bms-directory]   (scheduled 5-min catch-up)
 Offline-safe: single-SO actions are written to <bms-directory>\\homsys_outbox\\
 first and VFP is released immediately; see outbox.py.
-(inv-no only with CANCELINV -- a1174.scx Invoice Cancellation -- or RFCINV; with
-DELETESO -- a1110.scx Delete of an uninvoiced S.O. -- that slot is the BMS user. RFCPOST
+(inv-no only with CANCELINV -- a1174.scx Invoice Cancellation -- or RFCINV. RFCPOST
 -- c1110k2.scx toRFC, RSR -> auto-posted RFC -- takes so-no 0 and, in place of
 inv-no, "D"+DTOS(posting date) or comma-separated RFC numbers.)
 The default and PROCESS single-SO actions also queue the live oowkdet
@@ -47,10 +46,7 @@ direct user instruction.
 
 Config comes from C:\fox\client\config.json — the same per-branch file
 BMS_auto_Distribution's bms-client.ps1 already deploys, so no separate
-per-machine setup step. Only the server has it; a BMS client PC (which
-runs this exe from BMSRAM like the server does) reads the server's copy
-at \\<server-pc>\fox\client\config.json, <server-pc> being the host of
-the BMSRAM folder VFP passes as argv[2]. Keys read from it (alongside its existing
+per-machine setup step. Keys read from it (alongside its existing
 tenant_id/branch_id/destination/etc.):
   homsys_api_url    base URL, e.g. "http://homsys-host:5200"
   homsys_api_key    must match HeadlessApiKey (shared with the legacy
@@ -104,40 +100,6 @@ from dbf.stage import (APPENDED_FIELD, OFFSHORE_DUP_FIELD, OOWKHDR_RESYNC_FIELDS
 from dbf.writer import DbfWriter
 
 CONFIG_JSON_PATH = r"C:\fox\client\config.json"
-
-
-def _unc_host(path: str) -> str | None:
-    """Server name behind a data folder: the host of a \\\\host\\share path, or
-    of the share a mapped drive letter points to."""
-    if not path:
-        return None
-    if path.startswith("\\\\"):
-        return path[2:].split("\\", 1)[0] or None
-    drive = os.path.splitdrive(os.path.abspath(path))[0]
-    if len(drive) != 2:
-        return None
-    try:
-        import ctypes
-        buf = ctypes.create_unicode_buffer(1024)
-        size = ctypes.c_ulong(len(buf))
-        if ctypes.windll.mpr.WNetGetConnectionW(drive, buf, ctypes.byref(size)) == 0:
-            return _unc_host(buf.value) if buf.value.startswith("\\\\") else None
-    except (AttributeError, OSError):
-        pass
-    return None
-
-
-def _config_json_candidates(dbf_root: str = "") -> list[str]:
-    """C:\\fox\\client\\config.json first (the server), then the same file on
-    the server's share. A BMS client PC has no C:\\fox\\client of its own; the
-    server shares it as \\\\<server-pc>\\fox\\client, and <server-pc> is the host
-    of the BMSRAM folder VFP passes as argv[2] -- no server name hardcoded
-    per branch."""
-    paths = [CONFIG_JSON_PATH]
-    host = _unc_host(dbf_root)
-    if host:
-        paths.append(f"\\\\{host}\\fox\\client\\config.json")
-    return list(dict.fromkeys(os.path.normcase(p) for p in paths))
 
 LOG_DIR = os.path.join(os.environ.get("LOCALAPPDATA", "."), "HOMSys")
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -205,31 +167,26 @@ HEADER_CONSTANTS = {
 }
 
 
-def _load_config_json(dbf_root: str = "") -> dict:
-    for path in _config_json_candidates(dbf_root):
-        try:
-            with open(path, "r", encoding="utf-8-sig") as fh:
-                return json.load(fh)
-        except FileNotFoundError:
-            continue
-        except (OSError, json.JSONDecodeError):
-            log.exception("config.json at %s could not be read", path)
-            continue
-    return {}
+def _load_config_json() -> dict:
+    try:
+        with open(CONFIG_JSON_PATH, "r", encoding="utf-8-sig") as fh:
+            return json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return {}
 
 
 class Config:
     def __init__(self):
+        cfg_json = _load_config_json()
+        self.api_url = (cfg_json.get("homsys_api_url") or os.environ.get("HOMSYS_BRIDGE_API_URL", "")).rstrip("/")
+        self.api_key = cfg_json.get("homsys_api_key") or os.environ.get("HOMSYS_BRIDGE_API_KEY", "")
         # VFP passes its own live SYS(5)+SYS(2003) as argv[2] -- the directory
         # the running BMS session is actually in right now. Preferred over
         # config.json/HOMSYS_DBF_ROOT (which are per-machine static config and
         # can drift from wherever this branch's BMSRAM share is really
         # mapped/mounted). Those remain only for manual/standalone runs
-        # outside VFP. Its host also locates the server's shared config.json.
+        # outside VFP.
         dbf_root_arg = sys.argv[2] if len(sys.argv) > 2 else ""
-        cfg_json = _load_config_json(dbf_root_arg)
-        self.api_url = (cfg_json.get("homsys_api_url") or os.environ.get("HOMSYS_BRIDGE_API_URL", "")).rstrip("/")
-        self.api_key = cfg_json.get("homsys_api_key") or os.environ.get("HOMSYS_BRIDGE_API_KEY", "")
         self.dbf_root = dbf_root_arg or cfg_json.get("destination") or os.environ.get("HOMSYS_DBF_ROOT", "")
         self.branch = cfg_json.get("homsys_branch") or os.environ.get("HOMSYS_BRANCH", "")
 
@@ -345,38 +302,6 @@ def post_heartbeat(cfg: Config, timeout: float = HTTP_TIMEOUT) -> None:
         timeout=timeout,
     )
     resp.raise_for_status()
-
-
-def post_bms_date(cfg: Config, trans_date: date, timeout: float = HTTP_TIMEOUT) -> None:
-    resp = requests.post(
-        f"{cfg.api_url}/api/salesorders/bridge/bms-date",
-        headers=_headers(cfg),
-        params={"branch": cfg.branch},
-        json={"transDate": trans_date.isoformat()},
-        timeout=timeout,
-    )
-    resp.raise_for_status()
-
-
-def read_trans_date(cfg: Config) -> date | None:
-    """sysparam.transdate -- the BMS date SO encoding uses as the order date."""
-    path = cfg.path("sysparam.dbf")
-    if not os.path.isfile(path):
-        return None
-    for row in scan_fields(path, ["TRANSDATE"]):
-        return get_date(row, "TRANSDATE")
-    return None
-
-
-def sync_bms_date(cfg: Config, trans_date: date | None = None, timeout: float = HTTP_TIMEOUT) -> None:
-    """Pushes the BMS date to HOMSys. Never raises: EOD/EOM must not fail on it,
-    and the 5-minute drain re-pushes the current value anyway."""
-    try:
-        trans_date = trans_date or read_trans_date(cfg)
-        if trans_date:
-            post_bms_date(cfg, trans_date, timeout)
-    except Exception as ex:
-        log.warning("BMS date sync failed (%s) -- the next drain will retry", type(ex).__name__)
 
 
 INVOICE_FIELDS = ["DOCNO", "STATUS", "INVNO", "INVDATE", "INVAMT"]
@@ -846,46 +771,6 @@ def _post_invoice_cancel(cfg: Config, so_no: int, inv_no: int, action: str) -> b
     log.info("SO %s: synced invoice cancellation of INV %s via %s (%s, %s)",
              so_no, inv_no, action, info["cancel_date"], info["remarks"])
     return True
-
-
-def _trans_date_iso(cfg: Config) -> str | None:
-    """sysparam.transdate as ISO text, or None -- the S.O. delete is dated with
-    the BMS date it happened on, captured at event time (EOD may roll it)."""
-    try:
-        d = read_trans_date(cfg)
-    except OSError:
-        return None
-    return d.isoformat() if d else None
-
-
-def delete_so(cfg: Config, so_no: int, delete_date: str | None, deleted_by: str | None,
-              force: bool = False) -> bool:
-    """a1110.scx Delete (DELETESO): the uninvoiced S.O. is gone from BMS, so
-    HOMSys marks it Cancelled with no invoice. Re-checks BMS first -- a SO#
-    still in oowkhdr/oocuhdr is not deleted (the event is dropped, logged).
-    404 = not a HOMSys order (most BMS orders aren't), dropped by outbox.drain."""
-    if so_no in read_header_states(cfg, {so_no}):
-        log.warning("SO %s: DELETESO received but the S.O. is still in BMS -- not cancelled in HOMSys", so_no)
-        return False
-    body = {"deleteDate": delete_date, "deletedBy": deleted_by}
-    sent = send_once(cfg, f"sodelete:{so_no}", body,
-                     lambda: _post_by_sono(cfg, so_no, "so-delete", body), force=force)
-    if sent:
-        log.info("SO %s: S.O. delete synced (%s, by %s)", so_no, delete_date, deleted_by)
-    return sent
-
-
-def read_deleted_sos(cfg: Config, so_nos: set[int]) -> set[int]:
-    """SO#s among `so_nos` with an a1110 Delete row in canceld.dbf (DOCTYPE "SO").
-    Its structure differs per branch (see a1110's cmddelete) -- DOCNO may be
-    character, and a table with no DOCTYPE column proves nothing, so it is
-    ignored. Used by the reconcile sweep only together with the SO# being gone
-    from oowkhdr/oocuhdr."""
-    path = cfg.path("canceld.dbf")
-    if not so_nos or not os.path.isfile(path):
-        return set()
-    return {get_int(row, "DOCNO") for row in scan_fields(path, ["DOCTYPE", "DOCNO"])
-            if get_string_upper(row, "DOCTYPE") == "SO" and get_int(row, "DOCNO") in so_nos}
 
 
 def read_oos_lines(cfg: Config, so_no: int) -> list[dict]:
@@ -1395,9 +1280,7 @@ def write_order(cfg: Config, order: dict, so_no: int) -> None:
             "CUSTKEY": order.get("CustKey"),
             "CUSNAME": order.get("CusName"),
             "SYSDATE": date.today(),
-            # legacy a11102: sysdate = date() (computer), transdate = sysparam.transdate
-            # (BMS date) -- HOMSys's OrderDate is that BMS date.
-            "TRANSDATE": _to_dbf_date(order.get("OrderDate")) or date.today(),
+            "TRANSDATE": date.today(),
         }
 
     stage_dir = queue_dir(cfg, so_no)
@@ -1546,7 +1429,6 @@ def confirm_if_appended(cfg: Config, so_no: int) -> None:
 #   (default)  (invoice.SCX Forward/printinv) -> invoice + oos
 #   DELIVERED  (a1146F save)                  -> delivery
 #   CANCELINV  (a1174.scx)                    -> cancel
-#   DELETESO   (a1110.scx Delete, uninvoiced) -> so_delete
 #   RFCPOST    (c1110k2 toRFC: RSR -> auto-posted RFC)
 #                                             -> rfc_scan (invoices with an RFC posted on/after
 #                                                the "Dyyyymmdd" date passed = sysparam.transdate)
@@ -1563,8 +1445,7 @@ RFC_SCAN_DAYS = 7  # c1110bb Post can post a backlog of RFCs dated days back
 
 
 def enqueue_actions(cfg: Config, so_no: int, action: str, inv_no: int | None,
-                    rfc_nos: list[int] | None = None, rfc_since: date | None = None,
-                    deleted_by: str | None = None) -> str | None:
+                    rfc_nos: list[int] | None = None, rfc_since: date | None = None) -> str | None:
     """Queues the events for one VFP action. Returns the OOS event's path when
     one was queued (its snapshot is filled in after VFP is released)."""
     oos_path = None
@@ -1577,9 +1458,6 @@ def enqueue_actions(cfg: Config, so_no: int, action: str, inv_no: int | None,
         outbox.enqueue(cfg.dbf_root, "delivery", so_no=so_no)
     elif action == "CANCELINV":
         outbox.enqueue(cfg.dbf_root, "cancel", so_no=so_no, inv_no=inv_no, action=action)
-    elif action == "DELETESO":
-        outbox.enqueue(cfg.dbf_root, "so_delete", so_no=so_no, deleted_by=deleted_by,
-                       delete_date=_trans_date_iso(cfg))
     elif action == "RFCINV":
         outbox.enqueue(cfg.dbf_root, "rfc", so_no=so_no, inv_no=inv_no)
     elif action == "RFCPOST":
@@ -1622,8 +1500,6 @@ def deliver_event(cfg: Config, event: dict) -> None:
         sync_rfcs_for_invoice(cfg, so_no, int(event["inv_no"]))
     elif kind == "cancel":
         cancel_invoice(cfg, so_no, int(event["inv_no"]), event["action"])
-    elif kind == "so_delete":
-        delete_so(cfg, so_no, event.get("delete_date"), event.get("deleted_by"))
     elif kind == "rfc":
         sync_rfcs_for_invoice(cfg, so_no, int(event["inv_no"]))
     elif kind == "rfc_scan":
@@ -1697,7 +1573,6 @@ def reconcile(cfg: Config) -> None:
     inv_nos = {c["InvNo"] for c in candidates.values() if c["InvNo"]}
     inv_nos |= {s["inv_no"] for s in states.values() if s["inv_no"] > 0}
     cancelled = read_cancelled_invoices(cfg, inv_nos)
-    deleted = read_deleted_sos(cfg, {s for s, c in candidates.items() if s not in states and not c["InvNo"]})
     deliveries = read_delivery_headers(cfg, set(candidates))
     rfc_ok = bool(inv_nos) and rfc_tables_present(cfg)
     rfcs_by_inv = read_rfcs(cfg, inv_nos=inv_nos) if rfc_ok else {}
@@ -1712,12 +1587,6 @@ def reconcile(cfg: Config) -> None:
             if inv and inv != c["CancelledInvNo"] and inv in cancelled:
                 cancel_invoice(cfg, so_no, inv, cancelled[inv], force=True)
                 fixed += 1
-                continue
-
-            if so_no in deleted:
-                if delete_so(cfg, so_no, None, None, force=True):
-                    fixed += 1
-                    log.info("reconcile: SO %s was deleted in BMS (a1110), cancelled in HOMSys", so_no)
                 continue
 
             if state is not None:
@@ -1853,8 +1722,8 @@ def sync_rfc_gaps(cfg: Config) -> None:
 
 
 def run_single(cfg: Config, so_no: int, action: str, inv_no: int | None, rfc_nos: list[int] | None = None,
-               rfc_since: date | None = None, deleted_by: str | None = None) -> int:
-    if action not in ("DEALLOCATE", "PROCESS", "DELIVERED", "CANCELINV", "DELETESO", "RFCINV", "RFCPOST"):
+               rfc_since: date | None = None) -> int:
+    if action not in ("DEALLOCATE", "PROCESS", "DELIVERED", "CANCELINV", "RFCINV", "RFCPOST"):
         # Forward-to-Invoice: pAppendOrderBySo may have just appended this SO.
         # Its confirm must be queued ahead of the invoice/oos events below (FIFO).
         try:
@@ -1863,19 +1732,17 @@ def run_single(cfg: Config, so_no: int, action: str, inv_no: int | None, rfc_nos
             log.exception("SO %s: confirm check failed, bulk recover() will retry", so_no)
     oos_path = None
     try:
-        oos_path = enqueue_actions(cfg, so_no, action, inv_no, rfc_nos, rfc_since, deleted_by)
+        oos_path = enqueue_actions(cfg, so_no, action, inv_no, rfc_nos, rfc_since)
     except OSError:
         # Outbox folder not writable -- fall back to the old direct path for
         # this one action rather than losing it silently.
         log.exception("SO %s: could not write outbox, delivering %s directly", so_no, action or "sync")
         release_vfp()
         for kind in {"DEALLOCATE": ["deallocate"], "PROCESS": ["lock"], "DELIVERED": ["delivery"],
-                     "CANCELINV": ["cancel"], "DELETESO": ["so_delete"], "RFCINV": ["rfc"],
-                     "RFCPOST": ["rfc_scan"]}.get(action, ["invoice"]):
+                     "CANCELINV": ["cancel"], "RFCINV": ["rfc"], "RFCPOST": ["rfc_scan"]}.get(action, ["invoice"]):
             since = (rfc_since or date.fromordinal(date.today().toordinal() - RFC_SCAN_DAYS)).isoformat()
             deliver_event(cfg, {"kind": kind, "so_no": so_no, "inv_no": inv_no, "action": action, "since": since,
-                                "rfc_nos": rfc_nos or [], "deleted_by": deleted_by,
-                                "delete_date": _trans_date_iso(cfg)})
+                                "rfc_nos": rfc_nos or []})
         return 0
     release_vfp()
 
@@ -1991,46 +1858,26 @@ def run_drain(cfg: Config) -> int:
         log.exception("drain: ledger recovery failed, continuing")
     offshore_sync(cfg, online)
     if online:
-        sync_bms_date(cfg)
         background_sync(cfg, online=True)
-    return 0
-
-
-def run_param_date(cfg: Config, date_arg: str) -> int:
-    """PARAMDATE (eod.SCX / eomform.SCX after the date rolls): VFP passes
-    DTOS(sysparam.transdate); blank/invalid falls back to reading sysparam.dbf."""
-    d = None
-    if len(date_arg) == 8 and date_arg.isdigit():
-        try:
-            d = date(int(date_arg[:4]), int(date_arg[4:6]), int(date_arg[6:8]))
-        except ValueError:
-            pass
-    sync_bms_date(cfg, d, timeout=5)
     return 0
 
 
 def main() -> int:
     cfg = Config()
     if not cfg.valid():
-        log.error("homsys_api_url, homsys_api_key, destination and homsys_branch must all be set in config.json (looked in: %s) or their HOMSYS_BRIDGE_* / HOMSYS_DBF_ROOT / HOMSYS_BRANCH env var fallbacks",
-                  ", ".join(_config_json_candidates(sys.argv[2] if len(sys.argv) > 2 else "")))
+        log.error("homsys_api_url, homsys_api_key, destination and homsys_branch must all be set in %s (or their HOMSYS_BRIDGE_* / HOMSYS_DBF_ROOT / HOMSYS_BRANCH env var fallbacks)", CONFIG_JSON_PATH)
         return 1
 
     if len(sys.argv) > 1 and sys.argv[1] == "--drain":
         return run_drain(cfg)
 
-    if len(sys.argv) > 4 and sys.argv[4].strip().upper() == "PARAMDATE":
-        return run_param_date(cfg, sys.argv[5].strip() if len(sys.argv) > 5 else "")
-
     so_no_arg = sys.argv[3] if len(sys.argv) > 3 else ""
     if so_no_arg.strip():
         action = (sys.argv[4] if len(sys.argv) > 4 else "").strip().upper()
         extra_arg = (sys.argv[5] if len(sys.argv) > 5 else "").strip()
-        # 5th arg: the invoice no. (CANCELINV/RFCINV), for RFCPOST the
-        # comma-separated RFC numbers c1110bb's Post button just posted, for
-        # DELETESO the BMS user (a1110's appusername).
-        inv_no = int(extra_arg) if extra_arg.isdigit() and action != "DELETESO" else None
-        deleted_by = (extra_arg or None) if action == "DELETESO" else None
+        # 5th arg: the invoice no. (CANCELINV/RFCINV), or for RFCPOST the
+        # comma-separated RFC numbers c1110bb's Post button just posted.
+        inv_no = int(extra_arg) if extra_arg.isdigit() else None
         rfc_nos, rfc_since = None, None
         if action == "RFCPOST":
             if len(extra_arg) == 9 and extra_arg[:1].upper() == "D" and extra_arg[1:].isdigit():
@@ -2040,7 +1887,7 @@ def main() -> int:
             else:
                 rfc_nos = [int(t) for t in extra_arg.replace(" ", "").split(",") if t.isdigit()]
         try:
-            return run_single(cfg, int(so_no_arg), action, inv_no, rfc_nos, rfc_since, deleted_by)
+            return run_single(cfg, int(so_no_arg), action, inv_no, rfc_nos, rfc_since)
         except Exception:
             log.exception("single-SO sync failed for SO %s", so_no_arg)
             return 1

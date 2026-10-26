@@ -65,20 +65,5 @@ Register-ScheduledTask -TaskName $taskName `
     -Force -ErrorAction Stop
 
 Write-Host "Registered task '$taskName' -> $exePath, every 5 min."
-
-# Collections: branch "Fetch invoices" requests. A separate 1-minute task running only the
-# "collection-requests" config entry (--requests), so branches wait ~1 min without the heavy
-# pricing parse above running every minute. Branches never run this exe themselves.
-$requestsTaskName = "HOMSys-LegacyMasterWatcher-Requests"
-$requestsAction = New-ScheduledTaskAction -Execute $exePath -Argument "--requests"
-$requestsTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
-    -RepetitionInterval (New-TimeSpan -Minutes 1) `
-    -RepetitionDuration (New-TimeSpan -Days 3650)
-Register-ScheduledTask -TaskName $requestsTaskName `
-    -Action $requestsAction `
-    -Trigger @($logonTrigger, $requestsTrigger) `
-    -Settings $settings `
-    -Force -ErrorAction Stop
-Write-Host "Registered task '$requestsTaskName' -> $exePath --requests, every 1 min (only acts on a 'collection-requests' config entry)."
 Write-Host "Confirm config.json exists next to the exe and its apiKey/syncs are correct."
 Write-Host "Log file: %LOCALAPPDATA%\HOMSys\legacy_master_watcher.log"

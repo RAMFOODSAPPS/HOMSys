@@ -1,9 +1,6 @@
 {
   "apiKey": "REPLACE_WITH_THE_REAL_HeadlessApiKey_VALUE",
   "syncs": [
-    { "url": "https://homsys-api-cchvdgdkbmhya9d6.southeastasia-01.azurewebsites.net/api/masters/sync", "path": "F:\\" },
-    { "type": "collection-requests", "url": "https://homsys-api-cchvdgdkbmhya9d6.southeastasia-01.azurewebsites.net/api/collections/sync", "path": "F:\\HOMS\\RAM\\ARCHIVES" },
-    { "type": "bms-collections", "url": "https://homsys-api-cchvdgdkbmhya9d6.southeastasia-01.azurewebsites.net/api/collections/sync", "path": "F:\\HOMS\\RAM\\ARCHIVES", "since": "2023-01" },
-    { "type": "homs-posting", "url": "https://homsys-api-cchvdgdkbmhya9d6.southeastasia-01.azurewebsites.net/api/collections/sync", "path": "F:\\HOMS\\RAM\\ARCHIVES", "docnum": "F:\\HOMS\\RAM\\DOCNUM.DBF", "live": "F:\\HOMS\\RAM" }
+    { "url": "https://homsys-api-cchvdgdkbmhya9d6.southeastasia-01.azurewebsites.net/api/masters/sync", "path": "F:\\" }
   ]
 }
