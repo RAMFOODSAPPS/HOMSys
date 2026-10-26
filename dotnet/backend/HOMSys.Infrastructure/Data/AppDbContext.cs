@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     // Customer master, live-synced from F:\AUTOPROG\CUSTOMER\{branch}\cust4win.dbf
     // (PricingDataImporter / LegacyMasterWatcher) — one row per (Branch, RecNo).
     public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<CustomerClassification> CustomerClassifications => Set<CustomerClassification>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<PoLog> PoLogs => Set<PoLog>();
     public DbSet<DocClass> DocClasses => Set<DocClass>();
@@ -369,6 +370,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// </summary>
     private static void ConfigureSalesOrderModule(ModelBuilder b)
     {
+        // ── CustomerClassification (HOMSys-owned, one row per CustKey) ─────────
+        b.Entity<CustomerClassification>(e =>
+        {
+            e.HasIndex(x => x.CustKey).IsUnique();
+            e.Property(x => x.CustKey).HasMaxLength(7);
+            e.Property(x => x.Region).HasMaxLength(30);
+            e.Property(x => x.SalesGroup).HasMaxLength(10);
+            e.Property(x => x.ServicingBranch).HasMaxLength(40);
+            e.Property(x => x.ChainGroup).HasMaxLength(50);
+            e.Property(x => x.Source).HasMaxLength(100);
+            e.Property(x => x.UpdatedBy).HasMaxLength(100);
+        });
+
         // ── Customer (from F:\AUTOPROG\CUSTOMER\{branch}\cust4win.DBF) ───────
         b.Entity<Customer>(e =>
         {

@@ -25,6 +25,11 @@ export interface CustomerMaster {
   nSlGrp: string;
   /** cust4win.NREGION — region. */
   nRegion: string;
+  /** HOMSys classification (by CustKey; blank when none): Region / Sales Group / Servicing Branch / Customer-Chain-Group. */
+  region: string;
+  salesGroup: string;
+  servicingBranch: string;
+  chainGroup: string;
   tin: string;
   vatId: string;
   subd: string;

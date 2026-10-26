@@ -3,7 +3,8 @@ namespace HOMSys.Application.DTOs.Customers;
 /// <summary>Customers page query — server-side search, filter, sort and paging (236k rows).</summary>
 public class CustomerQuery
 {
-    /// <summary>Whitespace-separated words, each matched anywhere in key / name / address / zone / TIN / sales group / region.</summary>
+    /// <summary>Whitespace-separated words, each matched anywhere in key / name / address / zone / TIN / sales group / region
+    /// (cust4win codes and the HOMSys classification, incl. chain / group and servicing branch).</summary>
     public string? Term { get; set; }
     public string? Branch { get; set; }
     /// <summary>active (default) | inactive | all.</summary>
@@ -45,6 +46,11 @@ public class CustomerMasterDto
     public string NSlGrp { get; set; } = string.Empty;
     /// <summary>cust4win.NREGION — region.</summary>
     public string NRegion { get; set; } = string.Empty;
+    // HOMSys classification (CustomerClassification, by CustKey) — blank when the customer has none.
+    public string Region { get; set; } = string.Empty;
+    public string SalesGroup { get; set; } = string.Empty;
+    public string ServicingBranch { get; set; } = string.Empty;
+    public string ChainGroup { get; set; } = string.Empty;
     public string Tin { get; set; } = string.Empty;
     public string VatId { get; set; } = string.Empty;
     public string Subd { get; set; } = string.Empty;

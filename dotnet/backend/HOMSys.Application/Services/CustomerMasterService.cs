@@ -9,7 +9,8 @@ namespace HOMSys.Application.Services;
 /// </summary>
 public class CustomerMasterService(ICustomerMasterRepository repo)
 {
-    public static readonly string[] SortFields = ["custKey", "cusName", "branch", "cZone", "nSlGrp", "nRegion", "termDays", "firstOrder"];
+    public static readonly string[] SortFields = ["custKey", "cusName", "branch", "cZone", "nSlGrp", "nRegion",
+        "region", "salesGroup", "servicingBranch", "chainGroup", "termDays", "firstOrder"];
     public const int MaxPageSize = 20000; // export of a filtered list
 
     public async Task<CustomerPageDto> GetPageAsync(CustomerQuery query)
