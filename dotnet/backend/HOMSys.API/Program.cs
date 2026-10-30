@@ -56,7 +56,16 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("tasaf-masters", p => p.RequireClaim("permission", "tasaf-masters"))
     .AddPolicy("tasaf", p => p.RequireClaim("permission", "tasaf"))
     .AddPolicy("products", p => p.RequireClaim("permission", "products"))
-    .AddPolicy("customers", p => p.RequireClaim("permission", "customers"));
+    .AddPolicy("customers", p => p.RequireClaim("permission", "customers"))
+    .AddPolicy("collections-encode", p => p.RequireClaim("permission", "collections-encode"))
+    .AddPolicy("collections-verify", p => p.RequireClaim("permission", "collections-verify"))
+    .AddPolicy("collections-manage", p => p.RequireClaim("permission", "collections-manage"))
+    .AddPolicy("collections-ra-encode", p => p.RequireClaim("permission", "collections-ra-encode"))
+    .AddPolicy("collections-any", p => p.RequireClaim("permission", "collections-encode", "collections-verify", "collections-manage", "collections-ra-encode"))
+    .AddPolicy("collections-finance", p => p.RequireClaim("permission", "collections-verify", "collections-manage"))
+    .AddPolicy("pdc-view", p => p.RequireClaim("permission", "pdc-view", "pdc-tag"))
+    .AddPolicy("pdc-tag", p => p.RequireClaim("permission", "pdc-tag"))
+    .AddPolicy("pdc-confirm", p => p.RequireClaim("permission", "pdc-confirm"));
 
 // CORS — allow specific origins and credentials (required for HttpOnly cookie)
 builder.Services.AddCors(options =>

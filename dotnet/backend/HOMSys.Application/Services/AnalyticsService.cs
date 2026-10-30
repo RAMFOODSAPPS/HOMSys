@@ -28,7 +28,8 @@ public class AnalyticsService(
     private ClaimsPrincipal User => http.HttpContext?.User ?? new ClaimsPrincipal();
     private string CurrentUser => User.FindFirstValue(ClaimTypes.Name) ?? "system";
     private int CurrentUserId => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
-    private bool Has(string permission) => User.HasClaim("permission", permission);
+    /// <summary>"a|b" = any of the listed permissions (dataset Permission).</summary>
+    private bool Has(string permission) => permission.Split('|').Any(p => User.HasClaim("permission", p));
     private bool IsAnalyticsAdmin => Has("data-analytics-admin");
 
     /// <summary>Asia/Manila "today" (UTC+8, no DST) — never DateTime.Today on a UTC host.</summary>
@@ -136,8 +137,24 @@ public class AnalyticsService(
         csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(s => int.TryParse(s, out var n) ? n : (int?)null).OfType<int>().ToList();
 
+    /// <summary>System templates show to everyone who can read every dataset they use (so finance roles don't get Sales Overview).</summary>
     private bool CanView(SavedReport r, HashSet<int> myRoles) =>
-        r.OwnerUserId == CurrentUserId || r.IsSystem || IsAnalyticsAdmin || ParseRoleIds(r.SharedRoleIds).Any(myRoles.Contains);
+        r.OwnerUserId == CurrentUserId || (r.IsSystem && UsesOnlyMyDatasets(r)) || IsAnalyticsAdmin || ParseRoleIds(r.SharedRoleIds).Any(myRoles.Contains);
+
+    private bool UsesOnlyMyDatasets(SavedReport r)
+    {
+        try
+        {
+            var keys = r.Kind == "dashboard"
+                ? (JsonSerializer.Deserialize<DashboardDefDto>(r.DefinitionJson, Json)?.Widgets ?? []).Select(w => w.Spec.Dataset)
+                : [r.DatasetKey];
+            return keys.All(k => DatasetAccessError(k) is null);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 
     private bool CanEdit(SavedReport r) => (r.OwnerUserId == CurrentUserId && !r.IsSystem) || IsAnalyticsAdmin;
 

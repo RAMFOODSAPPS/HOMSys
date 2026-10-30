@@ -126,5 +126,18 @@ public class Customer
     /// <summary>cust4win.NSLGRP1 C(15) — channel: "Distributor", "RKA", "NKA", "Branch".</summary>
     public string NSlGrp1 { get; set; } = string.Empty;
 
+    // --- Withholding tax flag (cust4win.WTHOL), 2026-10. Set by the branch in
+    //     fm01 (Customer File Maintenance), which calls POST
+    //     /api/customers/withholding on Update. Not part of the F:\ sync, so
+    //     LegacyMasterWatcher/PricingDataImporter never overwrite it. ---
+
+    /// <summary>cust4win.WTHOL — the customer withholds tax (EWT) on payments.</summary>
+    public bool Withholding { get; set; }
+
+    public DateTime? WithholdingUpdatedAt { get; set; }
+
+    /// <summary>Who changed it, as sent by fm01 (BMS user + PC name).</summary>
+    public string WithholdingUpdatedBy { get; set; } = string.Empty;
+
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
 }

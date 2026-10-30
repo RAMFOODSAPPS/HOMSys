@@ -22,6 +22,823 @@ namespace HOMSys.Infrastructure.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.BankAccount", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AccountName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("AccountNo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("AltAccountNo")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("BankAbbr")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("BankCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("HomsAcctNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("HomsBankAc")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("Synced")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HomsAcctNo")
+                        .IsUnique()
+                        .HasFilter("[HomsAcctNo] IS NOT NULL");
+
+                    b.HasIndex("BankCode", "AccountNo")
+                        .IsUnique();
+
+                    b.ToTable("BankAccounts");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.BankAccountSite", b =>
+                {
+                    b.Property<int>("BankAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SiteId")
+                        .HasColumnType("int");
+
+                    b.HasKey("BankAccountId", "SiteId");
+
+                    b.HasIndex("SiteId");
+
+                    b.ToTable("BankAccountSites");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.BankStatementLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal?>("Balance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("BankAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BankBranch")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CheckNo")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<decimal>("Credit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Debit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("MatchMethod")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("MatchedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("MatchedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("MatchedDepositBatchId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateOnly>("TxnDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("TxnTime")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("UploadId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("ValueDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchedDepositBatchId");
+
+                    b.HasIndex("UploadId");
+
+                    b.HasIndex("BankAccountId", "Fingerprint")
+                        .IsUnique();
+
+                    b.HasIndex("BankAccountId", "TxnDate");
+
+                    b.ToTable("BankStatementLines");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.BankStatementUpload", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly?>("AsOfDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("BankAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BlobPath")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("FileHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("LineCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NewLineCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BankAccountId", "FileHash");
+
+                    b.ToTable("BankStatementUploads");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.BmsPostedCollection", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("ArApplied")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("Bounced")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("Cancelled")
+                        .HasColumnType("bit");
+
+                    b.Property<DateOnly?>("CheckDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("CheckNo")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int?>("CollectionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CustKey")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<DateOnly?>("DcrDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DcrNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DepBank")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int>("DeptCode")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("DocDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DocId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DocNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DraweeBank")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("Ewt")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("LinkMethod")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("LinkedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Payor")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateOnly?>("Posted")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("Received")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("Removed")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("SiteId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceFile")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)");
+
+                    b.Property<string>("StatDesc")
+                        .IsRequired()
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)");
+
+                    b.Property<DateTime>("SyncedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("TCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.HasIndex("CustKey");
+
+                    b.HasIndex("DocNo");
+
+                    b.HasIndex("SiteId");
+
+                    b.HasIndex("SourceFile", "DocId", "DocNo")
+                        .IsUnique();
+
+                    b.ToTable("BmsPostedCollections");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.BmsPostedCollectionLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AcctNo")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("BadCheck")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("BmsPostedCollectionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CKey")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<DateOnly?>("CheckDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("CheckNo")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<decimal>("CrAmt")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("CustKey")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<string>("DepBank")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<decimal>("DrAmt")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("DraweeBank")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("PaymentId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("RecBank")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateOnly?>("RefDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("RefId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RefNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("TrType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WhseNo")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BmsPostedCollectionId");
+
+                    b.HasIndex("RefNo", "AcctNo");
+
+                    b.ToTable("BmsPostedCollectionLines");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.Collection", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Bank")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateOnly?>("CheckDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("CheckNo")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("CollectionKey")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CustKey")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<string>("CustName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("DcrNo")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("DepositBatchId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("HomsDeptCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("LegalEndorsedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateOnly?>("LegalEndorsedDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("LegalEndorsedTo")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("LegalRemarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("LodCopyAttachmentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("LodDueDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("LodIssuedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateOnly?>("LodIssuedDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("LodReceivedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateOnly?>("LodReceivedDate")
+                        .HasColumnType("date");
+
+                    b.Property<int?>("LodSettleDays")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("MultiCustomer")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PaymentMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("PaymentStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("PdcOutcome")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("PdcOutcomeBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateOnly?>("PdcOutcomeDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("PdcOutcomeReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PdcPullout")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("PdcPulloutReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("PdcPulloutRequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PdcPulloutRequestedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("PostedToHomsAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly>("ReceiptDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ReceiptNo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("ReceiptType")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("RemittanceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReturnReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("SettledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SettledBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("SettledByCollectionId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SiteId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("UnappliedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("VerificationStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("VerifiedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("VerifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CheckDate");
+
+                    b.HasIndex("CollectionKey")
+                        .IsUnique();
+
+                    b.HasIndex("DepositBatchId");
+
+                    b.HasIndex("RemittanceId");
+
+                    b.HasIndex("SettledByCollectionId")
+                        .IsUnique()
+                        .HasFilter("[SettledByCollectionId] IS NOT NULL");
+
+                    b.HasIndex("SiteId", "VerificationStatus");
+
+                    b.HasIndex("SiteId", "ReceiptType", "ReceiptNo")
+                        .IsUnique();
+
+                    b.ToTable("Collections");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.CollectionAttachment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BlobPath")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("CollectionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.ToTable("CollectionAttachments");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.CollectionDeduction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("CollectionId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PostedInvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.HasIndex("PostedInvoiceId");
+
+                    b.ToTable("CollectionDeductions");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.CollectionHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("By")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("CollectionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FromStatus")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ToStatus")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.ToTable("CollectionHistories");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.CollectionInvoice", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AmountApplied")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("CollectionId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PostedInvoiceId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PostedInvoiceId");
+
+                    b.HasIndex("CollectionId", "PostedInvoiceId")
+                        .IsUnique();
+
+                    b.ToTable("CollectionInvoices");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.Company", b =>
                 {
                     b.Property<int>("Id")
@@ -268,6 +1085,17 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<int>("WhseNo")
                         .HasColumnType("int");
 
+                    b.Property<bool>("Withholding")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("WithholdingUpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("WithholdingUpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Branch");
@@ -279,6 +1107,60 @@ namespace HOMSys.Infrastructure.Migrations
                     b.HasIndex("Branch", "RecNo");
 
                     b.ToTable("Customers");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.CustomerClassification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ChainGroup")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CustKey")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<string>("Region")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("SalesGroup")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("ServicingBranch")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustKey")
+                        .IsUnique();
+
+                    b.ToTable("CustomerClassifications");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.CustomerIdentifierMap", b =>
@@ -373,6 +1255,69 @@ namespace HOMSys.Infrastructure.Migrations
                     b.ToTable("Departments");
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.DepositBatch", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Bank")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("BankAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateOnly>("DepositDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("MatchConfirmedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("MatchConfirmedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("MatchedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("MatchedBankLineId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SiteId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SlipRefNo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BankAccountId", "DepositDate");
+
+                    b.HasIndex("SiteId", "Bank", "SlipRefNo")
+                        .IsUnique()
+                        .HasFilter("[SlipRefNo] <> ''");
+
+                    b.ToTable("DepositBatches");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.DocClass", b =>
                 {
                     b.Property<string>("Code")
@@ -420,6 +1365,158 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("FormLayouts");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.HomsPosting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ClaimedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CollectionId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("DocId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("DocNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("File")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("HeaderJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("LinesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("MonthKey")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("nvarchar(4)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)");
+
+                    b.Property<string>("Table")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("nvarchar(4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId", "Kind");
+
+                    b.HasIndex("Status", "Id");
+
+                    b.ToTable("HomsPostings");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.InvoiceSyncRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ClaimedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("SiteId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("Wh")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SiteId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("InvoiceSyncRequests");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.InvoiceSyncRequestItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool?>("Found")
+                        .HasColumnType("bit");
+
+                    b.Property<DateOnly>("InvoiceDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("InvoiceNo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("InvoiceSyncRequestId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceSyncRequestId");
+
+                    b.ToTable("InvoiceSyncRequestItems");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.Notification", b =>
@@ -700,6 +1797,55 @@ namespace HOMSys.Infrastructure.Migrations
                             Description = "View the customer master (read-only, synced from each branch's BMS)",
                             Key = "customers",
                             Name = "Customers"
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Description = "Encode collections for assigned branches and submit them for verification",
+                            Key = "collections-encode",
+                            Name = "Collection Encoding"
+                        },
+                        new
+                        {
+                            Id = 22,
+                            Description = "Verify or return branch-encoded collections against the attached receipt and bank statement",
+                            Key = "collections-verify",
+                            Name = "Collection Verification"
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Description = "Upload bank statements, void collections, and see the overall collection status dashboard",
+                            Key = "collections-manage",
+                            Name = "Collection Management"
+                        },
+                        new
+                        {
+                            Id = 24,
+                            Description = "View the post-dated check maturity report",
+                            Key = "pdc-view",
+                            Name = "PDC Monitoring"
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Description = "Tag deposited post-dated checks as Succeeded or Bounced",
+                            Key = "pdc-tag",
+                            Name = "PDC Outcome Tagging"
+                        },
+                        new
+                        {
+                            Id = 26,
+                            Description = "Confirm a matured PDC's deposit against the bank statement (CNC Verifier) — posts its JV to HOMS",
+                            Key = "pdc-confirm",
+                            Name = "Matured PDC Confirmation"
+                        },
+                        new
+                        {
+                            Id = 27,
+                            Description = "Custodian Verifier: encode CRs and Remittance Advices (NKA) for every branch, uploading the chain's RA Excel",
+                            Key = "collections-ra-encode",
+                            Name = "Remittance Advice Encoding"
                         });
                 });
 
@@ -751,6 +1897,125 @@ namespace HOMSys.Infrastructure.Migrations
                     b.HasIndex("SoId");
 
                     b.ToTable("PoLogs");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.PostedInvoice", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CKey")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("nvarchar(5)");
+
+                    b.Property<string>("CustKey")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<string>("CustName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("CustWhseNo")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("DocDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DocNo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EmpNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PoNum")
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)");
+
+                    b.Property<decimal>("RfcTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Salesman")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SiteId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceFile")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("SyncedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Term")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("WhseNo")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SiteId", "CustKey");
+
+                    b.HasIndex("WhseNo", "DocNo")
+                        .IsUnique();
+
+                    b.ToTable("PostedInvoices");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.PostedRfc", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amt")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("InvoiceNo")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("RfcDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("RfcNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceFile")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("SyncedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("WhseNo")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WhseNo", "InvoiceNo");
+
+                    b.HasIndex("WhseNo", "SourceFile", "InvoiceNo", "RfcNo")
+                        .IsUnique();
+
+                    b.ToTable("PostedRfcs");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.PriceHistory", b =>
@@ -1001,6 +2266,226 @@ namespace HOMSys.Infrastructure.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.Remittance", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Bank")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ChainName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<decimal>("CheckAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly?>("CheckDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("CheckNo")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("DepositBatchId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PaymentMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ReturnReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("SiteId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("VerificationStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("VerifiedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("VerifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DepositBatchId");
+
+                    b.HasIndex("SiteId");
+
+                    b.HasIndex("VerificationStatus");
+
+                    b.ToTable("Remittances");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.RemittanceHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("By")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("FromStatus")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("RemittanceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ToStatus")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RemittanceId");
+
+                    b.ToTable("RemittanceHistories");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.RemittanceLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BirSeries")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<decimal>("Cewt")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("CollectionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CustKey")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("DeductionsJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateOnly?>("DocDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DocNo")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("FetchRequestId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Flags")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal>("Gross")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Net")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Other")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("PostedInvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("RfcBoRtv")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("RowNo")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("SystemRfc")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("SystemTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("WhseNo")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.HasIndex("PostedInvoiceId");
+
+                    b.ToTable("RemittanceLines");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.Role", b =>
                 {
                     b.Property<int>("Id")
@@ -1161,6 +2646,41 @@ namespace HOMSys.Infrastructure.Migrations
                         {
                             RoleId = 1,
                             PermissionId = 20
+                        },
+                        new
+                        {
+                            RoleId = 1,
+                            PermissionId = 21
+                        },
+                        new
+                        {
+                            RoleId = 1,
+                            PermissionId = 22
+                        },
+                        new
+                        {
+                            RoleId = 1,
+                            PermissionId = 23
+                        },
+                        new
+                        {
+                            RoleId = 1,
+                            PermissionId = 24
+                        },
+                        new
+                        {
+                            RoleId = 1,
+                            PermissionId = 25
+                        },
+                        new
+                        {
+                            RoleId = 1,
+                            PermissionId = 26
+                        },
+                        new
+                        {
+                            RoleId = 1,
+                            PermissionId = 27
                         });
                 });
 
@@ -5277,6 +6797,21 @@ namespace HOMSys.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.UserBranch", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SiteId")
+                        .HasColumnType("int");
+
+                    b.HasKey("UserId", "SiteId");
+
+                    b.HasIndex("SiteId");
+
+                    b.ToTable("UserBranches");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.UserRole", b =>
                 {
                     b.Property<int>("UserId")
@@ -5438,6 +6973,182 @@ namespace HOMSys.Infrastructure.Migrations
                     b.ToTable("ZoneMasts");
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.BankAccountSite", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.BankAccount", "BankAccount")
+                        .WithMany("Sites")
+                        .HasForeignKey("BankAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HOMSys.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BankAccount");
+
+                    b.Navigation("Site");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.BankStatementLine", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.BankAccount", "BankAccount")
+                        .WithMany()
+                        .HasForeignKey("BankAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HOMSys.Domain.Entities.DepositBatch", "MatchedDepositBatch")
+                        .WithMany()
+                        .HasForeignKey("MatchedDepositBatchId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("HOMSys.Domain.Entities.BankStatementUpload", "Upload")
+                        .WithMany()
+                        .HasForeignKey("UploadId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BankAccount");
+
+                    b.Navigation("MatchedDepositBatch");
+
+                    b.Navigation("Upload");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.BankStatementUpload", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.BankAccount", "BankAccount")
+                        .WithMany()
+                        .HasForeignKey("BankAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BankAccount");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.BmsPostedCollection", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Collection", "Collection")
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("HOMSys.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Collection");
+
+                    b.Navigation("Site");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.BmsPostedCollectionLine", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.BmsPostedCollection", "BmsPostedCollection")
+                        .WithMany("Lines")
+                        .HasForeignKey("BmsPostedCollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BmsPostedCollection");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.Collection", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.DepositBatch", "DepositBatch")
+                        .WithMany("Collections")
+                        .HasForeignKey("DepositBatchId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("HOMSys.Domain.Entities.Remittance", "Remittance")
+                        .WithMany("Collections")
+                        .HasForeignKey("RemittanceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HOMSys.Domain.Entities.Collection", "SettledByCollection")
+                        .WithMany()
+                        .HasForeignKey("SettledByCollectionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HOMSys.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DepositBatch");
+
+                    b.Navigation("Remittance");
+
+                    b.Navigation("SettledByCollection");
+
+                    b.Navigation("Site");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.CollectionAttachment", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Collection", "Collection")
+                        .WithMany("Attachments")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Collection");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.CollectionDeduction", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Collection", "Collection")
+                        .WithMany("Deductions")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HOMSys.Domain.Entities.PostedInvoice", "PostedInvoice")
+                        .WithMany()
+                        .HasForeignKey("PostedInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Collection");
+
+                    b.Navigation("PostedInvoice");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.CollectionHistory", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Collection", "Collection")
+                        .WithMany("History")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Collection");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.CollectionInvoice", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Collection", "Collection")
+                        .WithMany("Invoices")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HOMSys.Domain.Entities.PostedInvoice", "PostedInvoice")
+                        .WithMany("Allocations")
+                        .HasForeignKey("PostedInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Collection");
+
+                    b.Navigation("PostedInvoice");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.Department", b =>
                 {
                     b.HasOne("HOMSys.Domain.Entities.Company", "Company")
@@ -5447,6 +7158,57 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.DepositBatch", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.BankAccount", "BankAccount")
+                        .WithMany()
+                        .HasForeignKey("BankAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HOMSys.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BankAccount");
+
+                    b.Navigation("Site");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.HomsPosting", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Collection", "Collection")
+                        .WithMany("HomsPostings")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Collection");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.InvoiceSyncRequest", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Site");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.InvoiceSyncRequestItem", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.InvoiceSyncRequest", "Request")
+                        .WithMany("Items")
+                        .HasForeignKey("InvoiceSyncRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Request");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.OffshoreTransfer", b =>
@@ -5481,6 +7243,16 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("SalesOrder");
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.PostedInvoice", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Site");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.RefreshToken", b =>
                 {
                     b.HasOne("HOMSys.Domain.Entities.User", "User")
@@ -5490,6 +7262,53 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.Remittance", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.DepositBatch", "DepositBatch")
+                        .WithMany()
+                        .HasForeignKey("DepositBatchId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("HOMSys.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DepositBatch");
+
+                    b.Navigation("Site");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.RemittanceHistory", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Remittance", "Remittance")
+                        .WithMany("History")
+                        .HasForeignKey("RemittanceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Remittance");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.RemittanceLine", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Collection", "Collection")
+                        .WithMany("RemittanceLines")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HOMSys.Domain.Entities.PostedInvoice", "PostedInvoice")
+                        .WithMany()
+                        .HasForeignKey("PostedInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Collection");
+
+                    b.Navigation("PostedInvoice");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.RolePermission", b =>
@@ -5852,6 +7671,25 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("Site");
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.UserBranch", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HOMSys.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Site");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.UserRole", b =>
                 {
                     b.HasOne("HOMSys.Domain.Entities.Role", "Role")
@@ -5871,9 +7709,56 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.BankAccount", b =>
+                {
+                    b.Navigation("Sites");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.BmsPostedCollection", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.Collection", b =>
+                {
+                    b.Navigation("Attachments");
+
+                    b.Navigation("Deductions");
+
+                    b.Navigation("History");
+
+                    b.Navigation("HomsPostings");
+
+                    b.Navigation("Invoices");
+
+                    b.Navigation("RemittanceLines");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.DepositBatch", b =>
+                {
+                    b.Navigation("Collections");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.InvoiceSyncRequest", b =>
+                {
+                    b.Navigation("Items");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.Permission", b =>
                 {
                     b.Navigation("RolePermissions");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.PostedInvoice", b =>
+                {
+                    b.Navigation("Allocations");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.Remittance", b =>
+                {
+                    b.Navigation("Collections");
+
+                    b.Navigation("History");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.Role", b =>

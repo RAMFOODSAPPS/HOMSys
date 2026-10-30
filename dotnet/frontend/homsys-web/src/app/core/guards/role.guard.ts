@@ -19,11 +19,12 @@ export const routeRoleGuard: CanActivateChildFn = (route: ActivatedRouteSnapshot
   const user = auth.user();
   if (!user) return inject(Router).parseUrl('/login');
 
-  const permission: string | undefined = route.data?.['permission'];
-  if (!permission) return true; // no permission declared → auth-only route
+  // A string, or a list meaning "any of these" (e.g. a list page shared by encoders and finance).
+  const permission: string | string[] | undefined = route.data?.['permission'];
+  if (!permission || permission.length === 0) return true; // no permission declared → auth-only route
   if (auth.isAdmin()) return true; // Admin bypasses all permission checks
 
-  return auth.hasPermission(permission)
+  return ([] as string[]).concat(permission).some(p => auth.hasPermission(p))
     ? true
     : inject(Router).parseUrl('/unauthorized');
 };

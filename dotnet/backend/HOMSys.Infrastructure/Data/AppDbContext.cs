@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     // Customer master, live-synced from F:\AUTOPROG\CUSTOMER\{branch}\cust4win.dbf
     // (PricingDataImporter / LegacyMasterWatcher) — one row per (Branch, RecNo).
     public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<CustomerClassification> CustomerClassifications => Set<CustomerClassification>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<PoLog> PoLogs => Set<PoLog>();
     public DbSet<DocClass> DocClasses => Set<DocClass>();
@@ -60,6 +61,31 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     // Offshore hand-off payload (origin BMS rows replayed into ForBranch's BMS).
     public DbSet<OffshoreTransfer> OffshoreTransfers => Set<OffshoreTransfer>();
+
+    // Collections: branch-encoded payments applied to EOD-mirrored posted invoices
+    // (SL files), deposit batches, finance verification + PDC tracking.
+    public DbSet<PostedInvoice> PostedInvoices => Set<PostedInvoice>();
+    public DbSet<PostedRfc> PostedRfcs => Set<PostedRfc>();
+    public DbSet<InvoiceSyncRequest> InvoiceSyncRequests => Set<InvoiceSyncRequest>();
+    public DbSet<InvoiceSyncRequestItem> InvoiceSyncRequestItems => Set<InvoiceSyncRequestItem>();
+    public DbSet<Collection> Collections => Set<Collection>();
+    public DbSet<CollectionInvoice> CollectionInvoices => Set<CollectionInvoice>();
+    public DbSet<CollectionDeduction> CollectionDeductions => Set<CollectionDeduction>();
+    public DbSet<CollectionAttachment> CollectionAttachments => Set<CollectionAttachment>();
+    public DbSet<CollectionHistory> CollectionHistories => Set<CollectionHistory>();
+    // Remittance Advice (NKA): one payment holding 1+ CRs filled from the chain's RA Excel.
+    public DbSet<Remittance> Remittances => Set<Remittance>();
+    public DbSet<RemittanceLine> RemittanceLines => Set<RemittanceLine>();
+    public DbSet<RemittanceHistory> RemittanceHistories => Set<RemittanceHistory>();
+    public DbSet<DepositBatch> DepositBatches => Set<DepositBatch>();
+    public DbSet<HomsPosting> HomsPostings => Set<HomsPosting>();
+    public DbSet<UserBranch> UserBranches => Set<UserBranch>();
+    public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
+    public DbSet<BankAccountSite> BankAccountSites => Set<BankAccountSite>();
+    public DbSet<BankStatementUpload> BankStatementUploads => Set<BankStatementUpload>();
+    public DbSet<BankStatementLine> BankStatementLines => Set<BankStatementLine>();
+    public DbSet<BmsPostedCollection> BmsPostedCollections => Set<BmsPostedCollection>();
+    public DbSet<BmsPostedCollectionLine> BmsPostedCollectionLines => Set<BmsPostedCollectionLine>();
 
     // Per-section "last synced" timestamp for the Legacy Monitoring page,
     // updated by every path that actually applies a sync — see SyncLogExtensions.
@@ -278,7 +304,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new Permission { Id = 17, Key = "tasaf", Name = "TASAF", Description = "Create and submit own Trade Activity Spend Approval Forms" },
             new Permission { Id = 18, Key = "tasaf-view-all", Name = "TASAF View All", Description = "View every TASAF, not only your own (also needs TASAF)" },
             new Permission { Id = 19, Key = "products", Name = "Products", Description = "View the product master (read-only, synced from BMS)" },
-            new Permission { Id = 20, Key = "customers", Name = "Customers", Description = "View the customer master (read-only, synced from each branch's BMS)" }
+            new Permission { Id = 20, Key = "customers", Name = "Customers", Description = "View the customer master (read-only, synced from each branch's BMS)" },
+            new Permission { Id = 21, Key = "collections-encode", Name = "Collection Encoding", Description = "Encode collections for assigned branches and submit them for verification" },
+            new Permission { Id = 22, Key = "collections-verify", Name = "Collection Verification", Description = "Verify or return branch-encoded collections against the attached receipt and bank statement" },
+            new Permission { Id = 23, Key = "collections-manage", Name = "Collection Management", Description = "Upload bank statements, void collections, and see the overall collection status dashboard" },
+            new Permission { Id = 24, Key = "pdc-view", Name = "PDC Monitoring", Description = "View the post-dated check maturity report" },
+            new Permission { Id = 25, Key = "pdc-tag", Name = "PDC Outcome Tagging", Description = "Tag deposited post-dated checks as Succeeded or Bounced" },
+            new Permission { Id = 26, Key = "pdc-confirm", Name = "Matured PDC Confirmation", Description = "Confirm a matured PDC's deposit against the bank statement (CNC Verifier) — posts its JV to HOMS" },
+            new Permission { Id = 27, Key = "collections-ra-encode", Name = "Remittance Advice Encoding", Description = "Custodian Verifier: encode CRs and Remittance Advices (NKA) for every branch, uploading the chain's RA Excel" }
         );
 
         // Admin gets all permissions by default
@@ -302,7 +335,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new RolePermission { RoleId = 1, PermissionId = 17 },
             new RolePermission { RoleId = 1, PermissionId = 18 },
             new RolePermission { RoleId = 1, PermissionId = 19 },
-            new RolePermission { RoleId = 1, PermissionId = 20 }
+            new RolePermission { RoleId = 1, PermissionId = 20 },
+            new RolePermission { RoleId = 1, PermissionId = 21 },
+            new RolePermission { RoleId = 1, PermissionId = 22 },
+            new RolePermission { RoleId = 1, PermissionId = 23 },
+            new RolePermission { RoleId = 1, PermissionId = 24 },
+            new RolePermission { RoleId = 1, PermissionId = 25 },
+            new RolePermission { RoleId = 1, PermissionId = 26 },
+            new RolePermission { RoleId = 1, PermissionId = 27 }
         );
 
         // Seed default admin user (password: Admin@1234)
@@ -331,6 +371,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// </summary>
     private static void ConfigureSalesOrderModule(ModelBuilder b)
     {
+        // ── CustomerClassification (HOMSys-owned, one row per CustKey) ─────────
+        b.Entity<CustomerClassification>(e =>
+        {
+            e.HasIndex(x => x.CustKey).IsUnique();
+            e.Property(x => x.CustKey).HasMaxLength(7);
+            e.Property(x => x.Region).HasMaxLength(30);
+            e.Property(x => x.SalesGroup).HasMaxLength(10);
+            e.Property(x => x.ServicingBranch).HasMaxLength(40);
+            e.Property(x => x.ChainGroup).HasMaxLength(50);
+            e.Property(x => x.Source).HasMaxLength(100);
+            e.Property(x => x.UpdatedBy).HasMaxLength(100);
+        });
+
         // ── Customer (from F:\AUTOPROG\CUSTOMER\{branch}\cust4win.DBF) ───────
         b.Entity<Customer>(e =>
         {
@@ -363,6 +416,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.NAccount).HasMaxLength(50);
             e.Property(x => x.Territory).HasMaxLength(10);
             e.Property(x => x.NSlGrp1).HasMaxLength(15);
+            e.Property(x => x.WithholdingUpdatedBy).HasMaxLength(100);
         });
 
         // ── DocClass (from docclass.DBF) ─────────────────────────────────────
@@ -515,6 +569,294 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.HeaderJson).HasColumnType("nvarchar(max)").IsRequired();
             e.Property(x => x.LinesJson).HasColumnType("nvarchar(max)").IsRequired();
             e.Property(x => x.DiscountsJson).HasColumnType("nvarchar(max)").IsRequired();
+        });
+
+        // ── Collections ──────────────────────────────────────────────────────
+        b.Entity<PostedInvoice>(e =>
+        {
+            e.HasIndex(x => new { x.WhseNo, x.DocNo }).IsUnique();
+            e.HasIndex(x => new { x.SiteId, x.CustKey });
+            e.Property(x => x.CustKey).HasMaxLength(7).IsRequired();
+            e.Property(x => x.CKey).HasMaxLength(5).IsRequired();
+            e.Property(x => x.CustName).HasMaxLength(50);
+            e.Property(x => x.PoNum).HasMaxLength(15);
+            e.Property(x => x.SourceFile).HasMaxLength(100);
+            e.Property(x => x.Total).HasPrecision(18, 2);
+            e.Property(x => x.RfcTotal).HasPrecision(18, 2);
+            e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<PostedRfc>(e =>
+        {
+            e.HasIndex(x => new { x.WhseNo, x.SourceFile, x.InvoiceNo, x.RfcNo }).IsUnique();
+            e.HasIndex(x => new { x.WhseNo, x.InvoiceNo });
+            e.Property(x => x.SourceFile).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Amt).HasPrecision(18, 2);
+        });
+
+        b.Entity<InvoiceSyncRequest>(e =>
+        {
+            e.HasIndex(x => x.Status);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.RequestedBy).HasMaxLength(100);
+            e.Property(x => x.Message).HasMaxLength(500);
+            e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(x => x.Items).WithOne(i => i.Request).HasForeignKey(i => i.InvoiceSyncRequestId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<HomsPosting>(e =>
+        {
+            e.HasIndex(x => new { x.Status, x.Id });
+            e.HasIndex(x => new { x.CollectionId, x.Kind });
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(10);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(12);
+            e.Property(x => x.Table).HasMaxLength(4);
+            e.Property(x => x.MonthKey).HasMaxLength(4);
+            e.Property(x => x.File).HasMaxLength(40);
+            e.Property(x => x.Message).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(100);
+            e.HasOne(x => x.Collection).WithMany(c => c.HomsPostings).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<DepositBatch>(e =>
+        {
+            // A slip no. groups the collections deposited together; it's optional (user 2026-10-15), so it's only
+            // unique when there is one — a deposit without a reference is its own slip.
+            e.HasIndex(x => new { x.SiteId, x.Bank, x.SlipRefNo }).IsUnique().HasFilter("[SlipRefNo] <> ''");
+            e.HasIndex(x => new { x.BankAccountId, x.DepositDate });
+            e.Property(x => x.Bank).HasMaxLength(50).IsRequired();
+            e.Property(x => x.SlipRefNo).HasMaxLength(30).IsRequired();
+            e.Property(x => x.TotalAmount).HasPrecision(18, 2);
+            e.Property(x => x.CreatedBy).HasMaxLength(100);
+            e.Property(x => x.MatchConfirmedBy).HasMaxLength(100);
+            e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.BankAccount).WithMany().HasForeignKey(x => x.BankAccountId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<BmsPostedCollection>(e =>
+        {
+            e.HasIndex(x => new { x.SourceFile, x.DocId, x.DocNo }).IsUnique();
+            e.HasIndex(x => x.DocNo);
+            e.HasIndex(x => x.CustKey);
+            e.HasIndex(x => x.CollectionId);
+            e.Property(x => x.SourceFile).HasMaxLength(12).IsRequired();
+            e.Property(x => x.UserName).HasMaxLength(20);
+            e.Property(x => x.Payor).HasMaxLength(30);
+            e.Property(x => x.StatDesc).HasMaxLength(15);
+            e.Property(x => x.CustKey).HasMaxLength(7);
+            e.Property(x => x.ArApplied).HasPrecision(18, 2);
+            e.Property(x => x.Ewt).HasPrecision(18, 2);
+            e.Property(x => x.Received).HasPrecision(18, 2);
+            e.Property(x => x.CheckNo).HasMaxLength(16);
+            e.Property(x => x.DraweeBank).HasMaxLength(20);
+            e.Property(x => x.DepBank).HasMaxLength(16);
+            e.Property(x => x.LinkMethod).HasMaxLength(20);
+            e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Collection).WithMany().HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.SetNull);
+            e.HasMany(x => x.Lines).WithOne(l => l.BmsPostedCollection).HasForeignKey(l => l.BmsPostedCollectionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<BmsPostedCollectionLine>(e =>
+        {
+            e.HasIndex(x => new { x.RefNo, x.AcctNo });
+            e.Property(x => x.CustKey).HasMaxLength(7);
+            e.Property(x => x.CKey).HasMaxLength(7);
+            e.Property(x => x.DrAmt).HasPrecision(18, 2);
+            e.Property(x => x.CrAmt).HasPrecision(18, 2);
+            e.Property(x => x.DraweeBank).HasMaxLength(20);
+            e.Property(x => x.CheckNo).HasMaxLength(16);
+            e.Property(x => x.DepBank).HasMaxLength(16);
+            e.Property(x => x.PaymentId).HasMaxLength(20);
+            e.Property(x => x.RecBank).HasMaxLength(50);
+            e.Property(x => x.Reference).HasMaxLength(40);
+        });
+
+        b.Entity<BankAccount>(e =>
+        {
+            e.HasIndex(x => new { x.BankCode, x.AccountNo }).IsUnique();
+            e.Property(x => x.BankCode).HasMaxLength(10).IsRequired();
+            e.Property(x => x.AccountNo).HasMaxLength(30).IsRequired();
+            e.Property(x => x.AccountName).HasMaxLength(100);
+            e.Property(x => x.CreatedBy).HasMaxLength(100);
+            e.HasIndex(x => x.HomsAcctNo).IsUnique().HasFilter("[HomsAcctNo] IS NOT NULL");
+            e.Property(x => x.BankAbbr).HasMaxLength(20);
+            e.Property(x => x.AltAccountNo).HasMaxLength(30);
+            e.Property(x => x.HomsBankAc).HasMaxLength(30);
+            e.Property(x => x.DeletedBy).HasMaxLength(100);
+            e.Ignore(x => x.Label);
+        });
+
+        b.Entity<BankAccountSite>(e =>
+        {
+            e.HasKey(x => new { x.BankAccountId, x.SiteId });
+            e.HasOne(x => x.BankAccount).WithMany(a => a.Sites).HasForeignKey(x => x.BankAccountId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<BankStatementUpload>(e =>
+        {
+            e.HasIndex(x => new { x.BankAccountId, x.FileHash });
+            e.Property(x => x.FileName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.FileHash).HasMaxLength(64).IsRequired();
+            e.Property(x => x.BlobPath).HasMaxLength(300);
+            e.Property(x => x.UploadedBy).HasMaxLength(100);
+            e.HasOne(x => x.BankAccount).WithMany().HasForeignKey(x => x.BankAccountId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<BankStatementLine>(e =>
+        {
+            e.HasIndex(x => new { x.BankAccountId, x.Fingerprint }).IsUnique();
+            e.HasIndex(x => new { x.BankAccountId, x.TxnDate });
+            e.HasIndex(x => x.MatchedDepositBatchId);
+            e.Property(x => x.TxnTime).HasMaxLength(20);
+            e.Property(x => x.Description).HasMaxLength(300);
+            e.Property(x => x.Reference).HasMaxLength(200);
+            e.Property(x => x.BankBranch).HasMaxLength(100);
+            e.Property(x => x.CheckNo).HasMaxLength(30);
+            e.Property(x => x.Debit).HasPrecision(18, 2);
+            e.Property(x => x.Credit).HasPrecision(18, 2);
+            e.Property(x => x.Balance).HasPrecision(18, 2);
+            e.Property(x => x.Fingerprint).HasMaxLength(64).IsRequired();
+            e.Property(x => x.MatchMethod).HasMaxLength(20);
+            e.Property(x => x.MatchedBy).HasMaxLength(100);
+            e.HasOne(x => x.BankAccount).WithMany().HasForeignKey(x => x.BankAccountId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Upload).WithMany().HasForeignKey(x => x.UploadId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.MatchedDepositBatch).WithMany().HasForeignKey(x => x.MatchedDepositBatchId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<Collection>(e =>
+        {
+            e.HasIndex(x => x.CollectionKey).IsUnique();
+            // One receipt number per branch and receipt type; voided rows keep their number.
+            e.HasIndex(x => new { x.SiteId, x.ReceiptType, x.ReceiptNo }).IsUnique();
+            e.HasIndex(x => new { x.SiteId, x.VerificationStatus });
+            e.HasIndex(x => x.CheckDate);
+            e.Property(x => x.ReceiptType).HasConversion<string>().HasMaxLength(2);
+            e.Property(x => x.PaymentMode).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.PaymentStatus).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.VerificationStatus).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.PdcOutcome).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.ReceiptNo).HasMaxLength(20).IsRequired();
+            e.Property(x => x.CustKey).HasMaxLength(7).IsRequired();
+            e.Property(x => x.CustName).HasMaxLength(50);
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.Property(x => x.UnappliedAmount).HasPrecision(18, 2);
+            e.Property(x => x.Bank).HasMaxLength(50);
+            e.Property(x => x.CheckNo).HasMaxLength(20);
+            e.Property(x => x.ReturnReason).HasMaxLength(500);
+            e.Property(x => x.VoidReason).HasMaxLength(500);
+            e.Property(x => x.Remarks).HasMaxLength(500);
+            e.Property(x => x.PdcOutcomeReason).HasMaxLength(500);
+            e.Property(x => x.PdcOutcomeBy).HasMaxLength(100);
+            e.Property(x => x.CreatedBy).HasMaxLength(100);
+            e.Property(x => x.UpdatedBy).HasMaxLength(100);
+            e.Property(x => x.VerifiedBy).HasMaxLength(100);
+            e.Property(x => x.LodIssuedBy).HasMaxLength(100);
+            e.Property(x => x.LodReceivedBy).HasMaxLength(100);
+            e.Property(x => x.SettledBy).HasMaxLength(100);
+            e.Property(x => x.LegalEndorsedBy).HasMaxLength(100);
+            e.Property(x => x.LegalEndorsedTo).HasMaxLength(50);
+            e.Property(x => x.LegalRemarks).HasMaxLength(500);
+            e.Property(x => x.PdcPullout).HasMaxLength(20);
+            e.Property(x => x.PdcPulloutReason).HasMaxLength(500);
+            e.Property(x => x.PdcPulloutRequestedBy).HasMaxLength(100);
+            e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.DepositBatch).WithMany(d => d.Collections).HasForeignKey(x => x.DepositBatchId).OnDelete(DeleteBehavior.SetNull);
+            // One replacement CR settles at most one bounced PDC.
+            e.HasOne(x => x.SettledByCollection).WithMany().HasForeignKey(x => x.SettledByCollectionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => x.SettledByCollectionId).IsUnique().HasFilter("[SettledByCollectionId] IS NOT NULL");
+            e.HasOne(x => x.Remittance).WithMany(r => r.Collections).HasForeignKey(x => x.RemittanceId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => x.RemittanceId);
+        });
+
+        b.Entity<Remittance>(e =>
+        {
+            e.HasIndex(x => x.VerificationStatus);
+            e.Property(x => x.ChainName).HasMaxLength(50).IsRequired();
+            e.Property(x => x.PaymentMode).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.VerificationStatus).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Bank).HasMaxLength(50);
+            e.Property(x => x.CheckNo).HasMaxLength(20);
+            e.Property(x => x.CheckAmount).HasPrecision(18, 2);
+            e.Property(x => x.ReturnReason).HasMaxLength(500);
+            e.Property(x => x.VoidReason).HasMaxLength(500);
+            e.Property(x => x.Remarks).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(100);
+            e.Property(x => x.UpdatedBy).HasMaxLength(100);
+            e.Property(x => x.VerifiedBy).HasMaxLength(100);
+            e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.DepositBatch).WithMany().HasForeignKey(x => x.DepositBatchId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<RemittanceLine>(e =>
+        {
+            e.HasIndex(x => x.CollectionId);
+            e.HasIndex(x => x.PostedInvoiceId);
+            e.Property(x => x.CustKey).HasMaxLength(10);
+            e.Property(x => x.BirSeries).HasMaxLength(40);
+            foreach (var m in new[] { nameof(RemittanceLine.Gross), nameof(RemittanceLine.Cewt), nameof(RemittanceLine.RfcBoRtv),
+                         nameof(RemittanceLine.Other), nameof(RemittanceLine.Net), nameof(RemittanceLine.SystemTotal), nameof(RemittanceLine.SystemRfc) })
+                e.Property(m).HasPrecision(18, 2);
+            e.Property(x => x.DeductionsJson).HasMaxLength(4000);
+            e.Property(x => x.Flags).HasMaxLength(200);
+            e.HasOne(x => x.Collection).WithMany(c => c.RemittanceLines).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.PostedInvoice).WithMany().HasForeignKey(x => x.PostedInvoiceId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<RemittanceHistory>(e =>
+        {
+            e.HasIndex(x => x.RemittanceId);
+            e.Property(x => x.Action).HasMaxLength(30).IsRequired();
+            e.Property(x => x.FromStatus).HasMaxLength(30);
+            e.Property(x => x.ToStatus).HasMaxLength(30);
+            e.Property(x => x.Reason).HasMaxLength(500);
+            e.Property(x => x.By).HasMaxLength(100);
+            e.HasOne(x => x.Remittance).WithMany(r => r.History).HasForeignKey(x => x.RemittanceId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<CollectionInvoice>(e =>
+        {
+            e.HasIndex(x => new { x.CollectionId, x.PostedInvoiceId }).IsUnique();
+            e.HasIndex(x => x.PostedInvoiceId);
+            e.Property(x => x.AmountApplied).HasPrecision(18, 2);
+            e.HasOne(x => x.Collection).WithMany(c => c.Invoices).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.PostedInvoice).WithMany(i => i.Allocations).HasForeignKey(x => x.PostedInvoiceId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<CollectionDeduction>(e =>
+        {
+            e.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.Property(x => x.Reference).HasMaxLength(100);
+            e.HasOne(x => x.Collection).WithMany(c => c.Deductions).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.PostedInvoice).WithMany().HasForeignKey(x => x.PostedInvoiceId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<CollectionAttachment>(e =>
+        {
+            e.Property(x => x.BlobPath).HasMaxLength(300).IsRequired();
+            e.Property(x => x.FileName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.ContentType).HasMaxLength(100);
+            e.Property(x => x.UploadedBy).HasMaxLength(100);
+            e.HasOne(x => x.Collection).WithMany(c => c.Attachments).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<CollectionHistory>(e =>
+        {
+            e.HasIndex(x => x.CollectionId);
+            e.Property(x => x.Action).HasMaxLength(30).IsRequired();
+            e.Property(x => x.FromStatus).HasMaxLength(30);
+            e.Property(x => x.ToStatus).HasMaxLength(30);
+            e.Property(x => x.Reason).HasMaxLength(500);
+            e.Property(x => x.By).HasMaxLength(100);
+            e.HasOne(x => x.Collection).WithMany(c => c.History).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<UserBranch>(e =>
+        {
+            e.HasKey(x => new { x.UserId, x.SiteId });
+            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // ── OosSyncLine (bridge-synced oowkdet snapshot) ─────────────────────

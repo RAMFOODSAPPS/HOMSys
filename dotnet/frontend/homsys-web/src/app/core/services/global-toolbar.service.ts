@@ -2,6 +2,8 @@ import { Injectable, Signal, signal } from '@angular/core';
 
 export interface ToolbarHandler {
   onClick: () => void;
+  /** Show a word button instead of the icon (e.g. 'Import statement'). */
+  label?: string;
   disabled?: Signal<boolean>;
   loading?:  Signal<boolean>;
 }
@@ -18,6 +20,15 @@ export interface ExportConfig {
   csv?:   () => void;
   items?: ExportMenuItem[];
   disabled?: Signal<boolean>;
+  /** Show a word button instead of the icon. */
+  label?: string;
+}
+
+/** View switch at the right end of the toolbar: one icon button per view (e.g. Table / Reading pane); label = hover hint. */
+export interface ToolbarViewSwitch {
+  options: { label: string; value: string; icon: string }[];
+  value: Signal<string>;
+  onChange: (value: string) => void;
 }
 
 export interface ToolbarConfig {
@@ -52,6 +63,7 @@ export interface ToolbarConfig {
   importByName?: ToolbarHandler;
   /** Form Designer — pages only set this for Admins. */
   design?: ToolbarHandler;
+  views?: ToolbarViewSwitch;
 }
 
 @Injectable({ providedIn: 'root' })

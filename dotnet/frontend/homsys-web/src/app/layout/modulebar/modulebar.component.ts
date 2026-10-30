@@ -12,7 +12,7 @@ import { TabBarService } from '../../core/services/tab-bar.service';
 interface ModuleGroup {
   label: string;
   icon: string;
-  items: (MenuItem & { permission?: string })[];
+  items: (MenuItem & { permission?: string | string[] })[];
   menuRef?: any;
 }
 
@@ -141,6 +141,25 @@ export class ModulebarComponent {
       ]
     },
     {
+      label: 'Collections',
+      icon: 'pi-wallet',
+      items: [
+        { label: 'New Collection', icon: 'pi pi-wallet', routerLink: '/collections',      permission: 'collections-encode' },
+        { label: 'Remittance Advice', icon: 'pi pi-file-import', routerLink: '/collections/remittance', permission: ['collections-ra-encode', 'collections-verify', 'collections-manage'] },
+        { label: 'Collections',    icon: 'pi pi-list',   routerLink: '/collections/list', permission: ['collections-encode', 'collections-verify', 'collections-manage'] },
+        { label: 'Verification Queue', icon: 'pi pi-check-square', routerLink: '/collections/verify', permission: 'collections-verify' },
+        { label: 'Bank Statements', icon: 'pi pi-building-columns', routerLink: '/collections/bank', permission: ['collections-manage', 'collections-verify'] },
+        { label: 'Collections Dashboard', icon: 'pi pi-chart-bar', routerLink: '/collections/dashboard', permission: 'collections-manage' }
+      ]
+    },
+    {
+      label: 'PDC',
+      icon: 'pi-calendar-clock',
+      items: [
+        { label: 'PDC Monitor', icon: 'pi pi-calendar-clock', routerLink: '/pdc', permission: ['pdc-view', 'pdc-tag'] }
+      ]
+    },
+    {
       label: 'Analytics',
       icon: 'pi-chart-bar',
       items: [
@@ -176,7 +195,8 @@ export class ModulebarComponent {
     return this.modules
       .map(mod => ({
         ...mod,
-        items: mod.items.filter(item => !item.permission || this.auth.isAdmin() || this.auth.hasPermission(item.permission))
+        items: mod.items.filter(item => !item.permission || this.auth.isAdmin()
+          || ([] as string[]).concat(item.permission).some(p => this.auth.hasPermission(p)))
       }))
       .filter(mod => mod.items.some(item => !item.separator));
   }

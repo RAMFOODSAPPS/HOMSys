@@ -53,6 +53,21 @@ export class ExportService {
     XLSX.writeFile(wb, `${filename}.xlsx`);
   }
 
+  /** Excel from ready-made rows: numbers stay numbers, and the money columns get a #,##0.00 format so the sheet can be summed. */
+  exportExcelRows(filename: string, sheet: string, headers: string[], rows: (string | number | null)[][], moneyCols: number[] = []): void {
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    for (let r = 1; r <= rows.length; r++) {
+      for (const c of moneyCols) {
+        const cell = ws[XLSX.utils.encode_cell({ r, c })] as XLSX.CellObject | undefined;
+        if (cell?.t === 'n') cell.z = '#,##0.00';
+      }
+    }
+    ws['!cols'] = headers.map((h, i) => ({ wch: Math.min(60, Math.max(h.length, ...rows.map(r => String(r[i] ?? '').length)) + 2) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheet);
+    XLSX.writeFile(wb, `${filename}.xlsx`);
+  }
+
   exportCsv(filename: string, columns: ExportColumn[], data: Record<string, unknown>[]): void {
     const rows = data.map(row =>
       Object.fromEntries(columns.map(col => [col.header, this.cell(row, col)]))

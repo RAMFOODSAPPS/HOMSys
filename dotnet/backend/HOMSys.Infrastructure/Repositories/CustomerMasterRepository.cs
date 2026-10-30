@@ -10,58 +10,75 @@ public class CustomerMasterRepository(AppDbContext db) : ICustomerMasterReposito
 {
     public async Task<CustomerPageDto> GetPageAsync(CustomerQuery query)
     {
-        var q = db.Customers.AsNoTracking();
+        // Left join on CustKey: the HOMSys classification (unique per CustKey, so rows don't multiply).
+        var q = from c in db.Customers.AsNoTracking()
+                join k in db.CustomerClassifications.AsNoTracking() on c.CustKey equals k.CustKey into kk
+                from k in kk.DefaultIfEmpty()
+                select new { c, k };
 
         if (!string.IsNullOrWhiteSpace(query.Branch))
-            q = q.Where(c => c.Branch == query.Branch);
+            q = q.Where(x => x.c.Branch == query.Branch);
 
         q = query.Status switch
         {
-            "inactive" => q.Where(c => c.Inactive),
+            "inactive" => q.Where(x => x.c.Inactive),
             "all"      => q,
-            _          => q.Where(c => !c.Inactive),
+            _          => q.Where(x => !x.c.Inactive),
         };
 
         // Every word must match somewhere — same pattern as CustomerRepository.SearchAsync.
         foreach (var token in (query.Term ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            q = q.Where(c => c.CustKey.Contains(token) || c.CusName.Contains(token) || c.AddrLn1.Contains(token)
-                          || c.AddrLn2.Contains(token) || c.CZone.Contains(token) || c.Tin.Contains(token)
-                          || c.NSlGrp.Contains(token) || c.NRegion.Contains(token));
+            q = q.Where(x => x.c.CustKey.Contains(token) || x.c.CusName.Contains(token) || x.c.AddrLn1.Contains(token)
+                          || x.c.AddrLn2.Contains(token) || x.c.CZone.Contains(token) || x.c.Tin.Contains(token)
+                          || x.c.NSlGrp.Contains(token) || x.c.NRegion.Contains(token)
+                          || (x.k != null && (x.k.Region.Contains(token) || x.k.SalesGroup.Contains(token)
+                                              || x.k.ServicingBranch.Contains(token) || x.k.ChainGroup.Contains(token))));
 
         var total = await q.CountAsync();
 
         q = (query.SortField, query.SortDesc) switch
         {
-            ("cusName", false)  => q.OrderBy(c => c.CusName).ThenBy(c => c.Id),
-            ("cusName", true)   => q.OrderByDescending(c => c.CusName).ThenBy(c => c.Id),
-            ("branch", false)   => q.OrderBy(c => c.Branch).ThenBy(c => c.CustKey),
-            ("branch", true)    => q.OrderByDescending(c => c.Branch).ThenBy(c => c.CustKey),
-            ("cZone", false)    => q.OrderBy(c => c.CZone).ThenBy(c => c.CustKey),
-            ("cZone", true)     => q.OrderByDescending(c => c.CZone).ThenBy(c => c.CustKey),
-            ("nRegion", false)  => q.OrderBy(c => c.NRegion).ThenBy(c => c.CustKey),
-            ("nRegion", true)   => q.OrderByDescending(c => c.NRegion).ThenBy(c => c.CustKey),
-            ("nSlGrp", false)   => q.OrderBy(c => c.NSlGrp).ThenBy(c => c.CustKey),
-            ("nSlGrp", true)    => q.OrderByDescending(c => c.NSlGrp).ThenBy(c => c.CustKey),
-            ("termDays", false) => q.OrderBy(c => c.TermDays).ThenBy(c => c.CustKey),
-            ("termDays", true)  => q.OrderByDescending(c => c.TermDays).ThenBy(c => c.CustKey),
-            ("firstOrder", false) => q.OrderBy(c => c.FirstOrder).ThenBy(c => c.CustKey),
-            ("firstOrder", true)  => q.OrderByDescending(c => c.FirstOrder).ThenBy(c => c.CustKey),
-            (_, true)           => q.OrderByDescending(c => c.CustKey).ThenBy(c => c.Branch),
-            _                   => q.OrderBy(c => c.CustKey).ThenBy(c => c.Branch),
+            ("cusName", false)  => q.OrderBy(x => x.c.CusName).ThenBy(x => x.c.Id),
+            ("cusName", true)   => q.OrderByDescending(x => x.c.CusName).ThenBy(x => x.c.Id),
+            ("branch", false)   => q.OrderBy(x => x.c.Branch).ThenBy(x => x.c.CustKey),
+            ("branch", true)    => q.OrderByDescending(x => x.c.Branch).ThenBy(x => x.c.CustKey),
+            ("cZone", false)    => q.OrderBy(x => x.c.CZone).ThenBy(x => x.c.CustKey),
+            ("cZone", true)     => q.OrderByDescending(x => x.c.CZone).ThenBy(x => x.c.CustKey),
+            ("nRegion", false)  => q.OrderBy(x => x.c.NRegion).ThenBy(x => x.c.CustKey),
+            ("nRegion", true)   => q.OrderByDescending(x => x.c.NRegion).ThenBy(x => x.c.CustKey),
+            ("nSlGrp", false)   => q.OrderBy(x => x.c.NSlGrp).ThenBy(x => x.c.CustKey),
+            ("nSlGrp", true)    => q.OrderByDescending(x => x.c.NSlGrp).ThenBy(x => x.c.CustKey),
+            ("region", false)   => q.OrderBy(x => x.k!.Region).ThenBy(x => x.c.CustKey),
+            ("region", true)    => q.OrderByDescending(x => x.k!.Region).ThenBy(x => x.c.CustKey),
+            ("salesGroup", false) => q.OrderBy(x => x.k!.SalesGroup).ThenBy(x => x.c.CustKey),
+            ("salesGroup", true)  => q.OrderByDescending(x => x.k!.SalesGroup).ThenBy(x => x.c.CustKey),
+            ("servicingBranch", false) => q.OrderBy(x => x.k!.ServicingBranch).ThenBy(x => x.c.CustKey),
+            ("servicingBranch", true)  => q.OrderByDescending(x => x.k!.ServicingBranch).ThenBy(x => x.c.CustKey),
+            ("chainGroup", false) => q.OrderBy(x => x.k!.ChainGroup).ThenBy(x => x.c.CustKey),
+            ("chainGroup", true)  => q.OrderByDescending(x => x.k!.ChainGroup).ThenBy(x => x.c.CustKey),
+            ("termDays", false) => q.OrderBy(x => x.c.TermDays).ThenBy(x => x.c.CustKey),
+            ("termDays", true)  => q.OrderByDescending(x => x.c.TermDays).ThenBy(x => x.c.CustKey),
+            ("firstOrder", false) => q.OrderBy(x => x.c.FirstOrder).ThenBy(x => x.c.CustKey),
+            ("firstOrder", true)  => q.OrderByDescending(x => x.c.FirstOrder).ThenBy(x => x.c.CustKey),
+            (_, true)           => q.OrderByDescending(x => x.c.CustKey).ThenBy(x => x.c.Branch),
+            _                   => q.OrderBy(x => x.c.CustKey).ThenBy(x => x.c.Branch),
         };
 
         var rows = await q
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(c => new CustomerMasterDto
+            .Select(x => new CustomerMasterDto
             {
-                Id = c.Id, Branch = c.Branch, CustKey = c.CustKey, CusName = c.CusName,
-                AddrLn1 = c.AddrLn1, AddrLn2 = c.AddrLn2, DelAddrLn1 = c.DelAddrLn1, DelAddrLn2 = c.DelAddrLn2,
-                DelArea = c.DelArea, WhseNo = c.WhseNo, ServeWh = c.ServeWh, DelWhse = c.DelWhse,
-                Salesman = c.Salesman, CsMan = c.CsMan, Term = c.Term, TermDays = c.TermDays, CZone = c.CZone, NSlGrp = c.NSlGrp, NRegion = c.NRegion,
-                Tin = c.Tin, VatId = c.VatId, Subd = c.Subd, Tpc = c.Tpc, Offshore = c.Offshore,
-                ExBranch = c.ExBranch, BlockInv = c.BlockInv, Inactive = c.Inactive,
-                FirstOrder = c.FirstOrder, ImportedAt = c.ImportedAt
+                Id = x.c.Id, Branch = x.c.Branch, CustKey = x.c.CustKey, CusName = x.c.CusName,
+                AddrLn1 = x.c.AddrLn1, AddrLn2 = x.c.AddrLn2, DelAddrLn1 = x.c.DelAddrLn1, DelAddrLn2 = x.c.DelAddrLn2,
+                DelArea = x.c.DelArea, WhseNo = x.c.WhseNo, ServeWh = x.c.ServeWh, DelWhse = x.c.DelWhse,
+                Salesman = x.c.Salesman, CsMan = x.c.CsMan, Term = x.c.Term, TermDays = x.c.TermDays, CZone = x.c.CZone,
+                NSlGrp = x.c.NSlGrp, NRegion = x.c.NRegion,
+                Region = x.k != null ? x.k.Region : "", SalesGroup = x.k != null ? x.k.SalesGroup : "",
+                ServicingBranch = x.k != null ? x.k.ServicingBranch : "", ChainGroup = x.k != null ? x.k.ChainGroup : "",
+                Tin = x.c.Tin, VatId = x.c.VatId, Subd = x.c.Subd, Tpc = x.c.Tpc, Offshore = x.c.Offshore,
+                ExBranch = x.c.ExBranch, BlockInv = x.c.BlockInv, Inactive = x.c.Inactive,
+                FirstOrder = x.c.FirstOrder, ImportedAt = x.c.ImportedAt
             })
             .ToListAsync();
 

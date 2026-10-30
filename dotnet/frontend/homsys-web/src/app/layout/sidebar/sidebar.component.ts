@@ -215,6 +215,63 @@ import { LayoutService } from '../../core/services/layout.service';
             </a>
           </li>
         }
+        @if (auth.isAdmin() || auth.hasPermission('collections-encode') || auth.hasPermission('collections-verify') || auth.hasPermission('collections-manage')) {
+          <li class="menu-group">Collections</li>
+          @if (auth.isAdmin() || auth.hasPermission('collections-encode')) {
+            <li>
+              <a routerLink="/collections" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" (click)="onNavClick()">
+                <i class="pi pi-wallet"></i>
+                <span>New Collection</span>
+              </a>
+            </li>
+          }
+          @if (auth.isAdmin() || auth.hasPermission('collections-ra-encode') || auth.hasPermission('collections-verify') || auth.hasPermission('collections-manage')) {
+            <li>
+              <a routerLink="/collections/remittance" routerLinkActive="active" (click)="onNavClick()">
+                <i class="pi pi-file-import"></i>
+                <span>Remittance Advice</span>
+              </a>
+            </li>
+          }
+          <li>
+            <a routerLink="/collections/list" routerLinkActive="active" (click)="onNavClick()">
+              <i class="pi pi-list"></i>
+              <span>Collections</span>
+            </a>
+          </li>
+          @if (auth.isAdmin() || auth.hasPermission('collections-verify')) {
+            <li>
+              <a routerLink="/collections/verify" routerLinkActive="active" (click)="onNavClick()">
+                <i class="pi pi-check-square"></i>
+                <span>Verification Queue</span>
+              </a>
+            </li>
+          }
+          @if (auth.isAdmin() || auth.hasPermission('collections-manage') || auth.hasPermission('collections-verify')) {
+            <li>
+              <a routerLink="/collections/bank" routerLinkActive="active" (click)="onNavClick()">
+                <i class="pi pi-building-columns"></i>
+                <span>Bank Statements</span>
+              </a>
+            </li>
+          }
+          @if (auth.isAdmin() || auth.hasPermission('collections-manage')) {
+            <li>
+              <a routerLink="/collections/dashboard" (click)="onNavClick()">
+                <i class="pi pi-chart-bar"></i>
+                <span>Collections Dashboard</span>
+              </a>
+            </li>
+          }
+        }
+        @if (auth.isAdmin() || auth.hasPermission('pdc-view') || auth.hasPermission('pdc-tag')) {
+          <li>
+            <a routerLink="/pdc" routerLinkActive="active" (click)="onNavClick()">
+              <i class="pi pi-calendar-clock"></i>
+              <span>PDC Monitor</span>
+            </a>
+          </li>
+        }
 
         @if (auth.isAdmin() || auth.hasPermission('users') || auth.hasPermission('roles') || auth.hasPermission('authorization')) {
           <li class="menu-group">User Management</li>

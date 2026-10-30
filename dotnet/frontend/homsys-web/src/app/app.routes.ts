@@ -88,6 +88,18 @@ export const routes: Routes = [
         loadChildren: () =>
           import('./features/sales-orders/sales-order.routes').then(m => m.salesOrderRoutes)
       },
+      {
+        // Per-page permissions live in collection.routes (the list is shared with finance).
+        path: 'collections',
+        loadChildren: () =>
+          import('./features/collections/collection.routes').then(m => m.collectionRoutes)
+      },
+      {
+        path: 'pdc',
+        data: { permission: ['pdc-view', 'pdc-tag'] },
+        loadComponent: () =>
+          import('./features/pdc/pdc-page.component').then(m => m.PdcPageComponent)
+      },
       // Replaced by the Data Analytics module ("Sales Overview" system dashboard on /home).
       { path: 'sales-order-analytics', redirectTo: 'home', pathMatch: 'full' },
       {
