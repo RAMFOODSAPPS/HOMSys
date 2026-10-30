@@ -43,6 +43,7 @@ public static class DependencyInjection
         services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
         services.AddScoped<ITasafLookupRepository, TasafLookupRepository>();
         services.AddScoped<ITasafRepository, TasafRepository>();
+        services.AddScoped<ITasafWorksheetRepository, TasafWorksheetRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddScoped<IFormLayoutRepository, FormLayoutRepository>();
         services.AddScoped<ICustomerMasterRepository, CustomerMasterRepository>();
@@ -89,6 +90,7 @@ public static class DependencyInjection
         services.AddScoped<TasafMasterService>();
         services.AddScoped<TasafPriceService>();
         services.AddScoped<TasafService>();
+        services.AddScoped<TasafWorksheetService>();
         services.AddScoped<NotificationService>();
         services.AddScoped<FormLayoutService>();
         services.AddScoped<ProductCatalogService>();

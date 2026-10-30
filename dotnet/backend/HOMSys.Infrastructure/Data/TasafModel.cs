@@ -98,13 +98,13 @@ internal static class TasafModel
 
             // Lookups: a referenced master row can't be deleted (deactivate it instead).
             e.HasOne(x => x.SalesGroup).WithMany().HasForeignKey(x => x.SalesGroupId).OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(x => x.Chain).WithMany().HasForeignKey(x => x.ChainId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.ProgramType).WithMany().HasForeignKey(x => x.ProgramTypeId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Objective).WithMany().HasForeignKey(x => x.ObjectiveId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.TargetMarket).WithMany().HasForeignKey(x => x.TargetMarketId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.ProponentUser).WithMany().HasForeignKey(x => x.ProponentUserId).OnDelete(DeleteBehavior.Restrict);
 
             e.HasMany(x => x.Areas).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Chains).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.ProductCategories).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.SubCategories).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Channels).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
@@ -167,6 +167,49 @@ internal static class TasafModel
             e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        // Worksheets (LF Breakdown / Near Ex) attached to a TASAF. Deleting a TASAF only detaches them.
+        mb.Entity<TasafWorksheet>(e =>
+        {
+            e.ToTable("TasafWorksheets");
+            e.Property(x => x.Type).HasMaxLength(20);
+            e.Property(x => x.Title).HasMaxLength(200);
+            e.Property(x => x.ProponentName).HasMaxLength(150);
+            e.Property(x => x.CreatedBy).HasMaxLength(100);
+            e.Property(x => x.UpdatedBy).HasMaxLength(100);
+            e.HasOne(x => x.ProponentUser).WithMany().HasForeignKey(x => x.ProponentUserId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Tasaf).WithMany(t => t.Worksheets).HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.SetNull);
+            e.HasMany(x => x.ListingFeeLines).WithOne().HasForeignKey(x => x.WorksheetId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.NearExLines).WithOne().HasForeignKey(x => x.WorksheetId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<TasafListingFeeLine>(e =>
+        {
+            e.ToTable("TasafListingFeeLines");
+            foreach (var p in new[] { nameof(TasafListingFeeLine.SalesGroup), nameof(TasafListingFeeLine.Channel),
+                                      nameof(TasafListingFeeLine.Account), nameof(TasafListingFeeLine.Category) })
+                e.Property(p).HasMaxLength(150);
+            e.Property(x => x.Basis).HasMaxLength(20);
+            e.Property(x => x.Remarks).HasMaxLength(500);
+            e.Property(x => x.LfPerSku).HasPrecision(18, 2);
+            e.Property(x => x.Total).HasPrecision(18, 2);
+            e.Property(x => x.ProjectedAnnualSales).HasPrecision(18, 2);
+            e.Property(x => x.Cts).HasPrecision(9, 6);
+        });
+
+        mb.Entity<TasafNearExLine>(e =>
+        {
+            e.ToTable("TasafNearExLines");
+            foreach (var p in new[] { nameof(TasafNearExLine.SalesGroup), nameof(TasafNearExLine.Account),
+                                      nameof(TasafNearExLine.Category), nameof(TasafNearExLine.Sku),
+                                      nameof(TasafNearExLine.MoveoutScheme) })
+                e.Property(p).HasMaxLength(150);
+            e.Property(x => x.LspPerCase).HasPrecision(18, 2);
+            e.Property(x => x.LspPerPc).HasPrecision(18, 2);
+            e.Property(x => x.TotalValue).HasPrecision(18, 2);
+            e.Property(x => x.Discount).HasPrecision(9, 6);
+            e.Property(x => x.MoveoutCost).HasPrecision(18, 2);
+        });
+
         mb.Entity<TasafChainCustomer>(e =>
         {
             e.ToTable("TasafChainCustomers");
@@ -190,6 +233,12 @@ internal static class TasafModel
         {
             e.ToTable("TasafAreaLinks");
             e.HasOne(x => x.Area).WithMany().HasForeignKey(x => x.AreaId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        mb.Entity<TasafChainLink>(e =>
+        {
+            e.ToTable("TasafChainLinks");
+            e.HasOne(x => x.Chain).WithMany().HasForeignKey(x => x.ChainId).OnDelete(DeleteBehavior.Restrict);
         });
 
         mb.Entity<TasafProductCategoryLink>(e =>

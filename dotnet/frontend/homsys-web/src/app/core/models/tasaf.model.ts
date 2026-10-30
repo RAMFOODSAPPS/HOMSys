@@ -1,3 +1,4 @@
+import { TasafWorksheet } from './tasaf-worksheet.model';
 /** A participating store from the customer master. */
 export interface TasafCustomerRef {
   custKey: string;
@@ -47,7 +48,8 @@ export interface SaveTasafDto {
   salesGroupId: number | null;
   /** Areas covered — multi-select. */
   areaIds: number[];
-  chainId: number | null;
+  /** Customers / Chains — multi-select. */
+  chainIds: number[];
   /** Participating stores (Cust Keys) — any number. */
   customers: TasafCustomerRef[];
   programTypeId: number | null;
@@ -89,6 +91,8 @@ export interface TasafDto extends SaveTasafDto {
   status: string;
   salesGroupName?: string | null;
   chainName?: string | null;
+  /** Attached worksheets (LF Breakdown / Near Ex). */
+  worksheets?: TasafWorksheet[];
   /** Display names of the picked lookups (comma-separated for the multi-selects). */
   areaNames?: string | null;
   programTypeName?: string | null;

@@ -205,6 +205,12 @@ import { LayoutService } from '../../core/services/layout.service';
               <span>TASAF List</span>
             </a>
           </li>
+          <li>
+            <a routerLink="/tasafs/worksheets" routerLinkActive="active" (click)="onNavClick()">
+              <i class="pi pi-table"></i>
+              <span>Worksheets</span>
+            </a>
+          </li>
         }
         @if (auth.isAdmin() || auth.hasPermission('tasaf-masters')) {
           <li class="menu-sub-divider"></li>

@@ -23,9 +23,6 @@ public class Tasaf
 
     public int? SalesGroupId { get; set; }
     public TasafSalesGroup? SalesGroup { get; set; }
-    public int? ChainId { get; set; }
-    public TasafChain? Chain { get; set; }
-
     public int? ProgramTypeId { get; set; }
     public TasafProgramType? ProgramType { get; set; }
     public string ProgramTypeOther { get; set; } = string.Empty;
@@ -87,6 +84,10 @@ public class Tasaf
 
     /// <summary>Areas covered (multi-select).</summary>
     public List<TasafAreaLink> Areas { get; set; } = [];
+    /// <summary>Customers / Chains (multi-select).</summary>
+    public List<TasafChainLink> Chains { get; set; } = [];
+    /// <summary>Attached worksheets (LF Breakdown / Near Ex); owned by TasafWorksheet.TasafId.</summary>
+    public List<TasafWorksheet> Worksheets { get; set; } = [];
     /// <summary>Channels (multi-select).</summary>
     public List<TasafChannelLink> Channels { get; set; } = [];
     /// <summary>Product Categories (multi-select; TasafProductGroup rows).</summary>
@@ -172,6 +173,16 @@ public class TasafAreaLink
     public int LineNo { get; set; }
     public int AreaId { get; set; }
     public TasafArea? Area { get; set; }
+}
+
+/// <summary>A Customer / Chain the TASAF covers (TasafChain master row).</summary>
+public class TasafChainLink
+{
+    public int Id { get; set; }
+    public int TasafId { get; set; }
+    public int LineNo { get; set; }
+    public int ChainId { get; set; }
+    public TasafChain? Chain { get; set; }
 }
 
 /// <summary>A Product Category the TASAF covers (TasafProductGroup master row).</summary>

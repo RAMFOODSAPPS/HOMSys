@@ -103,6 +103,10 @@ When adding a new route/module, wire up all seven of:
 6. Backend: seeded `Permission` + `RolePermission` in `AppDbContext.OnModelCreating` + a migration
 7. Backend: `AddPolicy` line in `Program.cs`
 
+Also add the new permission key to `features/authorization/authorization-catalog.ts` (its module, icon and the pages it
+opens; a switch inside a page goes under `actions`). A key missing there still works but shows under "Other" on the
+Authorization page.
+
 Follow the form-page and list-page patterns above (signal filtering, `handleNavState`, dirty checker registration, draft preservation).
 
 ### Export & Import

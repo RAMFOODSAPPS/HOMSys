@@ -174,6 +174,7 @@ export class ModulebarComponent {
       items: [
         { label: 'New TASAF',   icon: 'pi pi-file-edit', routerLink: '/tasafs',      permission: 'tasaf' },
         { label: 'TASAF List',  icon: 'pi pi-list',      routerLink: '/tasafs/list', permission: 'tasaf' },
+        { label: 'Worksheets',  icon: 'pi pi-table',     routerLink: '/tasafs/worksheets', permission: 'tasaf' },
         { separator: true, permission: 'tasaf-masters' },
         { label: 'TASAF Setup', icon: 'pi pi-cog',       routerLink: '/tasaf-setup', permission: 'tasaf-masters' }
       ]

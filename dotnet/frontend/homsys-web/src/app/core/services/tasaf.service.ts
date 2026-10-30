@@ -46,9 +46,8 @@ export class TasafService {
 
   /** filtered = false when the chain has no keywords (use the free search instead). */
   /** Cust Key dropdown: stores of the chain (name keywords) and areas (branches). filtered = false → search all. */
-  customerOptions(chainId: number | null, areaIds: number[], siteIds: number[] = [], salesGroupId: number | null = null) {
-    const params: Record<string, string | string[]> = { areaIds: areaIds.map(String), siteIds: siteIds.map(String) };
-    if (chainId) params['chainId'] = String(chainId);
+  customerOptions(chainIds: number[], areaIds: number[], siteIds: number[] = [], salesGroupId: number | null = null) {
+    const params: Record<string, string | string[]> = { chainIds: chainIds.map(String), areaIds: areaIds.map(String), siteIds: siteIds.map(String) };
     if (salesGroupId) params['salesGroupId'] = String(salesGroupId);
     return this.http.get<ApiResponse<{ filtered: boolean; customers: TasafChainCustomer[]; siteCodes?: string[] | null }>>(`${this.base}/customer-options`, { params });
   }

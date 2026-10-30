@@ -73,7 +73,8 @@ public class SaveTasafDto
     public int? SalesGroupId { get; set; }
     /// <summary>Areas covered (multi-select).</summary>
     public List<int> AreaIds { get; set; } = [];
-    public int? ChainId { get; set; }
+    /// <summary>Customers / Chains (multi-select).</summary>
+    public List<int> ChainIds { get; set; } = [];
     public int? ProgramTypeId { get; set; }
     public string ProgramTypeOther { get; set; } = string.Empty;
     public int? ObjectiveId { get; set; }
@@ -120,7 +121,10 @@ public class TasafDto : SaveTasafDto
     public string? SalesGroupName { get; set; }
     /// <summary>Picked area names, comma-separated.</summary>
     public string? AreaNames { get; set; }
+    /// <summary>Picked chain names, comma-separated.</summary>
     public string? ChainName { get; set; }
+    /// <summary>Attached worksheets (LF Breakdown / Near Ex), shown to approvers with the TASAF.</summary>
+    public List<TasafWorksheetDto> Worksheets { get; set; } = [];
     public string? ProgramTypeName { get; set; }
     public string? ObjectiveName { get; set; }
     public string? TargetMarketName { get; set; }

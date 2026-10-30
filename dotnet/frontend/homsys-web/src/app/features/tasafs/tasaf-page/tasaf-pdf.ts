@@ -178,6 +178,30 @@ export function buildTasafPdf(t: TasafDto, logo?: string | null): jsPDF {
   ] as [string, number][]).filter(([, a]) => a);
   table(['Payment Type', 'Amount'], pay.map(([l, a]) => [l, n2(a)]), [1]);
 
+  // Attached worksheets (LF Breakdown / Near Ex), same columns as the workbook sheets
+  for (const w of t.worksheets ?? []) {
+    section(`Attached Worksheet - ${w.typeLabel}${w.title !== w.typeLabel ? ': ' + w.title : ''}`);
+    const int = (v: number | null) => v == null ? '-' : v.toLocaleString('en-US');
+    if (w.type === 'NearEx') {
+      table(['Sales Group', 'Account / Store', 'Category', 'SKU', 'LSP / Case', 'LSP / Pc', 'Pcs/Cs', 'Expiry', 'Invty Cs',
+             'Invty Pcs', 'Total Pcs', 'Total Value', 'Moveout Scheme', 'Discount', 'Moveout Cost'],
+        w.nearExLines.map(l => [l.salesGroup, l.account, l.category, l.sku, n2(l.lspPerCase), n2(l.lspPerPc), int(l.pcsPerCase),
+          l.expiry ? l.expiry.slice(0, 7) : '-', int(l.invCases), int(l.invPieces), int(l.totalPcs), n2(l.totalValue),
+          l.moveoutScheme, l.discount == null ? '-' : pct(l.discount), n2(l.moveoutCost)]),
+        [4, 5, 6, 8, 9, 10, 11, 13, 14],
+        ['Total', '', '', '', '', '', '', '', '', '', int(w.nearExLines.reduce((s, l) => s + l.totalPcs, 0)),
+         n2(w.nearExLines.reduce((s, l) => s + l.totalValue, 0)), '', '', n2(w.total)]);
+    } else {
+      table(['Sales Group', 'Channel', 'Account / Store', 'Category', 'LF / SKU', '# SKUs', '# Doors', 'Total',
+             'Projected Annual Sales', 'CTS', 'Remarks'],
+        w.listingFeeLines.map(l => [l.salesGroup, l.channel, l.account, l.category, n2(l.lfPerSku), int(l.skuCount), int(l.doorCount),
+          n2(l.total) + (l.basis === 'AllDoors' ? '\n(LF x SKUs)' : '\n(LF x Doors)'), n2(l.projectedAnnualSales),
+          l.cts == null ? '-' : pct(l.cts), l.remarks]),
+        [4, 5, 6, 7, 8, 9],
+        ['Total', '', '', '', '', '', '', n2(w.total), n2(w.listingFeeLines.reduce((s, l) => s + (l.projectedAnnualSales ?? 0), 0)), '', '']);
+    }
+  }
+
   // Approval chain
   if (t.steps.length) {
     section('Approval' + (t.approvalTypeName ? ` - ${t.approvalTypeName}` : ''));

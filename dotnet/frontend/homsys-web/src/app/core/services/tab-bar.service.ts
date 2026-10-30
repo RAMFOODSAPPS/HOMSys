@@ -44,6 +44,7 @@ const ROUTE_META: Record<string, { label: string; icon: string }> = {
   '/customers':         { label: 'Customers',        icon: 'pi-id-card' },
   '/tasafs':            { label: 'New TASAF',        icon: 'pi-file-edit' },
   '/tasafs/list':       { label: 'TASAF List',       icon: 'pi-list' },
+  '/tasafs/worksheets': { label: 'TASAF Worksheets', icon: 'pi-table' },
   '/tasaf-setup':       { label: 'TASAF Setup',      icon: 'pi-cog' },
   '/product-categories': { label: 'Product Categories', icon: 'pi-tags' },
 };

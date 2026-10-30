@@ -108,6 +108,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TasafApprover> TasafApprovers => Set<TasafApprover>();
     public DbSet<TasafSalesGroupUser> TasafSalesGroupUsers => Set<TasafSalesGroupUser>();
     public DbSet<TasafChainCustomer> TasafChainCustomers => Set<TasafChainCustomer>();
+    public DbSet<TasafWorksheet> TasafWorksheets => Set<TasafWorksheet>();
     public DbSet<TasafApprovalType> TasafApprovalTypes => Set<TasafApprovalType>();
     public DbSet<TasafApprovalRule> TasafApprovalRules => Set<TasafApprovalRule>();
     public DbSet<TasafApprovalStep> TasafApprovalSteps => Set<TasafApprovalStep>();

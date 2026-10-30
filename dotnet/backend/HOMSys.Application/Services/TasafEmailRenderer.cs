@@ -129,6 +129,37 @@ public static class TasafEmailRenderer
         sb.Append(Table(["Payment Type", "Amount (₱)"], [false, true],
             pay.Select(x => new[] { x.Label, Num(x.Amount) }).ToList(), null));
 
+        // Attached worksheets (LF Breakdown / Near Ex), same columns as the workbook sheets
+        foreach (var w in d.Worksheets)
+        {
+            sb.Append(Section($"Attached Worksheet — {w.TypeLabel}{(w.Title != w.TypeLabel ? ": " + w.Title : "")}"));
+            if (w.Type == "NearEx")
+                sb.Append(Table(
+                    ["Sales Group", "Account / Store", "Category", "SKU", "LSP / Case", "LSP / Pc", "Pcs/Cs", "Expiry",
+                     "Invty Cases", "Invty Pcs", "Total Pcs", "Total Value", "Moveout Scheme", "Discount / Rebate", "Moveout Cost"],
+                    [false, false, false, false, true, true, true, false, true, true, true, true, false, true, true],
+                    w.NearExLines.Select(l => new[]
+                    {
+                        l.SalesGroup, l.Account, l.Category, l.Sku, Num(l.LspPerCase), Num(l.LspPerPc), Int(l.PcsPerCase),
+                        l.Expiry?.ToString("MMM-yy", En) ?? "—", Int(l.InvCases), Int(l.InvPieces), l.TotalPcs.ToString("N0", En),
+                        Num(l.TotalValue), l.MoveoutScheme, l.Discount is decimal dc ? dc.ToString("P0", En) : "—", Num(l.MoveoutCost)
+                    }).ToList(),
+                    ["Total", "", "", "", "", "", "", "", "", "", w.NearExLines.Sum(l => l.TotalPcs).ToString("N0", En),
+                     Num(w.NearExLines.Sum(l => l.TotalValue)), "", "", Num(w.Total)]));
+            else
+                sb.Append(Table(
+                    ["Sales Group", "Channel", "Account / Store", "Category", "LF / SKU", "# of SKUs", "# of Doors", "Total",
+                     "Projected Annual Sales", "CTS", "Remarks"],
+                    [false, false, false, false, true, true, true, true, true, true, false],
+                    w.ListingFeeLines.Select(l => new[]
+                    {
+                        l.SalesGroup, l.Channel, l.Account, l.Category, Num(l.LfPerSku), Int(l.SkuCount), Int(l.DoorCount),
+                        Num(l.Total) + (l.Basis == "AllDoors" ? "\n(LF × SKUs)" : "\n(LF × Doors)"),
+                        Num(l.ProjectedAnnualSales), l.Cts is decimal ct ? ct.ToString("P0", En) : "—", l.Remarks
+                    }).ToList(),
+                    ["Total", "", "", "", "", "", "", Num(w.Total), Num(w.ListingFeeLines.Sum(l => l.ProjectedAnnualSales ?? 0)), "", ""]));
+        }
+
         // Approval chain
         if (d.Steps.Count > 0)
         {
@@ -165,6 +196,7 @@ public static class TasafEmailRenderer
     /// <summary>Encoded text keeping its line breaks (Background, Mechanics…).</summary>
     private static string Multi(string? s) => E(s).Replace("\r\n", "\n").Replace("\n", "<br>");
     private static string Num(decimal? v) => v is decimal x ? x.ToString("N2", En) : "—";
+    private static string Int(int? v) => v is int x ? x.ToString("N0", En) : "—";
     private static string Pct(decimal? v, string label) => v is decimal x ? $" ({x.ToString("P2", En)}{label})" : "";
     private static string Date(DateOnly? d) => d?.ToString("MMM d, yyyy", En) ?? "—";
     private static string Manila(DateTime utc) => utc.AddHours(8).ToString("MMM d, yyyy h:mm tt", En);

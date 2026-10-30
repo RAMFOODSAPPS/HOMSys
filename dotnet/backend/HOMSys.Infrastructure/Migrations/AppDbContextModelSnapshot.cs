@@ -3895,9 +3895,6 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("ChainId")
-                        .HasColumnType("int");
-
                     b.Property<string>("Concessions")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -4045,8 +4042,6 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ChainId");
 
                     b.HasIndex("CurrentApproverUserId");
 
@@ -5190,6 +5185,32 @@ namespace HOMSys.Infrastructure.Migrations
                     b.ToTable("TasafChainCustomers", (string)null);
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafChainLink", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ChainId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TasafId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChainId");
+
+                    b.HasIndex("TasafId");
+
+                    b.ToTable("TasafChainLinks", (string)null);
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafChannel", b =>
                 {
                     b.Property<int>("Id")
@@ -5783,6 +5804,160 @@ namespace HOMSys.Infrastructure.Migrations
                     b.HasIndex("TasafId");
 
                     b.ToTable("TasafCustomers");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafListingFeeLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Account")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Basis")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<decimal?>("Cts")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<int?>("DoorCount")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("LfPerSku")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("ProjectedAnnualSales")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Remarks")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("SalesGroup")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("SkuCount")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("WorksheetId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorksheetId");
+
+                    b.ToTable("TasafListingFeeLines", (string)null);
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafNearExLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Account")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<decimal?>("Discount")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<DateOnly?>("Expiry")
+                        .HasColumnType("date");
+
+                    b.Property<int?>("InvCases")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("InvPieces")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("LspPerCase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("LspPerPc")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("MoveoutCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("MoveoutScheme")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("PcsPerCase")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SalesGroup")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("TotalPcs")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("WorksheetId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorksheetId");
+
+                    b.ToTable("TasafNearExLines", (string)null);
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafNumbering", b =>
@@ -6704,6 +6879,59 @@ namespace HOMSys.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafWorksheet", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ProponentName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("ProponentUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("TasafId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProponentUserId");
+
+                    b.HasIndex("TasafId");
+
+                    b.ToTable("TasafWorksheets", (string)null);
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.User", b =>
                 {
                     b.Property<int>("Id")
@@ -7383,11 +7611,6 @@ namespace HOMSys.Infrastructure.Migrations
 
             modelBuilder.Entity("HOMSys.Domain.Entities.Tasaf", b =>
                 {
-                    b.HasOne("HOMSys.Domain.Entities.TasafChain", "Chain")
-                        .WithMany()
-                        .HasForeignKey("ChainId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("HOMSys.Domain.Entities.TasafObjective", "Objective")
                         .WithMany()
                         .HasForeignKey("ObjectiveId")
@@ -7413,8 +7636,6 @@ namespace HOMSys.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("TargetMarketId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Chain");
 
                     b.Navigation("Objective");
 
@@ -7544,6 +7765,23 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("Chain");
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafChainLink", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.TasafChain", "Chain")
+                        .WithMany()
+                        .HasForeignKey("ChainId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HOMSys.Domain.Entities.Tasaf", null)
+                        .WithMany("Chains")
+                        .HasForeignKey("TasafId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Chain");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafChannelLink", b =>
                 {
                     b.HasOne("HOMSys.Domain.Entities.TasafChannel", "Channel")
@@ -7582,6 +7820,24 @@ namespace HOMSys.Infrastructure.Migrations
                     b.HasOne("HOMSys.Domain.Entities.Tasaf", null)
                         .WithMany("Customers")
                         .HasForeignKey("TasafId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafListingFeeLine", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.TasafWorksheet", null)
+                        .WithMany("ListingFeeLines")
+                        .HasForeignKey("WorksheetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafNearExLine", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.TasafWorksheet", null)
+                        .WithMany("NearExLines")
+                        .HasForeignKey("WorksheetId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -7648,6 +7904,24 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasForeignKey("TasafId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafWorksheet", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.User", "ProponentUser")
+                        .WithMany()
+                        .HasForeignKey("ProponentUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HOMSys.Domain.Entities.Tasaf", "Tasaf")
+                        .WithMany("Worksheets")
+                        .HasForeignKey("TasafId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ProponentUser");
+
+                    b.Navigation("Tasaf");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.User", b =>
@@ -7792,6 +8066,8 @@ namespace HOMSys.Infrastructure.Migrations
 
                     b.Navigation("Branches");
 
+                    b.Navigation("Chains");
+
                     b.Navigation("Channels");
 
                     b.Navigation("Costs");
@@ -7805,11 +8081,20 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("Steps");
 
                     b.Navigation("SubCategories");
+
+                    b.Navigation("Worksheets");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafSalesGroup", b =>
                 {
                     b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafWorksheet", b =>
+                {
+                    b.Navigation("ListingFeeLines");
+
+                    b.Navigation("NearExLines");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.User", b =>

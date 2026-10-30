@@ -29,6 +29,8 @@ import { FormDesignerComponent } from '../../../shared/form-designer/form-design
 import { ResizableColumnsDirective } from '../../../shared/resizable-columns.directive';
 import { TASAF_FIELDS, TASAF_FORM_KEY } from './tasaf-layout';
 import { buildTasafPdf } from './tasaf-pdf';
+import { TasafWorksheetService } from '../../../core/services/tasaf-worksheet.service';
+import { TasafWorksheetListItem, TasafWorksheetType } from '../../../core/models/tasaf-worksheet.model';
 import {
   SaveTasafDto, TASAF_STATUS_SEVERITY, utc, parseIsoDate, programDuration, toIsoDate, TasafBranch, TasafDialogAction, TasafDto, TasafFormOptions, TasafCustomerRef, TasafOption, TasafProduct, TasafSkuPrice
 } from '../../../core/models/tasaf.model';
@@ -48,7 +50,7 @@ const TAB = '/tasafs';
 function blankModel(): SaveTasafDto {
   return {
     title: '', startDate: null, endDate: null,
-    salesGroupId: null, areaIds: [], chainId: null,
+    salesGroupId: null, areaIds: [], chainIds: [],
     programTypeId: null, programTypeOther: '', objectiveId: null, objectiveOther: '',
     targetMarketId: null, targetMarketOther: '', channelIds: [],
     productCategoryIds: [], subCategoryCodes: [],
@@ -174,9 +176,14 @@ function blankProduct(): TasafProduct {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
               <!-- Picked in order: Area → Customer / Chain → Cust Key (and Branch(es), which narrow the stores). -->
-              <p-select [focusOnHover]="false" [ngModel]="m.chainId" (ngModelChange)="onChain($event)" [options]="chainOptions()" optionLabel="name" optionValue="id"
-                [showClear]="true" [filter]="true" filterBy="name" [placeholder]="m.areaIds.length ? 'Select' : 'Pick an Area first'"
-                styleClass="w-full" [disabled]="readonly() || !m.areaIds.length" />
+              <p-multiSelect #chainMs [focusOnHover]="false" [ngModel]="m.chainIds" (ngModelChange)="onChains($event)" [options]="chainOptions()" optionLabel="name" optionValue="id"
+                [showClear]="true" [filter]="true" filterBy="name" display="chip" [maxSelectedLabels]="100000"
+                [placeholder]="m.areaIds.length ? 'Select one or more' : 'Pick an Area first'" styleClass="w-full chips-wrap"
+                appendTo="body" [disabled]="readonly() || !m.areaIds.length">
+                <ng-template pTemplate="footer">
+                  <div class="ms-footer"><span>{{ m.chainIds.length }} selected</span><p-button label="Done" size="small" (onClick)="chainMs.hide()" /></div>
+                </ng-template>
+              </p-multiSelect>
             </div>
           }
           @case ('custKey') {
@@ -189,9 +196,9 @@ function blankProduct(): TasafProduct {
                   [options]="chainCustomers()" optionValue="custKey" optionLabel="label" [filter]="true"
                   filterBy="custKey,cusName,address,branch" [showClear]="true" [virtualScroll]="chainCustomers().length > 500" [virtualScrollItemSize]="48" scrollHeight="20rem"
                   panelStyleClass="opt2-panel" [panelStyle]="{ width: '36rem', maxWidth: '95vw' }"
-                  [placeholder]="m.chainId ? 'Select from ' + chainCustomers().length + ' ' + scopeName() + ' stores' : 'Pick a Customer / Chain first'" appendTo="body"
+                  [placeholder]="m.chainIds.length ? 'Select from ' + chainCustomers().length + ' ' + scopeName() + ' stores' : 'Pick a Customer / Chain first'" appendTo="body"
                   display="chip" [maxSelectedLabels]="100000"
-                  styleClass="w-full chips-wrap" [disabled]="readonly() || !m.chainId" [loading]="chainLoading()">
+                  styleClass="w-full chips-wrap" [disabled]="readonly() || !m.chainIds.length" [loading]="chainLoading()">
                   <ng-template let-c pTemplate="item">
                     <div class="cust-opt" [title]="c.custKey + ' — ' + c.cusName + (c.address ? ' · ' + c.address : '')">
                       <span><strong>{{ c.custKey }}</strong> — {{ c.cusName }}</span>
@@ -207,8 +214,8 @@ function blankProduct(): TasafProduct {
                   [suggestions]="customerHits()" optionLabel="cusName" [forceSelection]="true" dataKey="custKey"
                   [minLength]="2" [delay]="600" (completeMethod)="searchCustomer($event.query)"
                   appendTo="body" styleClass="w-full" [inputStyle]="{ width: '100%' }"
-                  [placeholder]="m.chainId ? 'Type cust key or name — pick as many as needed' : 'Pick a Customer / Chain first'"
-                  [disabled]="readonly() || !m.chainId">
+                  [placeholder]="m.chainIds.length ? 'Type cust key or name — pick as many as needed' : 'Pick a Customer / Chain first'"
+                  [disabled]="readonly() || !m.chainIds.length">
                   <ng-template let-c pTemplate="item">{{ c.custKey }} — {{ c.cusName }}</ng-template>
                   <ng-template let-c pTemplate="selecteditem"><span [pTooltip]="c.cusName" tooltipPosition="top">{{ c.custKey }}</span></ng-template>
                 </p-autoComplete>
@@ -223,8 +230,8 @@ function blankProduct(): TasafProduct {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
               <p-multiSelect #branchMs [focusOnHover]="false" [ngModel]="branchSel" (ngModelChange)="onBranches($event)" [options]="branchOptions()" optionLabel="name" dataKey="name"
-                [filter]="true" display="chip" [maxSelectedLabels]="100000" [placeholder]="!m.chainId ? 'Pick a Customer / Chain first' : chainSiteCodes() ? 'Filled in from the picked Cust Keys' : areaCodes() ? 'Select branches of the chosen area' : 'Select one or more branches'" styleClass="w-full chips-wrap"
-                appendTo="body" [disabled]="readonly() || !m.chainId || !!chainSiteCodes()">
+                [filter]="true" display="chip" [maxSelectedLabels]="100000" [placeholder]="!m.chainIds.length ? 'Pick a Customer / Chain first' : chainSiteCodes() ? 'Filled in from the picked Cust Keys' : areaCodes() ? 'Select branches of the chosen area' : 'Select one or more branches'" styleClass="w-full chips-wrap"
+                appendTo="body" [disabled]="readonly() || !m.chainIds.length || !!chainSiteCodes()">
                 <ng-template pTemplate="footer">
                   <div class="ms-footer"><span>{{ branchSel.length }} selected</span><p-button label="Done" size="small" (onClick)="branchMs.hide()" /></div>
                 </ng-template>
@@ -516,6 +523,48 @@ function blankProduct(): TasafProduct {
             </table>
             <small class="muted">One payment type per TASAF — the amount is the Total Cost from Cost Details.</small>
           }
+          @case ('worksheets') {
+            <!-- LF Breakdown / Near Ex worksheets (TASAF Worksheets page): optional, approved with the TASAF. -->
+            <div class="sec-head">
+              <h3>{{ cap(it) }}</h3>
+              @if (canAttachWs()) {
+                <span>
+                  <p-button label="New Listing Fee" icon="pi pi-plus" size="small" [text]="true" (onClick)="newWorksheet('ListingFee')" />
+                  <p-button label="New Near Ex" icon="pi pi-plus" size="small" [text]="true" (onClick)="newWorksheet('NearEx')" />
+                </span>
+              }
+            </div>
+            @if (!current()) {
+              <small class="muted">Save the TASAF first, then attach Listing Fee / Near Ex worksheets (optional).</small>
+            } @else {
+              <table class="lines">
+                <thead><tr><th>Worksheet</th><th>Title</th><th class="num">Rows</th><th class="num">Total (₱)</th><th></th></tr></thead>
+                <tbody>
+                  @for (w of attachedWs(); track w.id) {
+                    <tr>
+                      <td>{{ w.typeLabel }}</td>
+                      <td><a href="javascript:void(0)" (click)="openWorksheet(w.id)">{{ w.title }}</a></td>
+                      <td class="num">{{ w.lineCount }}</td>
+                      <td class="num">{{ w.total | number:'1.2-2' }}</td>
+                      <td>@if (canAttachWs()) { <p-button icon="pi pi-times" [text]="true" severity="danger" size="small" pTooltip="Detach" (onClick)="detachWorksheet(w.id)" /> }</td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="muted">No worksheets attached.</td></tr>
+                  }
+                </tbody>
+              </table>
+              @if (canAttachWs() && freeWs().length) {
+                <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem">
+                  <p-select [focusOnHover]="false" [options]="freeWs()" [(ngModel)]="attachWsId" optionLabel="label" optionValue="id"
+                    placeholder="Attach one of your worksheets" [showClear]="true" styleClass="w-full" appendTo="body" />
+                  <p-button label="Attach" icon="pi pi-paperclip" size="small" [disabled]="!attachWsId" (onClick)="attachWorksheet()" />
+                </div>
+              }
+              @if (current()?.canEdit && readonly()) {
+                <small class="muted">Click Edit to attach or detach worksheets.</small>
+              }
+            }
+          }
         }
         </div>
       }
@@ -709,6 +758,49 @@ export class TasafPageComponent implements OnInit, OnDestroy {
    */
   protected editing      = signal(false);
   protected readonly     = computed(() => !!this.current() && (!this.current()!.canEdit || !this.editing()));
+
+  // ── Attached worksheets (LF Breakdown / Near Ex — TASAF Worksheets page) ──
+  private wsApi = inject(TasafWorksheetService);
+  /** Worksheets the user can see (own + attached to TASAFs they review). */
+  private wsList = signal<TasafWorksheetListItem[]>([]);
+  protected attachWsId: number | null = null;
+  protected attachedWs = computed(() => {
+    const id = this.current()?.id;
+    return id ? this.wsList().filter(w => w.tasafId === id) : [];
+  });
+  /** The proponent's worksheets not attached anywhere yet. */
+  protected freeWs = computed(() => this.wsList().filter(w => w.isMine && !w.tasafId)
+    .map(w => ({ id: w.id, label: `${w.typeLabel} — ${w.title} (${w.total.toLocaleString('en-US', { minimumFractionDigits: 2 })})` })));
+  /** Attach / detach while editing the proponent's own Draft / Returned TASAF. */
+  protected canAttachWs = computed(() => !!this.current()?.canEdit && !this.readonly());
+
+  private loadWorksheets() {
+    this.wsApi.getAll().subscribe({ next: res => this.wsList.set(res.data ?? []), error: () => {} });
+  }
+
+  protected openWorksheet(id: number) { this.router.navigate(['/tasafs/worksheets'], { state: { worksheetId: id } }); }
+
+  /** New worksheet that is attached to this TASAF on its first save. */
+  protected newWorksheet(type: TasafWorksheetType) {
+    this.router.navigate(['/tasafs/worksheets'], { state: { newType: type, attachTo: this.current()?.id } });
+  }
+
+  protected attachWorksheet() {
+    const t = this.current();
+    if (!t || !this.attachWsId) return;
+    this.wsApi.attach(this.attachWsId, t.id).subscribe({
+      next: () => { this.attachWsId = null; this.loadWorksheets();
+        this.messageSvc.add({ severity: 'success', summary: 'Worksheet', detail: 'Attached to this TASAF.' }); },
+      error: err => this.messageSvc.add({ severity: 'error', summary: 'Attach failed', detail: err?.error?.message ?? 'Could not attach.' })
+    });
+  }
+
+  protected detachWorksheet(id: number) {
+    this.wsApi.detach(id).subscribe({
+      next: () => { this.loadWorksheets(); this.messageSvc.add({ severity: 'info', summary: 'Worksheet', detail: 'Detached from this TASAF.' }); },
+      error: err => this.messageSvc.add({ severity: 'error', summary: 'Detach failed', detail: err?.error?.message ?? 'Could not detach.' })
+    });
+  }
   protected cannotDelete = computed(() => !this.current()?.canDelete);
   protected severity     = computed(() => this.sev(this.current()?.status ?? 'Draft'));
   protected submitting   = signal(false);
@@ -777,6 +869,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       error: () => {} // keep the default layout
     });
     this.handleNavState();
+    this.loadWorksheets();
     if (!this.productReq) this.loadProductOptions(); // new TASAF: every active SKU until a scope is picked
     this.navSub = this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => this.handleNavState());
     this.syncToolbar();
@@ -857,6 +950,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       ...b,
       ...Object.fromEntries(Object.keys(b).map(k => [k, (src as unknown as Record<string, unknown>)[k] ?? (b as unknown as Record<string, unknown>)[k]])),
       areaIds: [...(src.areaIds ?? [])],
+      chainIds: [...(src.chainIds ?? [])],
       channelIds: [...(src.channelIds ?? [])],
       branches: [],  // held in branchSel
       customers: [], // held in customers()
@@ -1119,7 +1213,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     const sg = this.m.salesGroupId;
     const all = this.list('chains');
     const counts = this.chainCounts();
-    const key = `${sg}|${this.m.areaIds.join(',')}|${this.m.chainId}|${JSON.stringify(counts)}|${all.length}`;
+    const key = `${sg}|${this.m.areaIds.join(',')}|${this.m.chainIds.join(',')}|${JSON.stringify(counts)}|${all.length}`;
     if (this.chainOptsCache?.key === key) return this.chainOptsCache.list;
     // The group's own chains, plus chains with stores tagged with this group (Excel SALESGROUP, e.g. Landmark → RKA).
     let list = sg ? all.filter(c => !c.parentId || c.parentId === sg || (counts?.[c.id] ?? 0) > 0) : all;
@@ -1128,12 +1222,12 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     if (picked.size) {
       list = list.filter(c => {
         const areas = (c.areaNames ?? '').split(',').map(n => n.trim().toUpperCase()).filter(n => n);
-        return !areas.length || areas.some(n => picked.has(n)) || c.id === this.m.chainId;
+        return !areas.length || areas.some(n => picked.has(n)) || this.m.chainIds.includes(c.id);
       });
     }
     if (counts) {
       list = list
-        .filter(c => counts[c.id] === undefined || counts[c.id] > 0 || c.id === this.m.chainId)
+        .filter(c => counts[c.id] === undefined || counts[c.id] > 0 || this.m.chainIds.includes(c.id))
         .map(c => counts[c.id] === undefined ? c : { ...c, name: `${c.name} (${counts[c.id].toLocaleString()} stores)` });
     }
     this.chainOptsCache = { key, list };
@@ -1225,16 +1319,24 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   }
 
   // ── Cust Key per chain ─────────────────────────────────────
-  /** User picked a chain: load its stores; drop picked stores that aren't one of them. */
-  onChain(chainId: number | null) {
-    this.m.chainId = chainId;
-    // A chain belongs to one sales group (TASAF Setup › Customers / Chains) — fill it in.
-    const sg = this.list('chains').find(o => o.id === chainId)?.parentId;
+  /** User picked chains: load their stores; drop picked stores that aren't one of them. */
+  onChains(chainIds: number[] | null) {
+    this.m.chainIds = chainIds ?? [];
+    // A chain belongs to one sales group (TASAF Setup › Customers / Chains) — fill it in from the first.
+    const sg = this.list('chains').find(o => o.id === this.m.chainIds[0])?.parentId;
     if (sg && !this.m.salesGroupId && this.salesGroups().some(o => o.id === sg)) this.m.salesGroupId = sg;
-    // Branches follow the chain's stores (or are picked again); no chain = Cust Key is disabled, so its stores go too.
+    // Branches follow the chains' stores (or are picked again); no chain = Cust Key is disabled, so its stores go too.
     this.branchSel = [];
-    if (!chainId) this.clearStores('pick a Customer / Chain first');
+    if (!this.m.chainIds.length) this.clearStores('pick a Customer / Chain first');
     this.loadCustomerOptions(true);
+  }
+
+  /** Drop picked chains that no longer apply, with a message naming them. */
+  private dropChains(drop: number[], why: string) {
+    if (!drop.length) return;
+    const names = this.list('chains').filter(c => drop.includes(c.id)).map(c => c.name).join(', ');
+    this.onChains(this.m.chainIds.filter(id => !drop.includes(id)));
+    this.messageSvc.add({ severity: 'info', summary: 'Customer / Chain', detail: `${names} cleared — ${why}.` });
   }
 
   private clearStores(why: string) {
@@ -1247,23 +1349,20 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   /** Areas changed: the chain list and the Branch(es) list narrow to the areas (TASAF Setup › Areas). */
   onAreas(areaIds: number[] | null) {
     this.m.areaIds = areaIds ?? [];
-    // No area = Customer / Chain is disabled: clear it (onChain also clears the branches and stores).
+    // No area = Customer / Chain is disabled: clear it (onChains also clears the branches and stores).
     if (!this.m.areaIds.length) {
-      if (this.m.chainId) this.onChain(null);
+      if (this.m.chainIds.length) this.onChains([]);
       this.branchSel = [];
       this.loadChainCounts(true);
       return;
     }
-    // A chain that doesn't sell in the picked areas no longer applies.
-    const chain = this.list('chains').find(c => c.id === this.m.chainId);
-    const chainAreas = (chain?.areaNames ?? '').split(',').map(n => n.trim().toUpperCase()).filter(n => n);
-    if (chain && chainAreas.length) {
-      const picked = this.list('areas').filter(a => this.m.areaIds.includes(a.id)).map(a => a.name.toUpperCase());
-      if (!chainAreas.some(n => picked.includes(n))) {
-        this.onChain(null);
-        this.messageSvc.add({ severity: 'info', summary: 'Customer / Chain', detail: `${chain.name} cleared — not in the chosen area.` });
-      }
-    }
+    // Chains that don't sell in the picked areas no longer apply.
+    const picked = this.list('areas').filter(a => this.m.areaIds.includes(a.id)).map(a => a.name.toUpperCase());
+    this.dropChains(this.m.chainIds.filter(id => {
+      const areas = (this.list('chains').find(c => c.id === id)?.areaNames ?? '')
+        .split(',').map(n => n.trim().toUpperCase()).filter(n => n);
+      return areas.length > 0 && !areas.some(n => picked.includes(n));
+    }), 'not in the chosen area');
     // Branches outside the picked areas no longer apply.
     const codes = this.areaCodes();
     if (codes) {
@@ -1290,13 +1389,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
         if (req !== this.countsReq) return;
         const counts = res.data ?? null;
         this.chainCounts.set(counts);
-        const id = this.m.chainId;
-        if (userChange && id && counts && counts[id] === 0) {
-          const name = this.chainName();
-          this.onChain(null);
-          this.messageSvc.add({ severity: 'info', summary: 'Customer / Chain',
-            detail: `${name} cleared — it has no stores in the chosen area.` });
-        }
+        if (userChange && counts)
+          this.dropChains(this.m.chainIds.filter(id => counts[id] === 0), 'no stores in the chosen area');
       },
       error: () => { if (req === this.countsReq) this.chainCounts.set(null); }
     });
@@ -1398,8 +1492,11 @@ export class TasafPageComponent implements OnInit, OnDestroy {
         this.onAreas(keep);
       }
     }
-    if (this.m.chainId && !this.chainOptions().some(c => c.id === this.m.chainId)) { this.onChain(null); }
-    else if (this.m.chainId) this.loadCustomerOptions(true); // the chain's stores of this group only
+    // Chains of another group go; the rest reload with this group's stores only.
+    const offered = new Set(this.chainOptions().map(c => c.id));
+    const other = this.list('chains').filter(c => this.m.chainIds.includes(c.id) && c.parentId && c.parentId !== salesGroupId && !offered.has(c.id));
+    if (other.length) this.dropChains(other.map(c => c.id), 'not in the chosen Sales Group');
+    else if (this.m.chainIds.length) this.loadCustomerOptions(true);
     // Chains / store counts per group (stores carry their own SALESGROUP); a chain with none here is cleared.
     this.loadChainCounts(true);
   }
@@ -1410,10 +1507,10 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     this.chainNoMatch.set(false);
     // Branches narrow the stores only for chains without a store list (theirs follow the stores instead).
     const siteIds = this.chainSiteCodes() ? [] : this.branchSiteIds();
-    if (!this.m.chainId) this.chainSiteCodes.set(null);
-    if (!this.m.chainId && !this.m.areaIds.length && !siteIds.length) return;
+    if (!this.m.chainIds.length) this.chainSiteCodes.set(null);
+    if (!this.m.chainIds.length && !this.m.areaIds.length && !siteIds.length) return;
     this.chainLoading.set(true);
-    this.api.customerOptions(this.m.chainId, this.m.areaIds, siteIds, this.m.salesGroupId).subscribe({
+    this.api.customerOptions(this.m.chainIds, this.m.areaIds, siteIds, this.m.salesGroupId).subscribe({
       next: res => {
         if (req !== this.chainReq) return; // a newer chain / area / branch was picked meanwhile
         this.chainLoading.set(false);
@@ -1442,7 +1539,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  chainName() { return this.list('chains').find(o => o.id === this.m.chainId)?.name ?? ''; }
+  chainName() { return this.list('chains').filter(o => this.m.chainIds.includes(o.id)).map(o => o.name).join(', '); }
 
   /** "Puregold · South Luzon, Bicol" (or the picked branches) — what the Cust Key list is narrowed to. */
   scopeName() {

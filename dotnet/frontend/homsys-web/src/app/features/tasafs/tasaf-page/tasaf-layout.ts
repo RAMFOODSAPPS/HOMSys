@@ -36,4 +36,6 @@ export const TASAF_FIELDS: FormFieldDef[] = [
   { key: 'costs',             label: 'Cost Details',            kind: 'block', required: true, minW: 6, minH: 2, col: 1, row: 21, w: 12, h: 2 },
   { key: 'computation',       label: 'Computation',             kind: 'block', required: true, minW: 5, minH: 2, col: 1, row: 23, w: 12, h: 2 },
   { key: 'payment',           label: 'Mode of Payment',         kind: 'block', required: true, minW: 5, minH: 2, col: 1, row: 25, w: 12, h: 2 },
+  // LF Breakdown / Near Ex worksheets (TASAF Worksheets page) — optional, approved with the TASAF.
+  { key: 'worksheets',        label: 'Attached Worksheets',     kind: 'block', minW: 6, minH: 1,          col: 1, row: 27, w: 12, h: 2 },
 ];

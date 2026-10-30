@@ -76,7 +76,7 @@ public class TasafService(
                 Status          = t.Status,
                 Title           = t.Title,
                 SalesGroupName  = t.SalesGroup?.Name,
-                ChainName       = t.Chain?.Name,
+                ChainName       = ChainNames(t),
                 CustomerName    = t.Customers.Count switch
                 {
                     0 => null,
@@ -109,21 +109,38 @@ public class TasafService(
     /// branches (Sites) — or, with no branch picked, of the picked areas (their branch codes, TASAF Setup ›
     /// Areas); siteCodes = null. filtered = false when nothing narrows anything (the form searches everything).
     /// </summary>
+    /// <remarks>Several chains = the union of their stores (listed ones and, for chains without a list, keyword matches).</remarks>
     public async Task<(List<CustomerMatchInfo> customers, bool filtered, List<string>? siteCodes)> GetCustomerOptionsAsync(
-        int? chainId, IReadOnlyList<int> areaIds, IReadOnlyList<int> siteIds, int? salesGroupId = null)
+        IReadOnlyList<int> chainIds, IReadOnlyList<int> areaIds, IReadOnlyList<int> siteIds, int? salesGroupId = null)
     {
+        var listed = new List<TasafChainCustomer>();
         var fragments = new List<string>();
-        if (chainId is int cid && await lookups.GetByIdAsync(typeof(TasafChain), cid) is TasafChain chain)
+        foreach (var cid in chainIds.Distinct())
         {
-            var listed = await lookups.GetChainCustomersAsync(cid);
-            if (listed.Count > 0) return await ListedCustomerOptionsAsync(listed, areaIds, siteIds, salesGroupId);
-            fragments = SplitList(chain.CustomerMatch).Where(f => f.Length >= 2).ToList();
+            if (await lookups.GetByIdAsync(typeof(TasafChain), cid) is not TasafChain chain) continue;
+            var rows = await lookups.GetChainCustomersAsync(cid);
+            if (rows.Count > 0) listed.AddRange(rows);
+            else fragments.AddRange(SplitList(chain.CustomerMatch).Where(f => f.Length >= 2));
         }
+
+        if (listed.Count > 0 && fragments.Count == 0) return await ListedCustomerOptionsAsync(listed, areaIds, siteIds, salesGroupId);
 
         var scope = await BranchScopeAsync(areaIds, siteIds);
         if (fragments.Count == 0 && scope is null) return ([], false, null);
-        return (await customers.MatchAsync(fragments, scope, take: MaxCustomers), true, null);
+        var matched = await customers.MatchAsync(fragments.Distinct(StringComparer.OrdinalIgnoreCase).ToList(), scope, take: MaxCustomers);
+        if (listed.Count == 0) return (matched, true, null);
+
+        // Listed and keyword chains together: both store lists; branches are picked by hand (siteCodes null).
+        var (fromList, _, _) = await ListedCustomerOptionsAsync(listed, areaIds, siteIds, salesGroupId);
+        var merged = fromList.Concat(matched.Where(m => fromList.All(l => l.CustKey != m.CustKey)))
+            .OrderBy(c => c.CusName).Take(MaxCustomers).ToList();
+        return (merged, true, null);
     }
+
+    /// <summary>"SVI - Main, Puregold - Main" — the TASAF's chains in pick order.</summary>
+    private static string? ChainNames(Tasaf t) =>
+        t.Chains.Count == 0 ? null
+            : string.Join(", ", t.Chains.OrderBy(c => c.LineNo).Select(c => c.Chain?.Name).Where(n => n is not null));
 
     private async Task<(List<CustomerMatchInfo> customers, bool filtered, List<string>? siteCodes)> ListedCustomerOptionsAsync(
         List<TasafChainCustomer> listed, IReadOnlyList<int> areaIds, IReadOnlyList<int> siteIds, int? salesGroupId)
@@ -733,7 +750,7 @@ public class TasafService(
         if (t.EndDate is null) m.Add("Program end date");
         if (t.SalesGroupId is null) m.Add("Sales Group");
         if (t.Areas.Count == 0) m.Add("Area");
-        if (t.ChainId is null) m.Add("Customer / Chain");
+        if (t.Chains.Count == 0) m.Add("Customer / Chain");
         if (t.Customers.Count == 0) m.Add("Cust Key");
         if (t.Branches.Count == 0) m.Add("Branch");
         if (t.ProgramTypeId is null) m.Add("Program Type");
@@ -899,7 +916,7 @@ public class TasafService(
         var checks = new (int? id, string key, string label)[]
         {
             (dto.SalesGroupId, "sales-groups", "Sales Group"),
-            (dto.ChainId, "chains", "Customer / Chain"), (dto.ProgramTypeId, "program-types", "Program Type"),
+            (dto.ProgramTypeId, "program-types", "Program Type"),
             (dto.ObjectiveId, "objectives", "Objective"), (dto.TargetMarketId, "target-markets", "Target Market"),
         };
         foreach (var (lookupId, key, label) in checks)
@@ -936,15 +953,17 @@ public class TasafService(
                 if (await lookups.GetByIdAsync(typeof(TasafArea), aid) is { } area && !allowed.Contains(area.Name))
                     return $"Area {area.Name} is not in Sales Group {group.Name}'s areas (TASAF Setup › Sales Groups).";
         }
-        // A newly picked chain must sell in one of the picked areas (TASAF Setup › Customers / Chains).
-        if (dto.ChainId is int chId && chId != t.ChainId && areaIds.Count > 0
-            && await lookups.GetByIdAsync(typeof(TasafChain), chId) is TasafChain { AreaNames.Length: > 0 } chain)
+        // Every newly picked chain must sell in one of the picked areas (TASAF Setup › Customers / Chains);
+        // a chain already on the TASAF may stay.
+        var chainIds = (dto.ChainIds ?? []).Distinct().ToList();
+        var keptChains = t.Chains.Select(c => c.ChainId).ToHashSet();
+        var pickedAreaNames = await AreaNamesAsync(areaIds);
+        foreach (var chId in chainIds.Where(c => !keptChains.Contains(c)))
         {
-            var chainAreas = SplitList(chain.AreaNames).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var inArea = false;
-            foreach (var aid in areaIds)
-                if (await lookups.GetByIdAsync(typeof(TasafArea), aid) is { } area && chainAreas.Contains(area.Name)) inArea = true;
-            if (!inArea) return $"Customer / Chain {chain.Name} is not in the chosen area (TASAF Setup › Customers / Chains).";
+            if (await lookups.GetByIdAsync(typeof(TasafChain), chId) is not TasafChain chain) return "Customer / Chain not found.";
+            if (pickedAreaNames.Count > 0 && chain.AreaNames.Length > 0
+                && !SplitList(chain.AreaNames).Any(pickedAreaNames.Contains))
+                return $"Customer / Chain {chain.Name} is not in the chosen area (TASAF Setup › Customers / Chains).";
         }
         var channelIds = (dto.ChannelIds ?? []).Distinct().ToList();
         foreach (var cid in channelIds)
@@ -993,7 +1012,6 @@ public class TasafService(
         t.StartDate         = dto.StartDate;
         t.EndDate           = dto.EndDate;
         t.SalesGroupId      = dto.SalesGroupId;
-        t.ChainId           = dto.ChainId;
         t.ProgramTypeId     = dto.ProgramTypeId;
         t.ProgramTypeOther  = dto.ProgramTypeOther.Trim();
         t.ObjectiveId       = dto.ObjectiveId;
@@ -1020,6 +1038,11 @@ public class TasafService(
         var line = 0;
         foreach (var aid in areaIds)
             t.Areas.Add(new TasafAreaLink { LineNo = ++line, AreaId = aid });
+
+        t.Chains.Clear();
+        line = 0;
+        foreach (var chId in chainIds)
+            t.Chains.Add(new TasafChainLink { LineNo = ++line, ChainId = chId });
 
         t.Channels.Clear();
         line = 0;
@@ -1126,8 +1149,9 @@ public class TasafService(
             SalesGroupName    = t.SalesGroup?.Name,
             AreaIds           = t.Areas.OrderBy(a => a.LineNo).Select(a => a.AreaId).ToList(),
             AreaNames         = string.Join(", ", t.Areas.OrderBy(a => a.LineNo).Select(a => a.Area?.Name).Where(n => n is not null)),
-            ChainId           = t.ChainId,
-            ChainName         = t.Chain?.Name,
+            ChainIds          = t.Chains.OrderBy(c => c.LineNo).Select(c => c.ChainId).ToList(),
+            ChainName         = ChainNames(t),
+            Worksheets        = t.Worksheets.OrderBy(w => w.Id).Select(w => TasafWorksheetService.ToDto(w, t, CurrentUserId)).ToList(),
             ProgramTypeId     = t.ProgramTypeId,
             ProgramTypeName   = t.ProgramType?.Name,
             CtsLimitPercent   = t.ProgramType?.MaxCtsPercent,

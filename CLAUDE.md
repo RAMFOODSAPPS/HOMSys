@@ -458,6 +458,9 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   Branches = active Sites + "ALL BRANCHES/LUZON/VISAYAS/MINDANAO" (SiteId null).
   Area is MULTI-select (`TasafAreaLinks` child rows → `AreaIds`/`AreaNames`; migration `TasafMultipleAreas`).
   Channel likewise (`TasafChannelLinks` → `ChannelIds`/`ChannelNames`; migration `TasafMultipleChannels`).
+  Customer / Chain likewise (`TasafChainLinks` → `ChainIds`, `ChainName` = names joined; migration `TasafMultipleChains`,
+  the old single ChainId becomes the first link). Cust Key = the union of the picked chains' stores
+  (`customer-options?chainIds=`).
   Each area lists its branches (`TasafArea.BranchCodes`, Site codes, Setup › Areas; defaults by migration
   `TasafAreaBranches`, corrected by `TasafAreaBranchesFromCustomers` from cust4win NREGION via WhseNo — NREGION is filled
   for only ~1% of customers, so it is not a filter itself; Nationwide blank = all).
@@ -548,8 +551,19 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   **TASAF Setup › Numbering** (`TasafNumbering`, single row Id 1, `api/tasaf-masters/numbering`):
   next = max(NextNumber, highest RefSeq + 1), zero-padded to MinDigits (default 2). Admins can
   raise NextNumber (e.g. to continue the Excel series) but never to a number already used.
+- **Worksheets** (`/tasafs/worksheets`, `TasafWorksheetService`, `api/tasaf-worksheets`, migration `TasafWorksheets`): the
+  workbook's "LF Breakdown" and "Near Ex" sheets ("PLEASE FILL OUT AND ATTACH TO THE TASAF FOR APPROVAL"). The proponent
+  fills one out and attaches / detaches it to their own Draft / Returned TASAF (`TasafWorksheet.TasafId`; optional, no
+  approval of its own, never required to submit, never feeds Cost Details). Locked (no edit / detach / delete) while
+  the TASAF is past Draft / Returned. Typed columns stay typed (user decision 2026-10-30); computed ones = the
+  workbook formulas: LF TOTAL = LF/SKU × Doors ("AllSkus", package for all SKUs) or × SKUs ("AllDoors", package for
+  all doors) — the sheet itself uses both, per row — CTS = TOTAL ÷ Projected Annual Sales; Near Ex Total in Pcs =
+  Cases × Pcs/Cs + Pieces, Total Value = Cases × LSP/Case + Pieces × LSP/Pc, Moveout Cost = Value × Discount.
+  Unattached = only its creator sees it (user decision 2026-10-30); attached = also the TASAF's proponent / approvers and View All. Attached ones are in `TasafDto.Worksheets`
+  → the email / print renderer and the PDF; the form's "Attached Worksheets" block (layout key `worksheets`).
 - **Access**: `tasaf` (17) create/see own + those you review/approve; `tasaf-view-all`
-  (18); `tasaf-masters` (16). GKAMs and approvers also need `tasaf` to open the page.
+  (18) = only Admin, COO and TMM (migration `TasafViewAllTmmCooOnly`, user decision 2026-10-30 — GKAM / NSM / NSD see
+  just the TASAFs they file or approve); `tasaf-masters` (16). GKAMs and approvers also need `tasaf` to open the page.
   **Delete is Admin-only** (`[Authorize(Roles = "Admin")]` + `TasafService.CanDelete`), and
   **Approved / Cancelled are never deleted** (kept for the record). Mistakes are fixed with:
   - **Revert** (Admin, `POST {id}/revert`, reason required): For Approval / Approved / Rejected →

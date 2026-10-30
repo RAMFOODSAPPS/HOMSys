@@ -49,6 +49,7 @@ const GROUPS: DashboardGroup[] = [
     title: 'Trade Marketing',
     cards: [
       { label: 'TASAF',         icon: 'pi-file-edit', route: '/tasafs/list', permission: 'tasaf' },
+      { label: 'TASAF Worksheets', icon: 'pi-table', route: '/tasafs/worksheets', permission: 'tasaf' },
       { label: 'TASAF Setup',   icon: 'pi-cog',    route: '/tasaf-setup',  permission: 'tasaf-masters' }
     ]
   },
