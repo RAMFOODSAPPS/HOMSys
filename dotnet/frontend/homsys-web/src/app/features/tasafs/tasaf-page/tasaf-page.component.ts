@@ -160,7 +160,7 @@ function blankProduct(): TasafProduct {
           @case ('area') {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
-              <p-multiSelect #areaMs [focusOnHover]="false" [ngModel]="m.areaIds" (ngModelChange)="onAreas($event)" [options]="list('areas')" optionLabel="name" optionValue="id"
+              <p-multiSelect #areaMs [focusOnHover]="false" [ngModel]="m.areaIds" (ngModelChange)="onAreas($event)" [options]="areaOptions()" optionLabel="name" optionValue="id"
                 [filter]="true" [showClear]="true" display="chip" [maxSelectedLabels]="100000"
                 [placeholder]="m.salesGroupId ? 'Select one or more areas' : 'Pick a Sales Group first'" styleClass="w-full chips-wrap"
                 appendTo="body" [disabled]="readonly() || !m.salesGroupId">
@@ -173,14 +173,14 @@ function blankProduct(): TasafProduct {
           @case ('chain') {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
-              <!-- Picked in order: Area → Branch(es) → Customer / Chain → Cust Key. -->
+              <!-- Picked in order: Area → Customer / Chain → Cust Key (and Branch(es), which narrow the stores). -->
               <p-select [focusOnHover]="false" [ngModel]="m.chainId" (ngModelChange)="onChain($event)" [options]="chainOptions()" optionLabel="name" optionValue="id"
-                [showClear]="true" [filter]="true" filterBy="name" [placeholder]="branchSel.length ? 'Select' : 'Pick Branch(es) first'"
-                styleClass="w-full" [disabled]="readonly() || !branchSel.length" />
+                [showClear]="true" [filter]="true" filterBy="name" [placeholder]="m.areaIds.length ? 'Select' : 'Pick an Area first'"
+                styleClass="w-full" [disabled]="readonly() || !m.areaIds.length" />
             </div>
           }
           @case ('custKey') {
-            <!-- Disabled until a Customer / Chain is picked: the stores come from the chain. -->
+            <!-- Disabled until a Customer / Chain is picked: the chain's stores in the picked area (or branches, once picked). -->
             <div class="field">
               <label>{{ cap(it) }} <span class="req">*</span></label>
               @if (chainCustomers().length) {
@@ -223,8 +223,8 @@ function blankProduct(): TasafProduct {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
               <p-multiSelect #branchMs [focusOnHover]="false" [ngModel]="branchSel" (ngModelChange)="onBranches($event)" [options]="branchOptions()" optionLabel="name" dataKey="name"
-                [filter]="true" display="chip" [maxSelectedLabels]="100000" [placeholder]="!m.areaIds.length ? 'Pick an Area first' : areaCodes() ? 'Select branches of the chosen area' : 'Select one or more branches'" styleClass="w-full chips-wrap"
-                appendTo="body" [disabled]="readonly() || !m.areaIds.length">
+                [filter]="true" display="chip" [maxSelectedLabels]="100000" [placeholder]="!m.chainId ? 'Pick a Customer / Chain first' : chainSiteCodes() ? 'Filled in from the picked Cust Keys' : areaCodes() ? 'Select branches of the chosen area' : 'Select one or more branches'" styleClass="w-full chips-wrap"
+                appendTo="body" [disabled]="readonly() || !m.chainId || !!chainSiteCodes()">
                 <ng-template pTemplate="footer">
                   <div class="ms-footer"><span>{{ branchSel.length }} selected</span><p-button label="Done" size="small" (onClick)="branchMs.hide()" /></div>
                 </ng-template>
@@ -310,22 +310,12 @@ function blankProduct(): TasafProduct {
               <p-multiSelect #scMs [focusOnHover]="false" [ngModel]="m.subCategoryCodes" (ngModelChange)="onSubCategories($event)"
                 [options]="subCategoryOptions()" optionLabel="label" optionValue="code" [group]="true" optionGroupLabel="label" optionGroupChildren="items"
                 [filter]="true" filterBy="label" [showClear]="true" display="chip" [maxSelectedLabels]="100000"
-                [placeholder]="m.productCategoryIds.length ? 'Whole category — or pick sub-categories' : 'Pick a Product Category first'"
+                [placeholder]="m.productCategoryIds.length ? 'Whole category — or pick segments' : 'Pick a Product Category first'"
                 styleClass="w-full chips-wrap" appendTo="body" [disabled]="readonly() || !m.productCategoryIds.length">
                 <ng-template pTemplate="footer">
                   <div class="ms-footer"><span>{{ m.subCategoryCodes.length }} selected</span><p-button label="Done" size="small" (onClick)="scMs.hide()" /></div>
                 </ng-template>
               </p-multiSelect>
-            </div>
-          }
-          @case ('segment') {
-            <!-- Automatic: the segment of each picked sub-category (product master, Products page). -->
-            <div class="field">
-              <label>{{ cap(it) }} <span class="opt">(automatic, from the sub-categories)</span></label>
-              <div class="seg-chips">
-                @for (s of segmentOptions(); track s) { <span class="seg-chip">{{ s }}</span> }
-                @empty { <span class="muted">{{ m.subCategoryCodes.length ? 'No segments' : 'Pick a Sub-Category' }}</span> }
-              </div>
             </div>
           }
           @case ('categoryNote') {
@@ -762,6 +752,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   protected branchSel: TasafBranch[] = [];
   /** Stores of the selected chain (empty = use the free customer search). */
   protected chainCustomers = signal<TasafChainCustomer[]>([]);
+  /** Site codes of the picked chain's listed stores in the picked areas (Branch dropdown); null = chain has no list. */
+  protected chainSiteCodes = signal<string[] | null>(null);
   protected chainLoading   = signal(false);
   protected chainNoMatch   = signal(false);
   private chainReq = 0;
@@ -1118,7 +1110,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   list(key: string): TasafOption[] { return this.options()?.lists[key] ?? []; }
 
   /**
-   * Customer / Chain dropdown: chains of the picked sales group; with branches / areas picked, only
+   * Customer / Chain dropdown: chains of the picked sales group; with areas picked, only
    * chains that have stores there, labelled with the count. Chains with no name keywords (e.g. "LKA
    * Others") can't be counted and are always offered, as is the chain already picked.
    */
@@ -1127,9 +1119,18 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     const sg = this.m.salesGroupId;
     const all = this.list('chains');
     const counts = this.chainCounts();
-    const key = `${sg}|${this.m.chainId}|${JSON.stringify(counts)}|${all.length}`;
+    const key = `${sg}|${this.m.areaIds.join(',')}|${this.m.chainId}|${JSON.stringify(counts)}|${all.length}`;
     if (this.chainOptsCache?.key === key) return this.chainOptsCache.list;
-    let list = sg ? all.filter(c => !c.parentId || c.parentId === sg) : all;
+    // The group's own chains, plus chains with stores tagged with this group (Excel SALESGROUP, e.g. Landmark → RKA).
+    let list = sg ? all.filter(c => !c.parentId || c.parentId === sg || (counts?.[c.id] ?? 0) > 0) : all;
+    // The chain's areas (TASAF Setup › Customers / Chains) must include a picked area; none listed = all areas.
+    const picked = new Set(this.list('areas').filter(a => this.m.areaIds.includes(a.id)).map(a => a.name.toUpperCase()));
+    if (picked.size) {
+      list = list.filter(c => {
+        const areas = (c.areaNames ?? '').split(',').map(n => n.trim().toUpperCase()).filter(n => n);
+        return !areas.length || areas.some(n => picked.has(n)) || c.id === this.m.chainId;
+      });
+    }
     if (counts) {
       list = list
         .filter(c => counts[c.id] === undefined || counts[c.id] > 0 || c.id === this.m.chainId)
@@ -1149,8 +1150,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   private subCategoryList() { return this.options()?.subCategories ?? []; }
 
   /**
-   * Sub-Categories of the picked categories, grouped by category, labelled "2a — Peas". None picked
-   * for a category = the whole category.
+   * Segment options: the sub-categories of the picked categories, grouped by category, labelled with
+   * their segment ("2a — Green Peas"). None picked for a category = the whole category.
    */
   subCategoryOptions() {
     return this.cached('sc', () => {
@@ -1158,15 +1159,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       const subs = this.subCategoryList().filter(sc => picked.has(sc.productCategoryId) || this.m.subCategoryCodes.includes(sc.code));
       return this.list('product-groups')
         .filter(c => subs.some(sc => sc.productCategoryId === c.id))
-        .map(c => ({ label: c.name, items: subs.filter(sc => sc.productCategoryId === c.id).map(sc => ({ ...sc, label: `${sc.code} — ${sc.name}` })) }));
-    });
-  }
-
-  /** Segment of each picked sub-category (product master), by name ("Green Peas") — automatic. */
-  segmentOptions() {
-    return this.cached('seg', () => {
-      const picked = new Set(this.m.subCategoryCodes);
-      return [...new Set(this.subCategoryList().filter(sc => picked.has(sc.code)).map(sc => sc.segment).filter(s => !!s))];
+        .map(c => ({ label: c.name, items: subs.filter(sc => sc.productCategoryId === c.id).map(sc => ({ ...sc, label: `${sc.code} — ${sc.segment || sc.name}` })) }));
     });
   }
 
@@ -1217,6 +1210,18 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     const byKey = new Map<string, TasafCustomerRef>(this.customers().map(c => [c.custKey, c]));
     for (const c of this.chainCustomers()) byKey.set(c.custKey, { custKey: c.custKey, cusName: c.cusName });
     this.customers.set((keys ?? []).map(k => byKey.get(k)).filter((c): c is TasafCustomerRef => !!c));
+    this.syncBranchesFromStores();
+  }
+
+  /**
+   * A chain with listed stores: Branch(es) = the servicing branches of the picked Cust Keys (read-only).
+   * Chains without a list keep the hand-picked branches.
+   */
+  private syncBranchesFromStores() {
+    if (!this.chainSiteCodes()) return;
+    const siteOf = new Map(this.chainCustomers().map(c => [c.custKey, (c.siteCode ?? '').toUpperCase()]));
+    const codes = new Set(this.customers().map(c => siteOf.get(c.custKey) ?? '').filter(c => c));
+    this.branchSel = (this.options()?.branches ?? []).filter(b => b.siteId != null && codes.has((b.code ?? '').toUpperCase()));
   }
 
   // ── Cust Key per chain ─────────────────────────────────────
@@ -1226,20 +1231,39 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     // A chain belongs to one sales group (TASAF Setup › Customers / Chains) — fill it in.
     const sg = this.list('chains').find(o => o.id === chainId)?.parentId;
     if (sg && !this.m.salesGroupId && this.salesGroups().some(o => o.id === sg)) this.m.salesGroupId = sg;
-    // No chain = Cust Key is disabled, so stores picked for the old chain go too.
-    if (!chainId && this.customers().length) {
-      const n = this.customers().length;
-      this.customers.set([]);
-      this.messageSvc.add({ severity: 'info', summary: 'Cust Key', detail: `${n} store${n === 1 ? '' : 's'} cleared — pick a Customer / Chain first.` });
-    }
+    // Branches follow the chain's stores (or are picked again); no chain = Cust Key is disabled, so its stores go too.
+    this.branchSel = [];
+    if (!chainId) this.clearStores('pick a Customer / Chain first');
     this.loadCustomerOptions(true);
   }
 
-  /** Areas changed: the Cust Key list narrows to the areas' branches (TASAF Setup › Areas). */
+  private clearStores(why: string) {
+    const n = this.customers().length;
+    if (!n) return;
+    this.customers.set([]);
+    this.messageSvc.add({ severity: 'info', summary: 'Cust Key', detail: `${n} store${n === 1 ? '' : 's'} cleared — ${why}.` });
+  }
+
+  /** Areas changed: the chain list and the Branch(es) list narrow to the areas (TASAF Setup › Areas). */
   onAreas(areaIds: number[] | null) {
     this.m.areaIds = areaIds ?? [];
-    // No area = Branch(es) is disabled: clear them (and, through onBranches, the chain and stores).
-    if (!this.m.areaIds.length && this.branchSel.length) { this.onBranches([]); return; }
+    // No area = Customer / Chain is disabled: clear it (onChain also clears the branches and stores).
+    if (!this.m.areaIds.length) {
+      if (this.m.chainId) this.onChain(null);
+      this.branchSel = [];
+      this.loadChainCounts(true);
+      return;
+    }
+    // A chain that doesn't sell in the picked areas no longer applies.
+    const chain = this.list('chains').find(c => c.id === this.m.chainId);
+    const chainAreas = (chain?.areaNames ?? '').split(',').map(n => n.trim().toUpperCase()).filter(n => n);
+    if (chain && chainAreas.length) {
+      const picked = this.list('areas').filter(a => this.m.areaIds.includes(a.id)).map(a => a.name.toUpperCase());
+      if (!chainAreas.some(n => picked.includes(n))) {
+        this.onChain(null);
+        this.messageSvc.add({ severity: 'info', summary: 'Customer / Chain', detail: `${chain.name} cleared — not in the chosen area.` });
+      }
+    }
     // Branches outside the picked areas no longer apply.
     const codes = this.areaCodes();
     if (codes) {
@@ -1254,14 +1278,14 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Store counts per chain for the picked branches / areas. A chain with no stores there drops out
-   * of the Customer / Chain dropdown; if it was the picked one it is cleared (userChange only — a
-   * saved TASAF keeps its chain).
+   * Store counts per chain for the picked areas (the chain is picked before the branches). A chain with
+   * no stores there drops out of the Customer / Chain dropdown; if it was the picked one it is cleared
+   * (userChange only — a saved TASAF keeps its chain).
    */
   private loadChainCounts(userChange: boolean) {
     const req = ++this.countsReq;
-    if (!this.m.areaIds.length && !this.branchSiteIds().length) { this.chainCounts.set(null); return; }
-    this.api.chainStoreCounts(this.m.areaIds, this.branchSiteIds()).subscribe({
+    if (!this.m.areaIds.length) { this.chainCounts.set(null); return; }
+    this.api.chainStoreCounts(this.m.areaIds, [], this.m.salesGroupId).subscribe({
       next: res => {
         if (req !== this.countsReq) return;
         const counts = res.data ?? null;
@@ -1271,7 +1295,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
           const name = this.chainName();
           this.onChain(null);
           this.messageSvc.add({ severity: 'info', summary: 'Customer / Chain',
-            detail: `${name} cleared — it has no stores in the chosen ${this.branchSiteIds().length ? 'branches' : 'area'}.` });
+            detail: `${name} cleared — it has no stores in the chosen area.` });
         }
       },
       error: () => { if (req === this.countsReq) this.chainCounts.set(null); }
@@ -1281,10 +1305,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   /** Branches changed: the Cust Key list narrows to the picked branches' stores. */
   onBranches(sel: TasafBranch[] | null) {
     this.branchSel = sel ?? [];
-    // No branch = Customer / Chain is disabled: clear it (onChain also clears the stores).
-    if (!this.branchSel.length && this.m.chainId) { this.onChain(null); this.loadChainCounts(true); return; }
     this.loadCustomerOptions(true);
-    this.loadChainCounts(true);
   }
 
   /**
@@ -1324,9 +1345,11 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   private branchOptsCache: { key: string; all: TasafBranch[] | undefined; list: TasafBranch[] } | null = null;
   protected branchOptions(): TasafBranch[] {
     const all = this.options()?.branches;
-    const key = this.m.areaIds.join(',') + '|' + this.branchSel.map(b => b.name).join(',');
+    const chainSites = this.chainSiteCodes();
+    const key = this.m.areaIds.join(',') + '|' + this.branchSel.map(b => b.name).join(',') + '|' + (chainSites?.join(',') ?? '-');
     if (this.branchOptsCache?.key === key && this.branchOptsCache.all === all) return this.branchOptsCache.list;
-    const codes = this.areaCodes();
+    // A chain with listed stores: the servicing branches of its stores in the picked areas.
+    const codes = chainSites ? new Set(chainSites.map(c => c.toUpperCase())) : this.areaCodes();
     let list = all ?? [];
     if (codes) {
       list = list.filter(b => b.siteId != null && this.inAreas(b, codes));
@@ -1337,26 +1360,67 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     return list;
   }
 
-  /** Sales group changed: a chain of another group no longer applies. */
+  /**
+   * Area names of the picked sales group (TASAF Setup › Sales Groups), or null = every area (no group,
+   * or a group with no areas listed). Same rule as the server.
+   */
+  private groupAreaNames(): Set<string> | null {
+    const sg = this.list('sales-groups').find(o => o.id === this.m.salesGroupId);
+    const names = (sg?.areaNames ?? '').split(',').map(n => n.trim().toUpperCase()).filter(n => n);
+    return names.length ? new Set(names) : null;
+  }
+
+  /** Area dropdown: the picked sales group's areas; areas already on the TASAF stay listed. Cached for the multiselect. */
+  private areaOptsCache: { key: string; all: TasafOption[]; list: TasafOption[] } | null = null;
+  areaOptions(): TasafOption[] {
+    const all = this.list('areas');
+    const key = `${this.m.salesGroupId}|${this.m.areaIds.join(',')}`;
+    if (this.areaOptsCache?.key === key && this.areaOptsCache.all === all) return this.areaOptsCache.list;
+    const names = this.groupAreaNames();
+    const list = names ? all.filter(a => names.has(a.name.toUpperCase()) || this.m.areaIds.includes(a.id)) : all;
+    this.areaOptsCache = { key, all, list };
+    return list;
+  }
+
+  /** Sales group changed: areas and a chain of another group no longer apply. */
   onSalesGroup(salesGroupId: number | null) {
     this.m.salesGroupId = salesGroupId;
-    // Order: Sales Group → Area → Branch(es) → Customer / Chain → Cust Key. No sales group = Area is
+    // Order: Sales Group → Area → Customer / Chain → Cust Key + Branch(es). No sales group = Area is
     // disabled: clear it (onAreas clears the branches, chain and stores after it).
     if (!salesGroupId && this.m.areaIds.length) { this.onAreas([]); return; }
-    if (this.m.chainId && !this.chainOptions().some(c => c.id === this.m.chainId)) this.onChain(null);
+    const names = this.groupAreaNames();
+    if (names) {
+      const keep = this.m.areaIds.filter(id => names.has((this.list('areas').find(a => a.id === id)?.name ?? '').toUpperCase()));
+      const cleared = this.m.areaIds.length - keep.length;
+      if (cleared) {
+        this.messageSvc.add({ severity: 'info', summary: 'Area',
+          detail: `${cleared} area${cleared === 1 ? '' : 's'} removed — not in the chosen Sales Group.` });
+        this.onAreas(keep);
+      }
+    }
+    if (this.m.chainId && !this.chainOptions().some(c => c.id === this.m.chainId)) { this.onChain(null); }
+    else if (this.m.chainId) this.loadCustomerOptions(true); // the chain's stores of this group only
+    // Chains / store counts per group (stores carry their own SALESGROUP); a chain with none here is cleared.
+    this.loadChainCounts(true);
   }
 
   private loadCustomerOptions(clearIfNotInList: boolean) {
     const req = ++this.chainReq;
     this.chainCustomers.set([]);
     this.chainNoMatch.set(false);
-    const siteIds = this.branchSiteIds();
+    // Branches narrow the stores only for chains without a store list (theirs follow the stores instead).
+    const siteIds = this.chainSiteCodes() ? [] : this.branchSiteIds();
+    if (!this.m.chainId) this.chainSiteCodes.set(null);
     if (!this.m.chainId && !this.m.areaIds.length && !siteIds.length) return;
     this.chainLoading.set(true);
-    this.api.customerOptions(this.m.chainId, this.m.areaIds, siteIds).subscribe({
+    this.api.customerOptions(this.m.chainId, this.m.areaIds, siteIds, this.m.salesGroupId).subscribe({
       next: res => {
         if (req !== this.chainReq) return; // a newer chain / area / branch was picked meanwhile
         this.chainLoading.set(false);
+        const sites = res.data?.siteCodes ?? null;
+        this.chainSiteCodes.set(sites);
+        // A listed chain asked with branches (a saved TASAF): ask again for all its stores in the areas.
+        if (sites && siteIds.length) { this.loadCustomerOptions(clearIfNotInList); return; }
         let list = res.data?.customers ?? [];
         const inList = new Set(list.map(c => c.custKey));
         const outside = this.customers().filter(c => !inList.has(c.custKey));
@@ -1371,6 +1435,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
         }
         this.chainCustomers.set(list.map(c => ({ ...c, label: c.custKey }))); // chips show the code only
         this.chainNoMatch.set(!!res.data?.filtered && list.length === 0);
+        // Chain / area changed: the branches follow the stores still picked (a saved TASAF keeps its own).
+        if (clearIfNotInList) this.syncBranchesFromStores();
       },
       error: () => { if (req === this.chainReq) this.chainLoading.set(false); }
     });
@@ -1380,7 +1446,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
 
   /** "Puregold · South Luzon, Bicol" (or the picked branches) — what the Cust Key list is narrowed to. */
   scopeName() {
-    const where = this.branchSiteIds().length
+    const where = this.branchSiteIds().length && !this.chainSiteCodes()
       ? this.branchSel.map(b => b.name).join(', ')
       : this.list('areas').filter(a => this.m.areaIds.includes(a.id)).map(a => a.name).join(', ');
     return [this.chainName(), where].filter(s => s).join(' · ');

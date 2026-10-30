@@ -23,10 +23,18 @@ public interface ITasafParentLookup { int? ParentId { get; set; } }
 public interface ITasafUserLookup   { int? UserId   { get; set; } }
 public interface ITasafAmountLookup { decimal? Amount { get; set; } }
 public interface ITasafTextLookup   { string Text { get; set; } }
+/// <summary>
+/// Area names (TasafArea.Name), comma-separated; empty = every area. Sales groups and chains: the TASAF form
+/// offers them only for these areas. Seeded from RAM BRANCHES ACTIVECUSTOMER LIST 2.xlsx.
+/// </summary>
+public interface ITasafAreasLookup  { string AreaNames { get; set; } }
 
 /// <summary>NKA / RKA / LKA / GT. Its approvers per role are in TasafApprover (the approval matrix).</summary>
-public class TasafSalesGroup : TasafLookup
+public class TasafSalesGroup : TasafLookup, ITasafAreasLookup
 {
+    /// <summary>Areas this group sells in; once the group is picked, the form offers only these.</summary>
+    public string AreaNames { get; set; } = string.Empty;
+
     /// <summary>Its users (KAMs / proponents). A proponent with groups sees only those on the TASAF form.</summary>
     public List<TasafSalesGroupUser> Members { get; set; } = [];
 }
@@ -42,8 +50,10 @@ public class TasafSalesGroupUser
 }
 
 /// <summary>Customer chain/account (SVI, Puregold, RCS Chain ...).</summary>
-public class TasafChain : TasafLookup, ITasafParentLookup, ITasafTextLookup
+public class TasafChain : TasafLookup, ITasafParentLookup, ITasafTextLookup, ITasafAreasLookup
 {
+    /// <summary>Areas this chain sells in; the form offers it only when one of them is picked.</summary>
+    public string AreaNames { get; set; } = string.Empty;
     public int? SalesGroupId { get; set; }
     public TasafSalesGroup? SalesGroup { get; set; }
     int? ITasafParentLookup.ParentId { get => SalesGroupId; set => SalesGroupId = value; }
@@ -53,6 +63,27 @@ public class TasafChain : TasafLookup, ITasafParentLookup, ITasafTextLookup
     /// </summary>
     public string CustomerMatch { get; set; } = string.Empty;
     string ITasafTextLookup.Text { get => CustomerMatch; set => CustomerMatch = value; }
+}
+
+/// <summary>
+/// A store listed under a chain in RAM BRANCHES ACTIVECUSTOMER LIST 2.xlsx (CUSTOMER/CHAIN/GROUP). When a chain
+/// has any, the TASAF Cust Key dropdown offers exactly these (in the picked areas / branches) instead of the
+/// chain's name keywords.
+/// </summary>
+public class TasafChainCustomer
+{
+    public int Id { get; set; }
+    public int ChainId { get; set; }
+    public TasafChain? Chain { get; set; }
+    public string CustKey { get; set; } = string.Empty;
+    /// <summary>Name as in the list; the customer master's name is preferred when the CustKey is there.</summary>
+    public string CusName { get; set; } = string.Empty;
+    /// <summary>REGION = a TasafArea name (e.g. "North Luzon").</summary>
+    public string AreaName { get; set; } = string.Empty;
+    /// <summary>SALESGROUP code of the row (e.g. "RKA"); the chain is offered under every group its stores have.</summary>
+    public string SalesGroup { get; set; } = string.Empty;
+    /// <summary>SERVICING BRANCH as a Site code (e.g. "DAG-B", "SL-ADC").</summary>
+    public string SiteCode { get; set; } = string.Empty;
 }
 
 /// <summary>Area covered (GMA / NCR, West Visayas, ...).</summary>

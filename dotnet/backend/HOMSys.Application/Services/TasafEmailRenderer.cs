@@ -68,7 +68,6 @@ public static class TasafEmailRenderer
             ("Target Market", WithOther(d.TargetMarketName, d.TargetMarketOther)),
             ("Channel", d.ChannelNames),
             ("Product Category", d.ProductCategoryNames),
-            ("Product Sub-Category", d.SubCategoryNames),
             ("Segment", d.SegmentNames),
             ("Background", d.Background),
             ("Concessions", d.Concessions),

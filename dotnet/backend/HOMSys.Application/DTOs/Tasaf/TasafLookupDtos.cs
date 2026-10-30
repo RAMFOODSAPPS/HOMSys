@@ -17,6 +17,8 @@ public class TasafLookupDto
     public string? UserNames { get; set; }
     public decimal? Amount { get; set; }
     public string? Text { get; set; }
+    /// <summary>Sales groups / chains: comma-separated area names (blank = all areas).</summary>
+    public string? AreaNames { get; set; }
     public DateTime CreatedAt { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime? UpdatedAt { get; set; }
@@ -36,6 +38,8 @@ public class SaveTasafLookupDto
     public List<int>? UserIds { get; set; }
     public decimal? Amount { get; set; }
     public string? Text { get; set; }
+    /// <summary>Sales groups / chains: area names; null = leave unchanged.</summary>
+    public List<string>? AreaNames { get; set; }
 }
 
 /// <summary>Describes one master list to the setup page (which optional fields it shows).</summary>
@@ -51,6 +55,8 @@ public class TasafMasterMetaDto
     public string? AmountLabel { get; set; }
     /// <summary>Label of the optional text field (chains: customer-name keywords).</summary>
     public string? TextLabel { get; set; }
+    /// <summary>Label of the optional areas multi-select (sales groups / chains).</summary>
+    public string? AreasLabel { get; set; }
 }
 
 /// <summary>Approval rules: approval types × roles → not required / always / over amount.</summary>

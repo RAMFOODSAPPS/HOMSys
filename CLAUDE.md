@@ -463,7 +463,23 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   for only ~1% of customers, so it is not a filter itself; Nationwide blank = all).
   Since migration `TasafAreasByRegion` the active areas are the NREGION names: NCR, North Luzon, South Luzon
   (+ Bicol), Visayas, West Mindanao, Central Mindanao, MT/NKA (blank = all). The other 12 workbook areas are
-  deactivated, not deleted, because saved TASAFs still link to them (South Luzon kept its row: names are unique). With an area picked, the Branch dropdown
+  deactivated, not deleted, because saved TASAFs still link to them (South Luzon kept its row: names are unique).
+  Each **sales group lists its areas** (`TasafSalesGroup.AreaNames`, comma-separated area names, Setup › Sales Groups;
+  blank = all; migration `TasafSalesGroupAreas` seeds them from `RAM BRANCHES ACTIVECUSTOMER LIST 2.xlsx` SALESGROUP ×
+  REGION — no group has NCR): the Area dropdown offers only those, switching group drops other areas, and the server
+  refuses a new area outside them (an area already on the TASAF may stay). **Chains list their areas** the same way
+  (`TasafChain.AreaNames`, Setup › Customers / Chains, migration `TasafChainAreas` from the Excel's CUSTOMER/CHAIN/GROUP
+  column; GMA chains = NCR, so hidden): the chain dropdown = the group's chains selling in a picked area.
+  **Chains and their stores = the Excel** (user decision 2026-10-30; migration `TasafChainsFromExcel`): chain names /
+  order = the DATA sheet ("SVI - Main", "Robinson - Main", …; was SM Group / RRHI), + "RKA- Grand Union" (RKA, CUSTOMER
+  FILE only). `TasafChainCustomers` = every CUSTOMER FILE row (ChainId, CustKey, CusName, AreaName = REGION, SalesGroup
+  = SALESGROUP code, SiteCode = SERVICING BRANCH; 1,716 rows, unique per chain+store+group+region). Stores keep their own
+  SALESGROUP, so a chain is offered under every group its stores have (Landmark - Main → RKA, Waltermart - Main → NKA and
+  RKA); `customer-options` / `chain-store-counts` take `salesGroupId`. A chain with listed stores offers exactly those
+  as Cust Keys (picked group + areas; name + address from cust4win when found), its store count comes from the list, and Branch(es) is filled from the picked stores' servicing branches (`siteCodes` in
+  `customer-options`). Chains without a list keep the name-keyword search. No setup UI yet — re-seed to update. Both use
+  `ITasafAreasLookup` (an Areas multi-select on the setup page). Pick order: Sales Group → Area → Customer / Chain →
+  Cust Key → Branch(es) (for a chain with a store list, Branch(es) is read-only = the picked stores' servicing branches; otherwise picked by hand and it narrows the stores); clearing a step clears the later ones. With an area picked, the Branch dropdown
   lists only its Sites (no ALL … scopes) and changing the area drops branches outside it. The Cust Key dropdown (`GET tasafs/customer-options?chainId=&areaIds=&siteIds=`)
   = active customers matching the chain keywords AND belonging to the picked branches (Sites) — or, with no branch / an
   ALL … scope picked, the picked areas' branches. A customer belongs to
@@ -476,7 +492,7 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   `TasafChainCustomerMatch`). cust4win has no chain column, so the name is the only link. No keywords
   or no match → the free customer search. Each chain has a Sales Group (`TasafChain.SalesGroupId`, seeded
   by migration `TasafChainSalesGroups` from `Book1.xlsx` MODERN TRADE: NKA = SVI/Puregold/Robinson/Waltermart/
-  Landmark, the rest RKA; LKA Others → LKA, RDP Others → GT). The form lists only the picked group's chains — and, with branches / areas picked,
+  Landmark, the rest RKA; LKA Others → LKA, RDP Others → GT). The form lists only the picked group's chains — and, with areas picked,
   only chains with stores there (`GET tasafs/chain-store-counts`, count in the label; keyword-less chains always shown) —
   picking a chain fills an empty Sales Group, and switching group clears a chain from another group.
   **Sales group users** (`TasafSalesGroupUsers`, Setup › Sales Groups › Users, migration `TasafSalesGroupUsers`
@@ -493,7 +509,9 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   longer in TASAF Setup). **Sub-Category** and **Segment** have no HOMSys list: they are the product master's
   `ProductCategories` rows (the Products page) for the picked categories — code "2a", Sub-Category = SubCat ("Peas"),
   Segment = GroupDesc ("Green Peas"). Category + Sub-Category are multi-select (`TasafProductCategoryLinks`;
-  `TasafSubCategoryLinks` holds Code + a Name / Segment snapshot taken on save); Segments show automatically. None
+  `TasafSubCategoryLinks` holds Code + a Name / Segment snapshot taken on save). Since 2026-10-19 the form
+  labels the Sub-Category picker **"Segment"** (options "2a — Green Peas"; layout key still `subCategory`) and
+  the separate automatic Segment field is gone; print / PDF / email show one "Segment" row. None
   picked for a category = the whole category. SKU list: a Sub-Category = its code, a bare category = its GroupNo.
   **LSP / Case** = the picked Cust Keys' price **with VAT** as of StartDate (today if blank): base price + ZONE + ZONE2 add-ons,
   the Sales Order rule, bulk-priced by `TasafPriceService` (`POST tasafs/product-prices`, grouped by price; `IncludesVat`

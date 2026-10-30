@@ -248,6 +248,8 @@ public class TasafOptionDto
     public decimal? Amount { get; set; }
     /// <summary>Areas: comma-separated Site codes (blank = all branches).</summary>
     public string? BranchCodes { get; set; }
+    /// <summary>Sales groups / chains: comma-separated area names they're offered for (blank = all areas).</summary>
+    public string? AreaNames { get; set; }
 }
 
 /// <summary>Every dropdown the form needs, in one call. Keys match TasafMasterService.Masters.</summary>

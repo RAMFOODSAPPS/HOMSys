@@ -81,6 +81,12 @@ public class TasafLookupRepository(AppDbContext db) : ITasafLookupRepository
             })
             .ToListAsync();
 
+    public async Task<List<TasafChainCustomer>> GetChainCustomersAsync() =>
+        await db.TasafChainCustomers.AsNoTracking().ToListAsync();
+
+    public async Task<List<TasafChainCustomer>> GetChainCustomersAsync(int chainId) =>
+        await db.TasafChainCustomers.AsNoTracking().Where(c => c.ChainId == chainId).ToListAsync();
+
     public async Task<List<int>> GetSalesGroupIdsOfUserAsync(int userId) =>
         await db.TasafSalesGroupUsers.Where(m => m.UserId == userId).Select(m => m.SalesGroupId).ToListAsync();
 

@@ -199,6 +199,8 @@ export interface TasafOption {
   amount?: number | null;
   /** Areas: comma-separated Site codes (blank = all branches). */
   branchCodes?: string | null;
+  /** Sales groups / chains: comma-separated area names they're offered for (blank = all areas). */
+  areaNames?: string | null;
 }
 
 export interface TasafFormOptions {

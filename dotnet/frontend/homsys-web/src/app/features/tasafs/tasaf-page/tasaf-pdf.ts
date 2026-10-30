@@ -129,7 +129,6 @@ export function buildTasafPdf(t: TasafDto, logo?: string | null): jsPDF {
     ['Target Market', other(t.targetMarketName, t.targetMarketOther)],
     ['Channel', t.channelNames],
     ['Product Category', t.productCategoryNames],
-    ['Product Sub-Category', t.subCategoryNames],
     ['Segment', t.segmentNames],
     ['Background', t.background],
     ['Concessions', t.concessions],

@@ -44,7 +44,8 @@ public class TasafService(
                     Id = x.Id, Code = x.Code, Name = x.Name,
                     ParentId = (x as ITasafParentLookup)?.ParentId,
                     Amount   = (x as ITasafAmountLookup)?.Amount,
-                    BranchCodes = (x as TasafArea)?.BranchCodes
+                    BranchCodes = (x as TasafArea)?.BranchCodes,
+                    AreaNames   = (x as ITasafAreasLookup)?.AreaNames
                 })
                 .ToList();
         }
@@ -101,39 +102,98 @@ public class TasafService(
     }
 
     /// <summary>
-    /// Cust Key dropdown: active stores of the picked chain (its customer-name keywords, TASAF
-    /// Setup › Customers / Chains) AND of the picked branches (Sites) — or, with no branch picked,
-    /// of the picked areas (their branch codes, TASAF Setup › Areas). filtered = false when nothing
-    /// narrows anything (the form searches everything).
+    /// Cust Key dropdown. A chain with listed stores (TasafChainCustomers, from RAM BRANCHES ACTIVECUSTOMER
+    /// LIST 2.xlsx) offers exactly those in the picked areas (REGION) and, once picked, branches (SERVICING
+    /// BRANCH) and of the picked sales group (SALESGROUP); siteCodes = their servicing branches in the areas, for the Branch dropdown. Otherwise: active
+    /// stores of the chain's customer-name keywords (TASAF Setup › Customers / Chains) AND of the picked
+    /// branches (Sites) — or, with no branch picked, of the picked areas (their branch codes, TASAF Setup ›
+    /// Areas); siteCodes = null. filtered = false when nothing narrows anything (the form searches everything).
     /// </summary>
-    public async Task<(List<CustomerMatchInfo> customers, bool filtered)> GetCustomerOptionsAsync(
-        int? chainId, IReadOnlyList<int> areaIds, IReadOnlyList<int> siteIds)
+    public async Task<(List<CustomerMatchInfo> customers, bool filtered, List<string>? siteCodes)> GetCustomerOptionsAsync(
+        int? chainId, IReadOnlyList<int> areaIds, IReadOnlyList<int> siteIds, int? salesGroupId = null)
     {
         var fragments = new List<string>();
         if (chainId is int cid && await lookups.GetByIdAsync(typeof(TasafChain), cid) is TasafChain chain)
+        {
+            var listed = await lookups.GetChainCustomersAsync(cid);
+            if (listed.Count > 0) return await ListedCustomerOptionsAsync(listed, areaIds, siteIds, salesGroupId);
             fragments = SplitList(chain.CustomerMatch).Where(f => f.Length >= 2).ToList();
+        }
 
         var scope = await BranchScopeAsync(areaIds, siteIds);
-        if (fragments.Count == 0 && scope is null) return ([], false);
-        return (await customers.MatchAsync(fragments, scope, take: MaxCustomers), true);
+        if (fragments.Count == 0 && scope is null) return ([], false, null);
+        return (await customers.MatchAsync(fragments, scope, take: MaxCustomers), true, null);
+    }
+
+    private async Task<(List<CustomerMatchInfo> customers, bool filtered, List<string>? siteCodes)> ListedCustomerOptionsAsync(
+        List<TasafChainCustomer> listed, IReadOnlyList<int> areaIds, IReadOnlyList<int> siteIds, int? salesGroupId)
+    {
+        var areaNames = await AreaNamesAsync(areaIds);
+        var group = await SalesGroupCodeAsync(salesGroupId);
+        var inArea = listed.Where(c => (areaNames.Count == 0 || areaNames.Contains(c.AreaName))
+            && (group is null || c.SalesGroup.Equals(group, StringComparison.OrdinalIgnoreCase))).ToList();
+        var siteCodes = inArea.Select(c => c.SiteCode).Where(s => s.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        var allSites = (await sites.GetAllAsync()).ToList();
+        var siteNames = allSites.GroupBy(s => s.Code, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Name, StringComparer.OrdinalIgnoreCase);
+        var picked = allSites.Where(s => siteIds.Contains(s.Id)).Select(s => s.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var rows = inArea.Where(c => picked.Count == 0 || picked.Contains(c.SiteCode))
+            .GroupBy(c => c.CustKey, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
+
+        var master = await customers.GetByCustKeysAsync(rows.Select(r => r.CustKey));
+        var list = rows.Select(r =>
+            {
+                var branch = siteNames.GetValueOrDefault(r.SiteCode, r.SiteCode);
+                return master.TryGetValue(r.CustKey, out var m)
+                    ? new CustomerMatchInfo(r.CustKey, m.CusName.Trim(), branch, $"{m.AddrLn1.Trim()} {m.AddrLn2.Trim()}".Trim(), r.SiteCode)
+                    : new CustomerMatchInfo(r.CustKey, r.CusName, branch, "", r.SiteCode);
+            })
+            .OrderBy(c => c.CusName).Take(MaxCustomers).ToList();
+        return (list, true, siteCodes);
     }
 
     /// <summary>
-    /// Customer / Chain dropdown: active stores per chain in the picked branches (else areas).
-    /// null = nothing narrows (every chain is offered). Chains with no name keywords (e.g. "LKA
-    /// Others") can't be counted and are left out — the form keeps offering them.
+    /// Customer / Chain dropdown: stores per chain in the picked areas — listed stores (TasafChainCustomers)
+    /// by REGION and SALESGROUP (the picked sales group), else active stores of the chain's name keywords in the picked branches (else areas). null =
+    /// nothing narrows (every chain is offered). Chains with neither (e.g. "LKA Others") can't be counted and
+    /// are left out — the form keeps offering them.
     /// </summary>
-    public async Task<Dictionary<int, int>?> GetChainStoreCountsAsync(IReadOnlyList<int> areaIds, IReadOnlyList<int> siteIds)
+    public async Task<Dictionary<int, int>?> GetChainStoreCountsAsync(IReadOnlyList<int> areaIds, IReadOnlyList<int> siteIds, int? salesGroupId = null)
     {
         var scope = await BranchScopeAsync(areaIds, siteIds);
-        if (scope is null) return null;
+        var areaNames = await AreaNamesAsync(areaIds);
+        var group = await SalesGroupCodeAsync(salesGroupId);
+        var listed = (await lookups.GetChainCustomersAsync()).GroupBy(c => c.ChainId).ToDictionary(g => g.Key, g => g.ToList());
+        if (scope is null && ((areaNames.Count == 0 && group is null) || listed.Count == 0)) return null;
         var counts = new Dictionary<int, int>();
         foreach (var chain in (await lookups.GetAllAsync(typeof(TasafChain))).OfType<TasafChain>().Where(c => c.IsActive))
         {
+            if (listed.TryGetValue(chain.Id, out var rows))
+            {
+                counts[chain.Id] = rows.Where(r => (areaNames.Count == 0 || areaNames.Contains(r.AreaName))
+                        && (group is null || r.SalesGroup.Equals(group, StringComparison.OrdinalIgnoreCase)))
+                    .Select(r => r.CustKey).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+                continue;
+            }
             var fragments = SplitList(chain.CustomerMatch).Where(f => f.Length >= 2).ToList();
-            if (fragments.Count > 0) counts[chain.Id] = await customers.CountMatchAsync(fragments, scope);
+            if (fragments.Count > 0 && scope is not null) counts[chain.Id] = await customers.CountMatchAsync(fragments, scope);
         }
         return counts;
+    }
+
+    /// <summary>Code of the picked sales group (e.g. "RKA"), matched to a listed store's SALESGROUP; null = none picked.</summary>
+    private async Task<string?> SalesGroupCodeAsync(int? salesGroupId) =>
+        salesGroupId is int id && await lookups.GetByIdAsync(typeof(TasafSalesGroup), id) is { } g
+            ? (g.Code.Length > 0 ? g.Code : g.Name) : null;
+
+    /// <summary>Names of the picked areas (TasafArea.Name), e.g. "North Luzon".</summary>
+    private async Task<HashSet<string>> AreaNamesAsync(IReadOnlyList<int> areaIds)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var id in areaIds.Distinct())
+            if (await lookups.GetByIdAsync(typeof(TasafArea), id) is { } area) names.Add(area.Name);
+        return names;
     }
 
     /// <summary>
@@ -866,6 +926,26 @@ public class TasafService(
         var areaIds = (dto.AreaIds ?? []).Distinct().ToList();
         foreach (var aid in areaIds)
             if (!await LookupExistsAsync("areas", aid)) return "Area not found.";
+        // The sales group's areas (TASAF Setup › Sales Groups); an area already on the TASAF may stay.
+        if (dto.SalesGroupId is int sgAreas && areaIds.Count > 0
+            && await lookups.GetByIdAsync(typeof(TasafSalesGroup), sgAreas) is TasafSalesGroup { AreaNames.Length: > 0 } group)
+        {
+            var allowed = SplitList(group.AreaNames).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var kept = t.Areas.Select(a => a.AreaId).ToHashSet();
+            foreach (var aid in areaIds.Where(a => !kept.Contains(a)))
+                if (await lookups.GetByIdAsync(typeof(TasafArea), aid) is { } area && !allowed.Contains(area.Name))
+                    return $"Area {area.Name} is not in Sales Group {group.Name}'s areas (TASAF Setup › Sales Groups).";
+        }
+        // A newly picked chain must sell in one of the picked areas (TASAF Setup › Customers / Chains).
+        if (dto.ChainId is int chId && chId != t.ChainId && areaIds.Count > 0
+            && await lookups.GetByIdAsync(typeof(TasafChain), chId) is TasafChain { AreaNames.Length: > 0 } chain)
+        {
+            var chainAreas = SplitList(chain.AreaNames).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var inArea = false;
+            foreach (var aid in areaIds)
+                if (await lookups.GetByIdAsync(typeof(TasafArea), aid) is { } area && chainAreas.Contains(area.Name)) inArea = true;
+            if (!inArea) return $"Customer / Chain {chain.Name} is not in the chosen area (TASAF Setup › Customers / Chains).";
+        }
         var channelIds = (dto.ChannelIds ?? []).Distinct().ToList();
         foreach (var cid in channelIds)
             if (!await LookupExistsAsync("channels", cid)) return "Channel not found.";
@@ -883,7 +963,7 @@ public class TasafService(
                 subCategories.Add(new TasafSubCategoryLink { Code = o.Code, Name = o.Name, Segment = o.Segment });
             else if (keptSubs.TryGetValue(code, out var kept)) // no longer in the master: keep the saved snapshot
                 subCategories.Add(new TasafSubCategoryLink { Code = kept.Code, Name = kept.Name, Segment = kept.Segment });
-            else return $"Product Sub-Category {code} not found.";
+            else return $"Segment {code} not found.";
         }
 
         var costTypeIds = dto.Costs.Where(c => c.CostTypeId is not null).Select(c => c.CostTypeId!.Value).Distinct();
@@ -1064,7 +1144,7 @@ public class TasafService(
             ProductCategoryNames = string.Join(", ", t.ProductCategories.OrderBy(c => c.LineNo).Select(c => c.ProductGroup?.Name).Where(n => n is not null)),
             SubCategoryCodes     = t.SubCategories.OrderBy(c => c.LineNo).Select(c => c.Code).ToList(),
             SubCategoryNames     = string.Join(", ", t.SubCategories.OrderBy(c => c.LineNo).Select(c => $"{c.Code} - {c.Name}")),
-            SegmentNames         = string.Join(", ", t.SubCategories.OrderBy(c => c.LineNo).Select(c => c.Segment).Where(n => n.Length > 0)),
+            SegmentNames         = string.Join(", ", t.SubCategories.OrderBy(c => c.LineNo).Select(c => c.Segment).Where(n => n.Length > 0).Distinct()),
             Background        = t.Background,
             Concessions       = t.Concessions,
             Mechanics         = t.Mechanics,

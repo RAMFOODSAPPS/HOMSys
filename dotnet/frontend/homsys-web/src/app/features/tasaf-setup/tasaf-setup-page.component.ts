@@ -211,6 +211,7 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
                 @if (m.userLabel) { <th pSortableColumn="userName">{{ m.userLabel }} <p-sortIcon field="userName" /></th> }
                 @if (m.amountLabel) { <th pSortableColumn="amount" class="num">{{ shortLabel(m.amountLabel) }} <p-sortIcon field="amount" /></th> }
                 @if (m.textLabel) { <th>{{ shortLabel(m.textLabel) }}</th> }
+                @if (m.areasLabel) { <th>{{ shortLabel(m.areasLabel) }}</th> }
                 <th>Description</th>
                 <th pSortableColumn="isActive" style="width:6rem">Status <p-sortIcon field="isActive" /></th>
               </tr>
@@ -238,7 +239,8 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
                     @else { {{ r.amount | number:'1.2-2' }} }
                   </td>
                 }
-                @if (m.textLabel) { <td class="kw">{{ r.text || '— all customers —' }}</td> }
+                @if (m.textLabel) { <td class="kw">{{ r.text || textHelp(m.key).blank }}</td> }
+                @if (m.areasLabel) { <td class="kw">{{ r.areaNames || '— all areas —' }}</td> }
                 <td>{{ r.description || '—' }}</td>
                 <td><p-tag [value]="r.isActive ? 'Active' : 'Inactive'" [severity]="r.isActive ? 'success' : 'danger'" /></td>
               </tr>
@@ -288,6 +290,13 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
             </p-multiSelect>
           </div>
         }
+        @if (current()?.areasLabel; as arl) {
+          <div class="field">
+            <label>{{ arl }}</label>
+            <p-multiSelect formControlName="areaNames" [options]="areaOptions()" [filter]="true" display="chip"
+              placeholder="— all areas —" styleClass="w-full" appendTo="body" />
+          </div>
+        }
         @if (current()?.userLabel; as ul) {
           <div class="field">
             <label>{{ ul }}</label>
@@ -309,8 +318,8 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
           <div class="field">
             <label>{{ tl }}</label>
             <input pInputText formControlName="text" class="w-full" maxlength="500"
-              placeholder="e.g. PUREGOLD  or  SUPERVALUE, SAVEMORE" />
-            <small class="optional-label">Stores whose customer name contains any of these appear in the TASAF Cust Key dropdown for this chain. Use % as a wildcard.</small>
+              [placeholder]="textHelp(current()?.key).ph" />
+            <small class="optional-label">{{ textHelp(current()?.key).hint }}</small>
           </div>
         }
         <div class="field">
@@ -458,8 +467,13 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     userId:      [null as number | null],
     userIds:     [[] as number[]],
     amount:      [null as number | null],
-    text:        [""]
+    text:        [""],
+    areaNames:   [[] as string[]]
   });
+
+  /** Area names for the Areas multi-select (active areas, plus any the edited row still lists). */
+  protected areaOptions = signal<string[]>([]);
+  private splitAreas(s: string | null | undefined) { return (s ?? '').split(',').map(n => n.trim()).filter(n => n); }
 
   ngOnInit() {
     this.setToolbar();
@@ -667,6 +681,16 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
 
   shortLabel(label: string) { return label.split('(')[0].trim(); }
 
+  /** The text field's placeholder, hint and blank label per list (chain keywords / area branches). */
+  textHelp(key: string | undefined) {
+    switch (key) {
+      case 'areas': return { ph: 'e.g. DAG-B, ISA-B', blank: '— all customers —',
+        hint: 'Site codes of the branches in this area. They narrow the TASAF Branch and Cust Key lists.' };
+      default: return { ph: 'e.g. PUREGOLD  or  SUPERVALUE, SAVEMORE', blank: '— all customers —',
+        hint: 'Stores whose customer name contains any of these appear in the TASAF Cust Key dropdown for this chain. Use % as a wildcard.' };
+    }
+  }
+
   selectMaster(m: TasafMasterMeta) {
     this.setView('master', m.key);
     this.current.set(m);
@@ -686,6 +710,9 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     } else {
       this.parentOptions.set([]);
     }
+    if (m.areasLabel) {
+      this.api.getAll('areas').subscribe(res => this.areaOptions.set((res.data ?? []).filter(a => a.isActive).map(a => a.name)));
+    }
   }
 
   openNew() {
@@ -693,7 +720,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     this.editing.set(null);
     this.apiError.set(null);
     const nextOrder = Math.max(0, ...this.rows().map(r => r.sortOrder)) + 1;
-    this.form.reset({ name: '', code: '', sortOrder: nextOrder, description: '', isActive: true, parentId: null, userId: null, userIds: [], amount: null, text: '' });
+    this.form.reset({ name: '', code: '', sortOrder: nextOrder, description: '', isActive: true, parentId: null, userId: null, userIds: [], amount: null, text: '', areaNames: [] });
     this.dialogVisible = true;
   }
 
@@ -704,10 +731,13 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     if (r.parentId && !this.parentOptions().some(p => p.id === r.parentId)) {
       this.parentOptions.update(opts => [...opts, { ...r, id: r.parentId!, name: r.parentName ?? '' }]);
     }
+    const areas = this.splitAreas(r.areaNames);
+    const missing = areas.filter(a => !this.areaOptions().includes(a));
+    if (missing.length) this.areaOptions.update(opts => [...opts, ...missing]);
     this.form.reset({
       name: r.name, code: r.code, sortOrder: r.sortOrder, description: r.description,
       isActive: r.isActive, parentId: r.parentId ?? null, userId: r.userId ?? null, userIds: r.userIds ?? [], amount: r.amount ?? null,
-      text: r.text ?? ''
+      text: r.text ?? '', areaNames: areas
     });
     this.dialogVisible = true;
   }
@@ -724,7 +754,8 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
       name: v.name ?? '', code: v.code ?? '', description: v.description ?? '',
       sortOrder: v.sortOrder ?? 0, isActive: v.isActive ?? true,
       parentId: v.parentId, userId: v.userId, amount: v.amount, text: v.text ?? '',
-      userIds: m.usersLabel ? (v.userIds ?? []) : null
+      userIds: m.usersLabel ? (v.userIds ?? []) : null,
+      areaNames: m.areasLabel ? (v.areaNames ?? []) : null
     };
     const editing = this.editing();
     this.saving.set(true);

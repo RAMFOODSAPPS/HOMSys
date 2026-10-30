@@ -8,6 +8,8 @@ export interface TasafCustomerSuggestion { custKey: string; cusName: string; }
 /** A chain's store from the customer master (matched by the chain's name keywords). */
 export interface TasafChainCustomer {
   custKey: string; cusName: string; branch: string; address: string;
+  /** Servicing branch (Site code) of a store listed under the chain; null for keyword chains. */
+  siteCode?: string | null;
   /** "custKey — name", added by the form for the selected chips. */
   label?: string;
 }
@@ -44,17 +46,19 @@ export class TasafService {
 
   /** filtered = false when the chain has no keywords (use the free search instead). */
   /** Cust Key dropdown: stores of the chain (name keywords) and areas (branches). filtered = false → search all. */
-  customerOptions(chainId: number | null, areaIds: number[], siteIds: number[] = []) {
+  customerOptions(chainId: number | null, areaIds: number[], siteIds: number[] = [], salesGroupId: number | null = null) {
     const params: Record<string, string | string[]> = { areaIds: areaIds.map(String), siteIds: siteIds.map(String) };
     if (chainId) params['chainId'] = String(chainId);
-    return this.http.get<ApiResponse<{ filtered: boolean; customers: TasafChainCustomer[] }>>(`${this.base}/customer-options`, { params });
+    if (salesGroupId) params['salesGroupId'] = String(salesGroupId);
+    return this.http.get<ApiResponse<{ filtered: boolean; customers: TasafChainCustomer[]; siteCodes?: string[] | null }>>(`${this.base}/customer-options`, { params });
   }
   /** LSP / case: each SKU's price (with VAT) for the picked stores as of the start date, grouped by price. */
   productPrices(cProdNos: string[], custKeys: string[], asOf: string | null) {
     return this.http.post<ApiResponse<TasafSkuPrice[]>>(`${this.base}/product-prices`, { cProdNos, custKeys, asOf });
   }
-  chainStoreCounts(areaIds: number[], siteIds: number[]) {
-    const params = { areaIds: areaIds.map(String), siteIds: siteIds.map(String) };
+  chainStoreCounts(areaIds: number[], siteIds: number[], salesGroupId: number | null = null) {
+    const params: Record<string, string | string[]> = { areaIds: areaIds.map(String), siteIds: siteIds.map(String) };
+    if (salesGroupId) params['salesGroupId'] = String(salesGroupId);
     return this.http.get<ApiResponse<Record<number, number> | null>>(`${this.base}/chain-store-counts`, { params });
   }
   getOptions() { return this.http.get<ApiResponse<TasafFormOptions>>(`${this.base}/options`); }

@@ -9,6 +9,8 @@ export interface TasafMasterMeta {
   usersLabel?: string | null;
   amountLabel?: string | null;
   textLabel?: string | null;
+  /** Areas multi-select (sales groups / chains: the TASAF form offers them only for these areas). */
+  areasLabel?: string | null;
 }
 
 /** Approval rules: approval types × roles → not required / always (overAmount null) / over amount. */
@@ -56,6 +58,8 @@ export interface TasafLookupDto {
   amount?: number | null;
   /** Chains: customer-name keywords for the TASAF Cust Key dropdown. */
   text?: string | null;
+  /** Sales groups / chains: comma-separated area names (blank = all areas). */
+  areaNames?: string | null;
   createdAt: string;
   createdBy: string;
   updatedAt?: string;
@@ -73,6 +77,8 @@ export interface SaveTasafLookupDto {
   userIds?: number[] | null;
   amount?: number | null;
   text?: string | null;
+  /** Sales groups / chains: area names; null = leave unchanged. */
+  areaNames?: string[] | null;
 }
 
 export interface TasafUserOption {

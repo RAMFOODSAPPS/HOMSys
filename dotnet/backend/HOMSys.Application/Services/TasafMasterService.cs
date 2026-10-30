@@ -10,7 +10,8 @@ namespace HOMSys.Application.Services;
 public record TasafMasterDef(
     string Key, string Label, Type EntityType,
     string? ParentKey = null, string? ParentLabel = null,
-    string? UserLabel = null, string? AmountLabel = null, string? TextLabel = null, string? UsersLabel = null);
+    string? UserLabel = null, string? AmountLabel = null, string? TextLabel = null, string? UsersLabel = null,
+    string? AreasLabel = null);
 
 public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccessor http)
 {
@@ -21,9 +22,11 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
     public static readonly IReadOnlyList<TasafMasterDef> Masters =
     [
         new("sales-groups",    "Sales Groups",     typeof(TasafSalesGroup),
-            UsersLabel: "Users (KAMs / proponents — they see only their own groups on the TASAF form)"),
+            UsersLabel: "Users (KAMs / proponents — they see only their own groups on the TASAF form)",
+            AreasLabel: "Areas (the TASAF form offers only these once the group is picked; none = all areas)"),
         new("chains",          "Customers / Chains", typeof(TasafChain),       ParentKey: "sales-groups", ParentLabel: "Sales Group",
-            TextLabel: "Customer name keywords (comma-separated; blank = all customers)"),
+            TextLabel: "Customer name keywords (comma-separated; blank = all customers)",
+            AreasLabel: "Areas (the TASAF form offers this chain only for these areas; none = all areas)"),
         new("areas",           "Areas",            typeof(TasafArea),
             TextLabel: "Branch codes (comma-separated Site codes, e.g. DAG-B, ISA-B; blank = all customers)"),
         new("program-types",   "Program Types",    typeof(TasafProgramType),
@@ -55,7 +58,8 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         UserLabel   = m.UserLabel,
         UsersLabel  = m.UsersLabel,
         AmountLabel = m.AmountLabel,
-        TextLabel   = m.TextLabel
+        TextLabel   = m.TextLabel,
+        AreasLabel  = m.AreasLabel
     });
 
     // ── Approval rules (approval type × role → always / over amount / not required) ──
@@ -231,6 +235,7 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         if (dto.Code.Length > 20) return "Code must be 20 characters or fewer.";
         if (dto.Amount is < 0) return "Amount cannot be negative.";
         if ((dto.Text ?? "").Length > 500) return "Text must be 500 characters or fewer.";
+        if (dto.AreaNames is not null && string.Join(", ", dto.AreaNames).Length > 500) return "Too many areas.";
         if (def.EntityType == typeof(TasafProgramType) && dto.Amount is > 100) return "Max CTS % cannot be over 100.";
 
         if (await repo.ExistsAsync(def.EntityType, dto.Name, dto.Code, excludeId))
@@ -267,6 +272,8 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         if (e is ITasafUserLookup u)   u.UserId   = dto.UserId;
         if (e is ITasafAmountLookup a) a.Amount   = dto.Amount;
         if (e is ITasafTextLookup t)   t.Text     = (dto.Text ?? "").Trim();
+        if (e is ITasafAreasLookup ar && dto.AreaNames is not null)
+            ar.AreaNames = string.Join(", ", dto.AreaNames.Select(n => n.Trim()).Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
         if (e is TasafSalesGroup g && dto.UserIds is not null)
         {
             var want = dto.UserIds.ToHashSet();
@@ -310,6 +317,7 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
                     : null,
                 Amount      = (e as ITasafAmountLookup)?.Amount,
                 Text        = (e as ITasafTextLookup)?.Text,
+                AreaNames   = (e as ITasafAreasLookup)?.AreaNames,
                 CreatedAt   = e.CreatedAt,
                 CreatedBy   = e.CreatedBy,
                 UpdatedAt   = e.UpdatedAt,

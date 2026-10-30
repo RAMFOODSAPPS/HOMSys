@@ -3288,6 +3288,11 @@ namespace HOMSys.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AreaNames")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -3349,6 +3354,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 1,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3361,6 +3367,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 2,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3373,6 +3380,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 3,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3385,6 +3393,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 4,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3397,6 +3406,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 5,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3409,6 +3419,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 6,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3421,6 +3432,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 7,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3433,6 +3445,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 8,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3445,6 +3458,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 9,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3457,6 +3471,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 10,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3469,6 +3484,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 11,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3481,6 +3497,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 12,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3493,6 +3510,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 13,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3505,6 +3523,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 14,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3517,6 +3536,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 15,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3529,6 +3549,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 16,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3541,6 +3562,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 17,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3553,6 +3575,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 18,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3565,6 +3588,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 19,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3577,6 +3601,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 20,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3589,6 +3614,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 21,
+                            AreaNames = "",
                             Code = "",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -3598,6 +3624,50 @@ namespace HOMSys.Infrastructure.Migrations
                             Name = "RDP Others",
                             SortOrder = 21
                         });
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafChainCustomer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AreaName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ChainId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CusName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("CustKey")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("SalesGroup")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("SiteCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChainId", "CustKey", "SalesGroup", "AreaName")
+                        .IsUnique();
+
+                    b.ToTable("TasafChainCustomers", (string)null);
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafChannel", b =>
@@ -4838,6 +4908,11 @@ namespace HOMSys.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AreaNames")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -4889,6 +4964,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 1,
+                            AreaNames = "",
                             Code = "NKA",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -4900,6 +4976,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 2,
+                            AreaNames = "",
                             Code = "RKA",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -4911,6 +4988,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 3,
+                            AreaNames = "",
                             Code = "LKA",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -4922,6 +5000,7 @@ namespace HOMSys.Infrastructure.Migrations
                         new
                         {
                             Id = 4,
+                            AreaNames = "",
                             Code = "GT",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
@@ -5633,6 +5712,17 @@ namespace HOMSys.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("SalesGroup");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafChainCustomer", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.TasafChain", "Chain")
+                        .WithMany()
+                        .HasForeignKey("ChainId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Chain");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafChannelLink", b =>

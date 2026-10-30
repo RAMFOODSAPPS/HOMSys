@@ -18,6 +18,11 @@ public interface ITasafLookupRepository
     /// <summary>Sales groups the user is a member of (TASAF Setup › Sales Groups › Users).</summary>
     Task<List<int>> GetSalesGroupIdsOfUserAsync(int userId);
 
+    /// <summary>Stores listed per chain (TasafChainCustomers), every chain.</summary>
+    Task<List<TasafChainCustomer>> GetChainCustomersAsync();
+    /// <summary>Stores listed under one chain.</summary>
+    Task<List<TasafChainCustomer>> GetChainCustomersAsync(int chainId);
+
     /// <summary>Every assigned approval-matrix cell (rows with a null UserId are vacant).</summary>
     Task<List<TasafApprover>> GetApproversAsync();
     /// <summary>Upserts the given cells (UserId null = vacant).</summary>

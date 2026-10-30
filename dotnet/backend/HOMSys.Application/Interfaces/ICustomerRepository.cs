@@ -7,7 +7,8 @@ namespace HOMSys.Application.Interfaces;
 public record CustomerGroupingInfo(string CustKey, string CusName, DateOnly? FirstOrder);
 
 /// <summary>A store picked by name keywords (TASAF Cust Key dropdown for a chain).</summary>
-public record CustomerMatchInfo(string CustKey, string CusName, string Branch, string Address);
+/// <remarks>SiteCode: the servicing branch (Site code) of a store listed under a chain (TasafChainCustomers); null otherwise.</remarks>
+public record CustomerMatchInfo(string CustKey, string CusName, string Branch, string Address, string? SiteCode = null);
 
 /// <summary>
 /// Customers of a set of branches (Sites): WhseNo in <see cref="WhseNos"/> (the sites'

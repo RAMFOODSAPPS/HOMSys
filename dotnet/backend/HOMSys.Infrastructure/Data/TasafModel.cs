@@ -41,6 +41,8 @@ internal static class TasafModel
 
         mb.Entity<TasafChain>().Property(x => x.CustomerMatch).HasMaxLength(500);
         mb.Entity<TasafArea>().Property(x => x.BranchCodes).HasMaxLength(500);
+        mb.Entity<TasafSalesGroup>().Property(x => x.AreaNames).HasMaxLength(500);
+        mb.Entity<TasafChain>().Property(x => x.AreaNames).HasMaxLength(500);
         mb.Entity<TasafChain>()
             .HasOne(x => x.SalesGroup).WithMany()
             .HasForeignKey(x => x.SalesGroupId)
@@ -163,6 +165,19 @@ internal static class TasafModel
             e.HasIndex(x => new { x.SalesGroupId, x.UserId }).IsUnique();
             e.HasOne(x => x.SalesGroup).WithMany(g => g.Members).HasForeignKey(x => x.SalesGroupId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<TasafChainCustomer>(e =>
+        {
+            e.ToTable("TasafChainCustomers");
+            // A store can be listed more than once under a chain (another region / sales group), as in the Excel.
+            e.HasIndex(x => new { x.ChainId, x.CustKey, x.SalesGroup, x.AreaName }).IsUnique();
+            e.HasOne(x => x.Chain).WithMany().HasForeignKey(x => x.ChainId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.CustKey).HasMaxLength(20);
+            e.Property(x => x.CusName).HasMaxLength(150);
+            e.Property(x => x.AreaName).HasMaxLength(100);
+            e.Property(x => x.SiteCode).HasMaxLength(20);
+            e.Property(x => x.SalesGroup).HasMaxLength(20);
         });
 
         mb.Entity<TasafChannelLink>(e =>
