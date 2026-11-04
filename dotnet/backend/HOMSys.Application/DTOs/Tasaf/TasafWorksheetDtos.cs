@@ -7,6 +7,8 @@ public class TasafListingFeeLineDto
     public string Channel { get; set; } = string.Empty;
     public string Account { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
+    public string ProdNo { get; set; } = string.Empty;
+    public string Sku { get; set; } = string.Empty;
     public decimal? LfPerSku { get; set; }
     public int? SkuCount { get; set; }
     public int? DoorCount { get; set; }
@@ -25,6 +27,7 @@ public class TasafNearExLineDto
     public string SalesGroup { get; set; } = string.Empty;
     public string Account { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
+    public string ProdNo { get; set; } = string.Empty;
     public string Sku { get; set; } = string.Empty;
     public decimal? LspPerCase { get; set; }
     public decimal? LspPerPc { get; set; }

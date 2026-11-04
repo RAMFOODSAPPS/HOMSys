@@ -5848,6 +5848,11 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<int>("LineNo")
                         .HasColumnType("int");
 
+                    b.Property<string>("ProdNo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<decimal?>("ProjectedAnnualSales")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -5858,6 +5863,11 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("SalesGroup")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Sku")
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
@@ -5932,6 +5942,11 @@ namespace HOMSys.Infrastructure.Migrations
 
                     b.Property<int?>("PcsPerCase")
                         .HasColumnType("int");
+
+                    b.Property<string>("ProdNo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("SalesGroup")
                         .IsRequired()

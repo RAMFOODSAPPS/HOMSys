@@ -554,12 +554,13 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
 - **Worksheets** (`/tasafs/worksheets`, `TasafWorksheetService`, `api/tasaf-worksheets`, migration `TasafWorksheets`): the
   workbook's "LF Breakdown" and "Near Ex" sheets ("PLEASE FILL OUT AND ATTACH TO THE TASAF FOR APPROVAL"). The proponent
   fills one out and attaches / detaches it to their own Draft / Returned TASAF (`TasafWorksheet.TasafId`; optional, no
-  approval of its own, never required to submit, never feeds Cost Details). Locked (no edit / detach / delete) while
+  approval of its own, never required to submit, never feeds Cost Details). Delete only when detached. Locked (no edit / detach / delete) while
   the TASAF is past Draft / Returned. Typed columns stay typed (user decision 2026-10-30); computed ones = the
   workbook formulas: LF TOTAL = LF/SKU × Doors ("AllSkus", package for all SKUs) or × SKUs ("AllDoors", package for
   all doors) — the sheet itself uses both, per row — CTS = TOTAL ÷ Projected Annual Sales; Near Ex Total in Pcs =
   Cases × Pcs/Cs + Pieces, Total Value = Cases × LSP/Case + Pieces × LSP/Pc, Moveout Cost = Value × Discount.
-  Unattached = only its creator sees it (user decision 2026-10-30); attached = also the TASAF's proponent / approvers and View All. Attached ones are in `TasafDto.Worksheets`
+  Sales Group / Channel / Category are dropdowns of the TASAF lists (stored as names); Prod No. = active SKUs of the
+  row's Category (`tasafs/product-options`), filling SKU (editable). Unattached = only its creator sees it (user decision 2026-10-30); attached = also the TASAF's proponent / approvers and View All. Attached ones are in `TasafDto.Worksheets`
   → the email / print renderer and the PDF; the form's "Attached Worksheets" block (layout key `worksheets`).
 - **Access**: `tasaf` (17) create/see own + those you review/approve; `tasaf-view-all`
   (18) = only Admin, COO and TMM (migration `TasafViewAllTmmCooOnly`, user decision 2026-10-30 — GKAM / NSM / NSD see

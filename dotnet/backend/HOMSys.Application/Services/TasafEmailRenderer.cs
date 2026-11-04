@@ -135,29 +135,29 @@ public static class TasafEmailRenderer
             sb.Append(Section($"Attached Worksheet — {w.TypeLabel}{(w.Title != w.TypeLabel ? ": " + w.Title : "")}"));
             if (w.Type == "NearEx")
                 sb.Append(Table(
-                    ["Sales Group", "Account / Store", "Category", "SKU", "LSP / Case", "LSP / Pc", "Pcs/Cs", "Expiry",
+                    ["Sales Group", "Account / Store", "Category", "Prod No.", "SKU", "LSP / Case", "LSP / Pc", "Pcs/Cs", "Expiry",
                      "Invty Cases", "Invty Pcs", "Total Pcs", "Total Value", "Moveout Scheme", "Discount / Rebate", "Moveout Cost"],
-                    [false, false, false, false, true, true, true, false, true, true, true, true, false, true, true],
+                    [false, false, false, false, false, true, true, true, false, true, true, true, true, false, true, true],
                     w.NearExLines.Select(l => new[]
                     {
-                        l.SalesGroup, l.Account, l.Category, l.Sku, Num(l.LspPerCase), Num(l.LspPerPc), Int(l.PcsPerCase),
+                        l.SalesGroup, l.Account, l.Category, l.ProdNo, l.Sku, Num(l.LspPerCase), Num(l.LspPerPc), Int(l.PcsPerCase),
                         l.Expiry?.ToString("MMM-yy", En) ?? "—", Int(l.InvCases), Int(l.InvPieces), l.TotalPcs.ToString("N0", En),
                         Num(l.TotalValue), l.MoveoutScheme, l.Discount is decimal dc ? dc.ToString("P0", En) : "—", Num(l.MoveoutCost)
                     }).ToList(),
-                    ["Total", "", "", "", "", "", "", "", "", "", w.NearExLines.Sum(l => l.TotalPcs).ToString("N0", En),
+                    ["Total", "", "", "", "", "", "", "", "", "", "", w.NearExLines.Sum(l => l.TotalPcs).ToString("N0", En),
                      Num(w.NearExLines.Sum(l => l.TotalValue)), "", "", Num(w.Total)]));
             else
                 sb.Append(Table(
-                    ["Sales Group", "Channel", "Account / Store", "Category", "LF / SKU", "# of SKUs", "# of Doors", "Total",
+                    ["Sales Group", "Channel", "Account / Store", "Category", "Prod No.", "SKU", "LF / SKU", "# of SKUs", "# of Doors", "Total",
                      "Projected Annual Sales", "CTS", "Remarks"],
-                    [false, false, false, false, true, true, true, true, true, true, false],
+                    [false, false, false, false, false, false, true, true, true, true, true, true, false],
                     w.ListingFeeLines.Select(l => new[]
                     {
-                        l.SalesGroup, l.Channel, l.Account, l.Category, Num(l.LfPerSku), Int(l.SkuCount), Int(l.DoorCount),
+                        l.SalesGroup, l.Channel, l.Account, l.Category, l.ProdNo, l.Sku, Num(l.LfPerSku), Int(l.SkuCount), Int(l.DoorCount),
                         Num(l.Total) + (l.Basis == "AllDoors" ? "\n(LF × SKUs)" : "\n(LF × Doors)"),
                         Num(l.ProjectedAnnualSales), l.Cts is decimal ct ? ct.ToString("P0", En) : "—", l.Remarks
                     }).ToList(),
-                    ["Total", "", "", "", "", "", "", Num(w.Total), Num(w.ListingFeeLines.Sum(l => l.ProjectedAnnualSales ?? 0)), "", ""]));
+                    ["Total", "", "", "", "", "", "", "", "", Num(w.Total), Num(w.ListingFeeLines.Sum(l => l.ProjectedAnnualSales ?? 0)), "", ""]));
         }
 
         // Approval chain

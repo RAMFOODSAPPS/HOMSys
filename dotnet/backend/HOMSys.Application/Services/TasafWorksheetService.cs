@@ -122,6 +122,8 @@ public class TasafWorksheetService(
         if (w is null) return NotFound;
         if (w.ProponentUserId != CurrentUserId) return "Only the proponent can delete this worksheet.";
         if (IsLocked(w.Tasaf)) return LockedMessage(w.Tasaf!);
+        // An attached worksheet is part of its TASAF: detach it first (user decision 2026-10-30).
+        if (w.Tasaf is { } t) return $"Detach this worksheet from TASAF {t.RefNo ?? "#" + t.Id} first, then delete it.";
         await repo.DeleteAsync(w);
         return null;
     }
@@ -184,7 +186,7 @@ public class TasafWorksheetService(
                 var line = new TasafListingFeeLine
                 {
                     LineNo = i + 1, SalesGroup = Clip(l.SalesGroup), Channel = Clip(l.Channel), Account = Clip(l.Account),
-                    Category = Clip(l.Category), LfPerSku = l.LfPerSku, SkuCount = l.SkuCount, DoorCount = l.DoorCount,
+                    Category = Clip(l.Category), ProdNo = Clip(l.ProdNo, 20), Sku = Clip(l.Sku), LfPerSku = l.LfPerSku, SkuCount = l.SkuCount, DoorCount = l.DoorCount,
                     Basis = l.Basis, ProjectedAnnualSales = l.ProjectedAnnualSales, Remarks = Clip(l.Remarks, 500)
                 };
                 Compute(line);
@@ -206,7 +208,7 @@ public class TasafWorksheetService(
                 var line = new TasafNearExLine
                 {
                     LineNo = i + 1, SalesGroup = Clip(l.SalesGroup), Account = Clip(l.Account), Category = Clip(l.Category),
-                    Sku = Clip(l.Sku), LspPerCase = l.LspPerCase, LspPerPc = l.LspPerPc, PcsPerCase = l.PcsPerCase,
+                    ProdNo = Clip(l.ProdNo, 20), Sku = Clip(l.Sku), LspPerCase = l.LspPerCase, LspPerPc = l.LspPerPc, PcsPerCase = l.PcsPerCase,
                     Expiry = l.Expiry is DateOnly e ? new DateOnly(e.Year, e.Month, 1) : null,
                     InvCases = l.InvCases, InvPieces = l.InvPieces, MoveoutScheme = Clip(l.MoveoutScheme), Discount = l.Discount
                 };
@@ -239,12 +241,12 @@ public class TasafWorksheetService(
 
     private static bool IsBlank(TasafListingFeeLineDto l) =>
         string.IsNullOrWhiteSpace(l.SalesGroup) && string.IsNullOrWhiteSpace(l.Channel) && string.IsNullOrWhiteSpace(l.Account)
-        && string.IsNullOrWhiteSpace(l.Category) && l.LfPerSku is null && l.SkuCount is null && l.DoorCount is null
+        && string.IsNullOrWhiteSpace(l.Category) && string.IsNullOrWhiteSpace(l.ProdNo) && string.IsNullOrWhiteSpace(l.Sku) && l.LfPerSku is null && l.SkuCount is null && l.DoorCount is null
         && l.ProjectedAnnualSales is null && string.IsNullOrWhiteSpace(l.Remarks);
 
     private static bool IsBlank(TasafNearExLineDto l) =>
         string.IsNullOrWhiteSpace(l.SalesGroup) && string.IsNullOrWhiteSpace(l.Account) && string.IsNullOrWhiteSpace(l.Category)
-        && string.IsNullOrWhiteSpace(l.Sku) && l.LspPerCase is null && l.LspPerPc is null && l.PcsPerCase is null
+        && string.IsNullOrWhiteSpace(l.ProdNo) && string.IsNullOrWhiteSpace(l.Sku) && l.LspPerCase is null && l.LspPerPc is null && l.PcsPerCase is null
         && l.Expiry is null && l.InvCases is null && l.InvPieces is null && string.IsNullOrWhiteSpace(l.MoveoutScheme)
         && l.Discount is null;
 
@@ -279,13 +281,13 @@ public class TasafWorksheetService(
         UpdatedBy       = w.UpdatedBy,
         ListingFeeLines = w.ListingFeeLines.OrderBy(l => l.LineNo).Select(l => new TasafListingFeeLineDto
         {
-            SalesGroup = l.SalesGroup, Channel = l.Channel, Account = l.Account, Category = l.Category,
+            SalesGroup = l.SalesGroup, Channel = l.Channel, Account = l.Account, Category = l.Category, ProdNo = l.ProdNo, Sku = l.Sku,
             LfPerSku = l.LfPerSku, SkuCount = l.SkuCount, DoorCount = l.DoorCount, Basis = l.Basis, Total = l.Total,
             ProjectedAnnualSales = l.ProjectedAnnualSales, Cts = l.Cts, Remarks = l.Remarks
         }).ToList(),
         NearExLines = w.NearExLines.OrderBy(l => l.LineNo).Select(l => new TasafNearExLineDto
         {
-            SalesGroup = l.SalesGroup, Account = l.Account, Category = l.Category, Sku = l.Sku,
+            SalesGroup = l.SalesGroup, Account = l.Account, Category = l.Category, ProdNo = l.ProdNo, Sku = l.Sku,
             LspPerCase = l.LspPerCase, LspPerPc = l.LspPerPc, PcsPerCase = l.PcsPerCase, Expiry = l.Expiry,
             InvCases = l.InvCases, InvPieces = l.InvPieces, TotalPcs = l.TotalPcs, TotalValue = l.TotalValue,
             MoveoutScheme = l.MoveoutScheme, Discount = l.Discount, MoveoutCost = l.MoveoutCost

@@ -12,6 +12,9 @@ export interface TasafListingFeeLine {
   channel: string;
   account: string;
   category: string;
+  /** Product master ProdNo (picked); sku = its description, editable. */
+  prodNo: string;
+  sku: string;
   lfPerSku: number | null;
   skuCount: number | null;
   doorCount: number | null;
@@ -27,6 +30,7 @@ export interface TasafNearExLine {
   salesGroup: string;
   account: string;
   category: string;
+  prodNo: string;
   sku: string;
   lspPerCase: number | null;
   lspPerPc: number | null;
@@ -99,12 +103,12 @@ export const LISTING_FEE_BASES: { value: TasafListingFeeBasis; label: string }[]
 ];
 
 export function blankListingFeeLine(): TasafListingFeeLine {
-  return { salesGroup: '', channel: '', account: '', category: '', lfPerSku: null, skuCount: null, doorCount: null,
+  return { salesGroup: '', channel: '', account: '', category: '', prodNo: '', sku: '', lfPerSku: null, skuCount: null, doorCount: null,
            basis: 'AllSkus', total: 0, projectedAnnualSales: null, cts: null, remarks: '' };
 }
 
 export function blankNearExLine(): TasafNearExLine {
-  return { salesGroup: '', account: '', category: '', sku: '', lspPerCase: null, lspPerPc: null, pcsPerCase: null,
+  return { salesGroup: '', account: '', category: '', prodNo: '', sku: '', lspPerCase: null, lspPerPc: null, pcsPerCase: null,
            expiry: null, invCases: null, invPieces: null, totalPcs: 0, totalValue: 0, moveoutScheme: '', discount: null, moveoutCost: 0 };
 }
 

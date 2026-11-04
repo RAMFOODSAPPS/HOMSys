@@ -186,9 +186,11 @@ internal static class TasafModel
         {
             e.ToTable("TasafListingFeeLines");
             foreach (var p in new[] { nameof(TasafListingFeeLine.SalesGroup), nameof(TasafListingFeeLine.Channel),
-                                      nameof(TasafListingFeeLine.Account), nameof(TasafListingFeeLine.Category) })
+                                      nameof(TasafListingFeeLine.Account), nameof(TasafListingFeeLine.Category),
+                                      nameof(TasafListingFeeLine.Sku) })
                 e.Property(p).HasMaxLength(150);
             e.Property(x => x.Basis).HasMaxLength(20);
+            e.Property(x => x.ProdNo).HasMaxLength(20);
             e.Property(x => x.Remarks).HasMaxLength(500);
             e.Property(x => x.LfPerSku).HasPrecision(18, 2);
             e.Property(x => x.Total).HasPrecision(18, 2);
@@ -203,6 +205,7 @@ internal static class TasafModel
                                       nameof(TasafNearExLine.Category), nameof(TasafNearExLine.Sku),
                                       nameof(TasafNearExLine.MoveoutScheme) })
                 e.Property(p).HasMaxLength(150);
+            e.Property(x => x.ProdNo).HasMaxLength(20);
             e.Property(x => x.LspPerCase).HasPrecision(18, 2);
             e.Property(x => x.LspPerPc).HasPrecision(18, 2);
             e.Property(x => x.TotalValue).HasPrecision(18, 2);

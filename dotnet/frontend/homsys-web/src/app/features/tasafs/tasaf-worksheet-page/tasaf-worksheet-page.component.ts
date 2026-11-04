@@ -101,21 +101,31 @@ type Draft = SaveTasafWorksheet & Partial<TasafWorksheet> & { id: number };
         </div>
       </div>
 
-      <div class="ws-scroll">
+      <div class="ws-nav">
+        <span class="muted small">Scroll the table:</span>
+        <p-button icon="pi pi-angle-double-left" [text]="true" size="small" (onClick)="wsScroll.scrollTo({ left: 0, behavior: 'smooth' })" />
+        <p-button icon="pi pi-angle-left" [text]="true" size="small" (onClick)="wsScroll.scrollBy({ left: -400, behavior: 'smooth' })" />
+        <p-button icon="pi pi-angle-right" [text]="true" size="small" (onClick)="wsScroll.scrollBy({ left: 400, behavior: 'smooth' })" />
+        <p-button icon="pi pi-angle-double-right" [text]="true" size="small" (onClick)="wsScroll.scrollTo({ left: wsScroll.scrollWidth, behavior: 'smooth' })" />
+        <span class="muted small">(or Shift + mouse wheel)</span>
+      </div>
+      <div class="ws-scroll" #wsScroll>
         @if (w.type === 'ListingFee') {
           <table class="ws-grid">
             <thead><tr>
-              <th>Sales Group</th><th>Channel</th><th>Account / Store</th><th>Category</th><th class="num">LF / SKU</th>
-              <th class="num"># of SKUs</th><th class="num"># of Doors</th><th>TOTAL is</th><th class="num">TOTAL</th>
-              <th class="num">Projected Annual Sales</th><th class="num">CTS</th><th>Remarks</th><th></th>
+              <th class="c-md">Sales Group</th><th class="c-md">Channel</th><th class="c-lg">Account / Store</th><th class="c-md">Category</th><th class="c-md">Prod No.</th><th class="c-xl">SKU</th><th class="num c-num">LF / SKU</th>
+              <th class="num c-sm"># of SKUs</th><th class="num c-sm"># of Doors</th><th class="c-xl">TOTAL is</th><th class="num">TOTAL</th>
+              <th class="num c-num">Projected Annual Sales</th><th class="num">CTS</th><th class="c-lg">Remarks</th><th></th>
             </tr></thead>
             <tbody>
               @for (l of w.listingFeeLines; track $index; let i = $index) {
                 <tr>
-                  <td><input pInputText [(ngModel)]="l.salesGroup" [disabled]="!editable()" /></td>
-                  <td><input pInputText [(ngModel)]="l.channel" [disabled]="!editable()" /></td>
-                  <td><input pInputText [(ngModel)]="l.account" [disabled]="!editable()" /></td>
-                  <td><input pInputText [(ngModel)]="l.category" [disabled]="!editable()" /></td>
+                  <td [title]="l.salesGroup"><p-select [options]="pick('sales-groups', l.salesGroup)" [(ngModel)]="l.salesGroup" [showClear]="true" [filter]="true" placeholder="Select" appendTo="body" styleClass="ws-sel" [disabled]="!editable()" /></td>
+                  <td [title]="l.channel"><p-select [options]="pick('channels', l.channel)" [(ngModel)]="l.channel" [showClear]="true" [filter]="true" placeholder="Select" appendTo="body" styleClass="ws-sel" [disabled]="!editable()" /></td>
+                  <td [title]="l.account"><input pInputText [(ngModel)]="l.account" [disabled]="!editable()" /></td>
+                  <td [title]="l.category"><p-select [options]="pick('product-groups', l.category)" [(ngModel)]="l.category" [showClear]="true" [filter]="true" placeholder="Select" appendTo="body" styleClass="ws-sel" [disabled]="!editable()" /></td>
+                  <td [title]="l.sku"><p-select [options]="prodOpts(l.category, l.prodNo, l.sku)" [ngModel]="l.prodNo || null" (ngModelChange)="onProd(l, $event)" optionLabel="label" optionValue="value" [showClear]="true" [filter]="true" filterBy="label" placeholder="Select" appendTo="body" styleClass="ws-sel" [panelStyle]="{ width: '26rem' }" [disabled]="!editable()"><ng-template let-o pTemplate="selectedItem">{{ o.value }}</ng-template></p-select></td>
+                  <td [title]="l.sku"><textarea class="p-inputtext wrap" rows="1" [(ngModel)]="l.sku" maxlength="100" [disabled]="!editable()"></textarea></td>
                   <td><p-inputNumber [(ngModel)]="l.lfPerSku" (ngModelChange)="calcLf(l)" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="!editable()" /></td>
                   <td><p-inputNumber [(ngModel)]="l.skuCount" (ngModelChange)="calcLf(l)" [min]="0" inputStyleClass="numin sm" [disabled]="!editable()" /></td>
                   <td><p-inputNumber [(ngModel)]="l.doorCount" (ngModelChange)="calcLf(l)" [min]="0" inputStyleClass="numin sm" [disabled]="!editable()" /></td>
@@ -123,13 +133,13 @@ type Draft = SaveTasafWorksheet & Partial<TasafWorksheet> & { id: number };
                   <td class="num calc">{{ l.total | number:'1.2-2' }}</td>
                   <td><p-inputNumber [(ngModel)]="l.projectedAnnualSales" (ngModelChange)="calcLf(l)" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="!editable()" /></td>
                   <td class="num calc">{{ l.cts == null ? '—' : (l.cts | percent:'1.0-0') }}</td>
-                  <td><input pInputText [(ngModel)]="l.remarks" maxlength="500" class="wide" [disabled]="!editable()" /></td>
+                  <td [title]="l.remarks"><textarea class="p-inputtext wrap" rows="1" [(ngModel)]="l.remarks" maxlength="500" [disabled]="!editable()"></textarea></td>
                   <td>@if (editable()) { <p-button icon="pi pi-trash" [text]="true" severity="danger" size="small" (onClick)="w.listingFeeLines.splice(i, 1)" /> }</td>
                 </tr>
               }
             </tbody>
             <tfoot><tr>
-              <td colspan="8" class="num"><strong>Total</strong></td>
+              <td colspan="10" class="num"><strong>Total</strong></td>
               <td class="num"><strong>{{ lfTotal() | number:'1.2-2' }}</strong></td>
               <td class="num"><strong>{{ lfSales() | number:'1.2-2' }}</strong></td><td colspan="3"></td>
             </tr></tfoot>
@@ -137,18 +147,19 @@ type Draft = SaveTasafWorksheet & Partial<TasafWorksheet> & { id: number };
         } @else {
           <table class="ws-grid">
             <thead><tr>
-              <th>Sales Group</th><th>Account / Store</th><th>Category</th><th>SKU</th><th class="num">LSP per Case</th>
-              <th class="num">LSP per Pc</th><th class="num">Pcs/Cs</th><th>Expiry (Month-Year)</th><th class="num">Invty in Cases</th>
-              <th class="num">Invty in Pieces</th><th class="num">Total in Pcs</th><th class="num">Total Value</th><th>Moveout Scheme</th>
-              <th class="num">Discount / Rebate</th><th class="num">Moveout Cost</th><th></th>
+              <th class="c-md">Sales Group</th><th class="c-lg">Account / Store</th><th class="c-md">Category</th><th class="c-md">Prod No.</th><th class="c-xl">SKU</th><th class="num c-num">LSP per Case</th>
+              <th class="num c-num">LSP per Pc</th><th class="num c-sm">Pcs/Cs</th><th class="c-md">Expiry (Month-Year)</th><th class="num c-sm">Invty in Cases</th>
+              <th class="num c-sm">Invty in Pieces</th><th class="num">Total in Pcs</th><th class="num">Total Value</th><th class="c-lg">Moveout Scheme</th>
+              <th class="num c-sm">Discount / Rebate</th><th class="num">Moveout Cost</th><th></th>
             </tr></thead>
             <tbody>
               @for (l of w.nearExLines; track $index; let i = $index) {
                 <tr>
-                  <td><input pInputText [(ngModel)]="l.salesGroup" [disabled]="!editable()" /></td>
-                  <td><input pInputText [(ngModel)]="l.account" [disabled]="!editable()" /></td>
-                  <td><input pInputText [(ngModel)]="l.category" [disabled]="!editable()" /></td>
-                  <td><input pInputText [(ngModel)]="l.sku" [disabled]="!editable()" /></td>
+                  <td [title]="l.salesGroup"><p-select [options]="pick('sales-groups', l.salesGroup)" [(ngModel)]="l.salesGroup" [showClear]="true" [filter]="true" placeholder="Select" appendTo="body" styleClass="ws-sel" [disabled]="!editable()" /></td>
+                  <td [title]="l.account"><input pInputText [(ngModel)]="l.account" [disabled]="!editable()" /></td>
+                  <td [title]="l.category"><p-select [options]="pick('product-groups', l.category)" [(ngModel)]="l.category" [showClear]="true" [filter]="true" placeholder="Select" appendTo="body" styleClass="ws-sel" [disabled]="!editable()" /></td>
+                  <td [title]="l.sku"><p-select [options]="prodOpts(l.category, l.prodNo, l.sku)" [ngModel]="l.prodNo || null" (ngModelChange)="onProd(l, $event)" optionLabel="label" optionValue="value" [showClear]="true" [filter]="true" filterBy="label" placeholder="Select" appendTo="body" styleClass="ws-sel" [panelStyle]="{ width: '26rem' }" [disabled]="!editable()"><ng-template let-o pTemplate="selectedItem">{{ o.value }}</ng-template></p-select></td>
+                  <td [title]="l.sku"><textarea class="p-inputtext wrap" rows="1" [(ngModel)]="l.sku" maxlength="100" [disabled]="!editable()"></textarea></td>
                   <td><p-inputNumber [(ngModel)]="l.lspPerCase" (ngModelChange)="calcNe(l)" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="!editable()" /></td>
                   <td><p-inputNumber [(ngModel)]="l.lspPerPc" (ngModelChange)="calcNe(l)" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="!editable()" /></td>
                   <td><p-inputNumber [(ngModel)]="l.pcsPerCase" (ngModelChange)="calcNe(l)" [min]="0" inputStyleClass="numin sm" [disabled]="!editable()" /></td>
@@ -157,7 +168,7 @@ type Draft = SaveTasafWorksheet & Partial<TasafWorksheet> & { id: number };
                   <td><p-inputNumber [(ngModel)]="l.invPieces" (ngModelChange)="calcNe(l)" [min]="0" inputStyleClass="numin sm" [disabled]="!editable()" /></td>
                   <td class="num calc">{{ l.totalPcs | number }}</td>
                   <td class="num calc">{{ l.totalValue | number:'1.2-2' }}</td>
-                  <td><input pInputText [(ngModel)]="l.moveoutScheme" [disabled]="!editable()" /></td>
+                  <td [title]="l.moveoutScheme"><input pInputText [(ngModel)]="l.moveoutScheme" [disabled]="!editable()" /></td>
                   <td><p-inputNumber [ngModel]="pctOf(l)" (ngModelChange)="setPct(l, $event)" suffix="%" [min]="0" [max]="100" [maxFractionDigits]="2" inputStyleClass="numin sm" [disabled]="!editable()" /></td>
                   <td class="num calc">{{ l.moveoutCost | number:'1.2-2' }}</td>
                   <td>@if (editable()) { <p-button icon="pi pi-trash" [text]="true" severity="danger" size="small" (onClick)="w.nearExLines.splice(i, 1)" /> }</td>
@@ -165,7 +176,7 @@ type Draft = SaveTasafWorksheet & Partial<TasafWorksheet> & { id: number };
               }
             </tbody>
             <tfoot><tr>
-              <td colspan="10" class="num"><strong>Total</strong></td>
+              <td colspan="11" class="num"><strong>Total</strong></td>
               <td class="num"><strong>{{ nePcs() | number }}</strong></td>
               <td class="num"><strong>{{ neValue() | number:'1.2-2' }}</strong></td><td colspan="2"></td>
               <td class="num"><strong>{{ neCost() | number:'1.2-2' }}</strong></td><td></td>
@@ -181,28 +192,49 @@ type Draft = SaveTasafWorksheet & Partial<TasafWorksheet> & { id: number };
     }
   `,
   styles: [`
-    .ws-bar { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; flex-wrap: wrap; }
-    .ws-bar h2 { margin: 0; font-size: 1.1rem; }
+    .ws-bar { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; flex-wrap: wrap; }
+    .ws-bar h2 { margin: 0; font-size: 1rem; }
     .grow { flex: 1; }
     .muted { color: var(--p-text-muted-color); }
     .small { font-size: .78rem; }
     .num { text-align: right; }
     .clickable { cursor: pointer; }
-    .ws-head { display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: .75rem; }
-    .ws-head label { display: flex; flex-direction: column; gap: .25rem; font-size: .8rem; min-width: 18rem; }
+    .ws-head { display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; margin-bottom: .5rem; font-size: .8rem; }
+    .ws-head label { display: flex; align-items: center; gap: .5rem; }
+    .ws-head label input { width: 16rem; padding: .3rem .5rem; font-size: .8rem; }
     .ws-attach { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
     .ws-attach .lbl { font-size: .8rem; color: var(--p-text-muted-color); }
     :host ::ng-deep .ws-attach-select { min-width: 22rem; }
-    .ws-scroll { overflow-x: auto; }
-    .ws-grid { border-collapse: collapse; font-size: .8rem; min-width: 100%; }
-    .ws-grid th { background: #f3e6e6; font-weight: 600; padding: .4rem; border: 1px solid #e5e5e5; white-space: nowrap; }
-    .ws-grid td { padding: .2rem; border: 1px solid #eee; }
-    .ws-grid td.calc { background: #faf3f3; padding: .2rem .5rem; white-space: nowrap; }
-    .ws-grid tfoot td { background: #faf3f3; padding: .35rem .5rem; }
-    .ws-grid input.p-inputtext { width: 9rem; }
-    .ws-grid input.wide { width: 16rem; }
-    :host ::ng-deep .ws-grid .numin { width: 7.5rem; text-align: right; }
-    :host ::ng-deep .ws-grid .numin.sm { width: 5rem; }
+    .ws-nav { display: flex; align-items: center; gap: .15rem; }
+    .ws-scroll { overflow-x: scroll; max-width: 100%; padding-bottom: 2px; }
+    .ws-scroll::-webkit-scrollbar { height: 12px; }
+    .ws-scroll::-webkit-scrollbar-thumb { background: #c9a3a3; border-radius: 6px; }
+    .ws-scroll::-webkit-scrollbar-track { background: #f3e6e6; }
+    /* SKU / Remarks grow to show the whole text (no cut-off). */
+    .ws-grid textarea.wrap { width: 100%; box-sizing: border-box; resize: none; field-sizing: content; min-height: 1.6rem; white-space: pre-wrap; font: inherit; line-height: 1.25; }
+    .ws-grid { border-collapse: collapse; font-size: .76rem; width: max-content; min-width: 100%; }
+    .ws-grid th { background: #f3e6e6; font-weight: 600; padding: .3rem .35rem; border: 1px solid #e5e5e5; white-space: nowrap; }
+    .ws-grid td { padding: 1px 2px; border: 1px solid #eee; }
+    .ws-grid td.calc { background: #faf3f3; padding: 1px .4rem; white-space: nowrap; }
+    .ws-grid tfoot td { background: #faf3f3; padding: .25rem .4rem; }
+    /* Compact cells: every input / dropdown at ~1.6rem high */
+    :host ::ng-deep .ws-grid .p-inputtext { padding: .2rem .35rem; font-size: .76rem; border-radius: 4px; }
+    :host ::ng-deep .ws-grid .p-select { font-size: .76rem; }
+    :host ::ng-deep .ws-grid .p-select-label { padding: .2rem .35rem; font-size: .76rem; }
+    :host ::ng-deep .ws-grid .p-select-dropdown, :host ::ng-deep .ws-grid .p-select-clear-icon { width: 1.5rem; }
+    :host ::ng-deep .ws-grid .p-button { width: 1.6rem; height: 1.6rem; padding: 0; }
+    /* Every control fills its cell; the column widths come from the header classes. */
+    .ws-grid input.p-inputtext, .ws-grid input[type=month] { width: 100%; box-sizing: border-box; }
+    :host ::ng-deep .ws-grid .p-select, :host ::ng-deep .ws-grid .p-inputnumber { width: 100%; }
+    :host ::ng-deep .ws-grid .numin { width: 100%; text-align: right; }
+    .ws-grid th.c-sm  { min-width: 4.5rem; }
+    .ws-grid th.c-num { min-width: 6.5rem; }
+    .ws-grid th.c-md  { min-width: 10rem; }
+    .ws-grid th.c-lg  { min-width: 13rem; }
+    .ws-grid th.c-xl  { min-width: 17rem; }
+    /* The clear × only on hover, so it never covers the value. */
+    :host ::ng-deep .ws-grid .p-select-clear-icon { display: none; }
+    :host ::ng-deep .ws-grid .p-select:hover .p-select-clear-icon { display: block; }
   `]
 })
 export class TasafWorksheetPageComponent implements OnInit, OnDestroy {
@@ -265,6 +297,61 @@ export class TasafWorksheetPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Dropdown lists by key ('sales-groups' / 'channels' / 'product-groups'), as names. */
+  private lists = signal<Record<string, string[]>>({});
+  private pickCache = new Map<string, string[]>();
+
+  /** A dropdown's options; a saved value no longer in the list stays offered. Cached: p-select needs stable arrays. */
+  protected pick(key: string, current: string | null | undefined): string[] {
+    const base = this.lists()[key] ?? [];
+    const cur = (current ?? '').trim();
+    const ck = `${key}|${cur}|${base.length}`;
+    let hit = this.pickCache.get(ck);
+    if (!hit) {
+      hit = cur && !base.includes(cur) ? [cur, ...base] : base;
+      this.pickCache.set(ck, hit);
+    }
+    return hit;
+  }
+
+  // ── Prod No. picker: active SKUs of the row's Category (all active SKUs when none) — tasafs/product-options ──
+  private catIdByName = new Map<string, number>();
+  /** Products per category key ('all' or the category id), loaded once. */
+  private products = signal<Record<string, { value: string; label: string; desc: string }[]>>({});
+  private productReqs = new Set<string>();
+  private prodCache = new Map<string, { value: string; label: string; desc: string }[]>();
+
+  protected prodOpts(category: string, prodNo: string, sku: string) {
+    const id = this.catIdByName.get(category);
+    const key = id ? String(id) : 'all';
+    const loaded = this.products()[key];
+    if (!loaded && !this.productReqs.has(key)) {
+      this.productReqs.add(key);
+      this.tasafApi.productOptions({ productCategoryIds: id ? [id] : [], subCategoryCodes: [] }).subscribe({
+        next: res => this.products.update(p => ({ ...p, [key]: (res.data ?? []).map(o => ({
+          value: o.cProdNo, label: `${o.cProdNo} — ${o.prodDesc}${o.packSize ? ' ' + o.packSize : ''}`, desc: o.prodDesc })) })),
+        error: () => this.productReqs.delete(key)
+      });
+    }
+    const base = loaded ?? [];
+    const ck = `${key}|${prodNo}|${base.length}`;
+    let hit = this.prodCache.get(ck);
+    if (!hit) {
+      // A saved Prod No. outside this category's list stays offered.
+      hit = prodNo && !base.some(o => o.value === prodNo) ? [{ value: prodNo, label: `${prodNo} — ${sku}`, desc: sku }, ...base] : base;
+      this.prodCache.set(ck, hit);
+    }
+    return hit;
+  }
+
+  /** Picking a Prod No. fills SKU with its description (still editable). */
+  protected onProd(l: { category: string; prodNo: string; sku: string }, prodNo: string | null) {
+    l.prodNo = prodNo ?? '';
+    if (!prodNo) return;
+    const opt = this.prodOpts(l.category, l.prodNo, l.sku).find(o => o.value === prodNo);
+    if (opt) l.sku = opt.desc;
+  }
+
   /** Attach / detach changed only the link: take it from the server, keep the (possibly unsaved) rows on screen. */
   private keepLink(saved: TasafWorksheet) {
     this.ws.update(w => w && ({ ...w, tasafId: saved.tasafId, tasafRefNo: saved.tasafRefNo, tasafTitle: saved.tasafTitle,
@@ -293,6 +380,17 @@ export class TasafWorksheetPageComponent implements OnInit, OnDestroy {
 
     this.loadList();
     this.tasafApi.getAll().subscribe(res => this.myTasafs.set(res.data ?? []));
+    // Sales Group / Channel / Category dropdowns = the TASAF form's own lists (stored as their names).
+    this.tasafApi.getOptions().subscribe(res => {
+      const l = res.data?.lists ?? {};
+      this.lists.set({
+        'sales-groups':   (l['sales-groups'] ?? []).map(o => o.code || o.name),
+        channels:         (l['channels'] ?? []).map(o => o.name),
+        'product-groups': (l['product-groups'] ?? []).map(o => o.name),
+      });
+      this.catIdByName = new Map((l['product-groups'] ?? []).map(o => [o.name, o.id]));
+      this.pickCache.clear();
+    });
     const st = history.state ?? {};
     if (st.wsDraft) {
       // Back from another tab: the worksheet that was open, with its unsaved edits.
@@ -398,8 +496,14 @@ export class TasafWorksheetPageComponent implements OnInit, OnDestroy {
 
   protected remove() {
     const w = this.ws()!;
+    // An attached worksheet is part of its TASAF: detach it first (the API refuses too).
+    if (w.tasafId) {
+      this.msg.add({ severity: 'warn', summary: 'Detach first',
+        detail: `This worksheet is attached to TASAF ${w.tasafRefNo || '#' + w.tasafId}. Detach it first, then delete it.` });
+      return;
+    }
     this.confirm.confirm({
-      header: 'Delete worksheet?', message: `"${w.title}" will be deleted${w.tasafId ? ' and removed from its TASAF' : ''}.`,
+      header: 'Delete worksheet?', message: `"${w.title}" will be deleted.`,
       acceptLabel: 'Delete', rejectLabel: 'Cancel',
       accept: () => this.api.delete(w.id).subscribe({
         next: () => { this.msg.add({ severity: 'success', summary: 'Deleted', detail: `${w.title} deleted.` }); this.backToList(); },
