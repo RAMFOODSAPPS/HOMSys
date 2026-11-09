@@ -44,9 +44,9 @@ public static class TasafEmailRenderer
                 """);
         if (intro.Length > 0)
             sb.Append($"""<div style="background:#fdf2f2;border-left:4px solid {Brand};padding:8px 12px;margin:0 0 12px">{E(intro)}</div>""");
-        // Info block, 3 columns: Title · (blank) · Status / Proponent · Document No. · Date Created
+        // Info block, 3 columns: Title · TPAR No. · Status / Proponent · Document No. · Date Created
         sb.Append(Grid(3, [
-            ("Title", d.Title), ("", ""), ("Status", d.Status),
+            ("Title", d.Title), ("TPAR No.", d.TparNo ?? "—"), ("Status", d.Status),
             ("Proponent", d.ProponentName), ("Document No.", d.RefNo ?? "—"), ("Date Created", Manila(d.CreatedAt)),
         ]));
 
@@ -133,44 +133,55 @@ public static class TasafEmailRenderer
         foreach (var w in d.Worksheets)
         {
             sb.Append(Section($"Attached Worksheet — {w.TypeLabel}{(w.Title != w.TypeLabel ? ": " + w.Title : "")}"));
-            if (w.Type == "NearEx")
+            // Header (whole sheet), then the product rows.
+            static string V(string s) => s.Length > 0 ? s : "—";
+            var nearEx = w.Type == "NearEx";
+            sb.Append(Table(
+                nearEx ? ["Sales Group", "Account / Store", "Category"] : ["Sales Group", "Channel", "Account / Store", "Category"],
+                nearEx ? [false, false, false] : [false, false, false, false],
+                [nearEx ? [V(w.SalesGroup), V(w.Account), V(w.Category)] : [V(w.SalesGroup), V(w.Channel), V(w.Account), V(w.Category)]],
+                null));
+            if (nearEx)
                 sb.Append(Table(
-                    ["Sales Group", "Account / Store", "Category", "Prod No.", "SKU", "LSP / Case", "LSP / Pc", "Pcs/Cs", "Expiry",
+                    ["Prod No.", "SKU", "LSP / Case", "LSP / Pc", "Pcs/Cs", "Expiry",
                      "Invty Cases", "Invty Pcs", "Total Pcs", "Total Value", "Moveout Scheme", "Discount / Rebate", "Moveout Cost"],
-                    [false, false, false, false, false, true, true, true, false, true, true, true, true, false, true, true],
+                    [false, false, true, true, true, false, true, true, true, true, false, true, true],
                     w.NearExLines.Select(l => new[]
                     {
-                        l.SalesGroup, l.Account, l.Category, l.ProdNo, l.Sku, Num(l.LspPerCase), Num(l.LspPerPc), Int(l.PcsPerCase),
+                        l.ProdNo, l.Sku, Num(l.LspPerCase), Num(l.LspPerPc), Int(l.PcsPerCase),
                         l.Expiry?.ToString("MMM-yy", En) ?? "—", Int(l.InvCases), Int(l.InvPieces), l.TotalPcs.ToString("N0", En),
                         Num(l.TotalValue), l.MoveoutScheme, l.Discount is decimal dc ? dc.ToString("P0", En) : "—", Num(l.MoveoutCost)
                     }).ToList(),
-                    ["Total", "", "", "", "", "", "", "", "", "", "", w.NearExLines.Sum(l => l.TotalPcs).ToString("N0", En),
+                    ["Total", "", "", "", "", "", "", "", w.NearExLines.Sum(l => l.TotalPcs).ToString("N0", En),
                      Num(w.NearExLines.Sum(l => l.TotalValue)), "", "", Num(w.Total)]));
             else
                 sb.Append(Table(
-                    ["Sales Group", "Channel", "Account / Store", "Category", "Prod No.", "SKU", "LF / SKU", "# of SKUs", "# of Doors", "Total",
-                     "Projected Annual Sales", "CTS", "Remarks"],
-                    [false, false, false, false, false, false, true, true, true, true, true, true, false],
+                    ["Prod No.", "SKU", "LF / SKU", "# of SKUs", "# of Doors", "Total", "Projected Annual Sales", "CTS", "Remarks"],
+                    [false, false, true, true, true, true, true, true, false],
                     w.ListingFeeLines.Select(l => new[]
                     {
-                        l.SalesGroup, l.Channel, l.Account, l.Category, l.ProdNo, l.Sku, Num(l.LfPerSku), Int(l.SkuCount), Int(l.DoorCount),
+                        l.ProdNo, l.Sku, Num(l.LfPerSku), Int(l.SkuCount), Int(l.DoorCount),
                         Num(l.Total) + (l.Basis == "AllDoors" ? "\n(LF × SKUs)" : "\n(LF × Doors)"),
                         Num(l.ProjectedAnnualSales), l.Cts is decimal ct ? ct.ToString("P0", En) : "—", l.Remarks
                     }).ToList(),
-                    ["Total", "", "", "", "", "", "", "", "", Num(w.Total), Num(w.ListingFeeLines.Sum(l => l.ProjectedAnnualSales ?? 0)), "", ""]));
+                    ["Total", "", "", "", "", Num(w.Total), Num(w.ListingFeeLines.Sum(l => l.ProjectedAnnualSales ?? 0)), "", ""]));
         }
 
         // Approval chain
         if (d.Steps.Count > 0)
         {
             sb.Append(Section($"Approval{(d.ApprovalTypeName.Length > 0 ? " — " + d.ApprovalTypeName : "")}"));
-            sb.Append(Table(["#", "Role", "Approver", "Status", "Date", "Comment"], [false, false, false, false, false, false],
-                d.Steps.Select(s => new[]
-                {
-                    s.Seq.ToString(), s.RoleCode, s.UserName.Length > 0 ? s.UserName : "(vacant)",
-                    s.Status == "Approved" ? "Approved\nElectronically approved" : s.Status,
-                    s.ActedAt is DateTime a ? Manila(a) : "", s.Comment
-                }).ToList(), null));
+            var signRows = d.Steps.Select(s => new[]
+            {
+                s.Seq.ToString(), s.RoleCode, s.UserName.Length > 0 ? s.UserName : "(vacant)",
+                s.Status == "Approved" ? "Approved\nElectronically approved" : s.Status,
+                s.ActedAt is DateTime a ? Manila(a) : "", s.Comment
+            }).ToList();
+            // Returned by an Admin revert: no step says so — add the return as the last row (the signatures are the previous round's).
+            if (d.Status == "Returned" && !d.Steps.Any(s => s.Status == "Returned")
+                && d.Actions.LastOrDefault(x => x.ToStatus == "Returned") is { } rev)
+                signRows.Add(["", rev.Role, rev.ByName, "Returned to proponent", Manila(rev.At), rev.Comment]);
+            sb.Append(Table(["#", "Role", "Approver", "Status", "Date", "Comment"], [false, false, false, false, false, false], signRows, null));
         }
 
         // Review & Decide: opens the no-login decision page (Approve / Return / Reject + required comment)

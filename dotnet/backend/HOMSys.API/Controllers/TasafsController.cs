@@ -144,6 +144,11 @@ public class TasafsController(TasafService service, SalesOrderService salesOrder
     public async Task<IActionResult> Revert(int id, [FromBody] TasafCommentDto dto) =>
         Envelope(await service.RevertAsync(id, dto));
 
+    /// <summary>Proponent or Admin: set / clear the TPAR No. (any status but Cancelled).</summary>
+    [HttpPut("{id:int}/tpar-no")]
+    public async Task<IActionResult> SetTparNo(int id, [FromBody] TasafTparNoDto dto) =>
+        Envelope(await service.SetTparNoAsync(id, dto));
+
     /// <summary>Proponent or Admin: withdraw the TASAF (kept as Cancelled, not deleted).</summary>
     [HttpPost("{id:int}/cancel")]
     public async Task<IActionResult> Cancel(int id, [FromBody] TasafCommentDto dto) =>

@@ -43,6 +43,8 @@ export class TasafService {
   revert(id: number, comment: string) { return this.http.post<ApiResponse<TasafDto>>(`${this.base}/${id}/revert`, { comment }); }
   /** Proponent or Admin: withdraw — kept as Cancelled. */
   cancel(id: number, comment: string) { return this.http.post<ApiResponse<TasafDto>>(`${this.base}/${id}/cancel`, { comment }); }
+  /** Proponent or Admin: set / clear the TPAR No. (blank clears). */
+  setTparNo(id: number, tparNo: string) { return this.http.put<ApiResponse<TasafDto>>(`${this.base}/${id}/tpar-no`, { tparNo }); }
 
   /** filtered = false when the chain has no keywords (use the free search instead). */
   /** Cust Key dropdown: stores of the chain (name keywords) and areas (branches). filtered = false → search all. */

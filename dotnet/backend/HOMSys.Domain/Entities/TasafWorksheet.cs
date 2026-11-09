@@ -13,6 +13,13 @@ public class TasafWorksheet
     public string Type { get; set; } = TasafWorksheetType.ListingFee;
     public string Title { get; set; } = string.Empty;
 
+    // Header — one value for the whole sheet (names of the TASAF lists; Channel is Listing Fee only).
+    // Each line keeps a copy in its own columns (set on save).
+    public string SalesGroup { get; set; } = string.Empty;
+    public string Channel { get; set; } = string.Empty;
+    public string Account { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+
     public int ProponentUserId { get; set; }
     public User? ProponentUser { get; set; }
     public string ProponentName { get; set; } = string.Empty;

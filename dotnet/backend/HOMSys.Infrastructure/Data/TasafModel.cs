@@ -77,6 +77,7 @@ internal static class TasafModel
         mb.Entity<Tasaf>(e =>
         {
             e.Property(x => x.RefNo).HasMaxLength(30);
+            e.Property(x => x.TparNo).HasMaxLength(50);
             e.HasIndex(x => x.RefNo).IsUnique().HasFilter("[RefNo] IS NOT NULL");
             e.HasIndex(x => x.RefSeq).IsUnique().HasFilter("[RefSeq] IS NOT NULL");
             e.Property(x => x.Status).HasMaxLength(20).IsRequired();
@@ -173,6 +174,9 @@ internal static class TasafModel
             e.ToTable("TasafWorksheets");
             e.Property(x => x.Type).HasMaxLength(20);
             e.Property(x => x.Title).HasMaxLength(200);
+            foreach (var p in new[] { nameof(TasafWorksheet.SalesGroup), nameof(TasafWorksheet.Channel),
+                                      nameof(TasafWorksheet.Account), nameof(TasafWorksheet.Category) })
+                e.Property(p).HasMaxLength(150);
             e.Property(x => x.ProponentName).HasMaxLength(150);
             e.Property(x => x.CreatedBy).HasMaxLength(100);
             e.Property(x => x.UpdatedBy).HasMaxLength(100);

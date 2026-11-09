@@ -128,7 +128,8 @@ public class TasafWorksheetService(
         return null;
     }
 
-    /// <summary>Attach to one of the caller's own TASAFs that is still Draft / Returned (replaces any earlier link).</summary>
+    /// <summary>Attach to one of the caller's own TASAFs that is still an unsubmitted Draft (replaces any earlier link).
+    /// Once the TASAF is submitted (even if later Returned), worksheets can no longer be attached or detached.</summary>
     public async Task<(TasafWorksheetDto? dto, string? error)> AttachAsync(int id, int tasafId)
     {
         var w = await repo.GetByIdAsync(id);
@@ -139,7 +140,7 @@ public class TasafWorksheetService(
         var t = await tasafs.GetByIdAsync(tasafId);
         if (t is null) return (null, TasafService.NotFound);
         if (t.ProponentUserId != CurrentUserId) return (null, "You can only attach worksheets to your own TASAFs.");
-        if (IsLocked(t)) return (null, $"TASAF {t.RefNo ?? "#" + t.Id} is {t.Status}; attach worksheets while it is Draft or Returned.");
+        if (!IsAttachOpen(t)) return (null, $"TASAF {t.RefNo ?? "#" + t.Id} has been submitted; worksheets can only be attached before the first submit.");
 
         w.TasafId   = t.Id;
         w.UpdatedAt = DateTime.UtcNow;
@@ -154,6 +155,7 @@ public class TasafWorksheetService(
         if (w is null) return (null, NotFound);
         if (w.ProponentUserId != CurrentUserId) return (null, "Only the proponent can detach this worksheet.");
         if (IsLocked(w.Tasaf)) return (null, LockedMessage(w.Tasaf!));
+        if (w.Tasaf is not null && !IsAttachOpen(w.Tasaf)) return (null, "The TASAF has been submitted; the worksheet can no longer be detached.");
 
         w.TasafId   = null;
         w.UpdatedAt = DateTime.UtcNow;
@@ -161,6 +163,9 @@ public class TasafWorksheetService(
         await repo.UpdateAsync(w);
         return await GetByIdAsync(id);
     }
+
+    /// <summary>Attach / detach only while the TASAF is a Draft that was never submitted (user decision 2026-11-09).</summary>
+    public static bool IsAttachOpen(Tasaf t) => t.Status == TasafStatus.Draft && t.SubmittedAt is null;
 
     private static string LockedMessage(Tasaf t) =>
         $"This worksheet is attached to TASAF {t.RefNo ?? "#" + t.Id}, which is {t.Status} — it can't be changed or detached.";
@@ -172,21 +177,36 @@ public class TasafWorksheetService(
         var title = (dto.Title ?? "").Trim();
         if (title.Length > 200) return "Title must be 200 characters or fewer.";
         w.Title = title.Length > 0 ? title : TypeLabel(w.Type);
+        w.SalesGroup = Clip(dto.SalesGroup);
+        w.Channel    = w.Type == TasafWorksheetType.ListingFee ? Clip(dto.Channel) : "";
+        w.Account    = Clip(dto.Account);
+        w.Category   = Clip(dto.Category);
+        // Header is required (user decision 2026-11-09).
+        var missing = new List<string>();
+        if (w.SalesGroup.Length == 0) missing.Add("Sales Group");
+        if (w.Type == TasafWorksheetType.ListingFee && w.Channel.Length == 0) missing.Add("Channel");
+        if (w.Account.Length == 0) missing.Add("Account / Store");
+        if (w.Category.Length == 0) missing.Add("Category");
+        if (missing.Count > 0) return $"Please fill in {string.Join(", ", missing)}.";
 
         if (w.Type == TasafWorksheetType.ListingFee)
         {
             var rows = dto.ListingFeeLines.Where(l => !IsBlank(l)).ToList();
             if (rows.Count > MaxLines) return $"A worksheet can have at most {MaxLines} rows.";
+            if (rows.Count == 0) return "Add at least one product row.";
             var lines = new List<TasafListingFeeLine>();
             foreach (var (l, i) in rows.Select((l, i) => (l, i)))
             {
+                if (RowMissing(i, ("Prod No.", Has(l.ProdNo)), ("SKU", Has(l.Sku)), ("LF / SKU", l.LfPerSku is not null),
+                        ("# of SKUs", l.SkuCount is not null), ("# of Doors", l.DoorCount is not null),
+                        ("Projected Annual Sales", l.ProjectedAnnualSales is not null)) is { } miss) return miss;
                 if (l.LfPerSku is < 0 || l.SkuCount is < 0 || l.DoorCount is < 0 || l.ProjectedAnnualSales is < 0)
                     return $"Row {i + 1}: amounts and counts can't be negative.";
                 if (!TasafListingFeeBasis.All.Contains(l.Basis)) return $"Row {i + 1}: pick how the TOTAL is computed.";
                 var line = new TasafListingFeeLine
                 {
-                    LineNo = i + 1, SalesGroup = Clip(l.SalesGroup), Channel = Clip(l.Channel), Account = Clip(l.Account),
-                    Category = Clip(l.Category), ProdNo = Clip(l.ProdNo, 20), Sku = Clip(l.Sku), LfPerSku = l.LfPerSku, SkuCount = l.SkuCount, DoorCount = l.DoorCount,
+                    LineNo = i + 1, SalesGroup = w.SalesGroup, Channel = w.Channel, Account = w.Account,
+                    Category = w.Category, ProdNo = Clip(l.ProdNo, 20), Sku = Clip(l.Sku), LfPerSku = l.LfPerSku, SkuCount = l.SkuCount, DoorCount = l.DoorCount,
                     Basis = l.Basis, ProjectedAnnualSales = l.ProjectedAnnualSales, Remarks = Clip(l.Remarks, 500)
                 };
                 Compute(line);
@@ -199,15 +219,20 @@ public class TasafWorksheetService(
         {
             var rows = dto.NearExLines.Where(l => !IsBlank(l)).ToList();
             if (rows.Count > MaxLines) return $"A worksheet can have at most {MaxLines} rows.";
+            if (rows.Count == 0) return "Add at least one product row.";
             var lines = new List<TasafNearExLine>();
             foreach (var (l, i) in rows.Select((l, i) => (l, i)))
             {
+                if (RowMissing(i, ("Prod No.", Has(l.ProdNo)), ("SKU", Has(l.Sku)), ("LSP per Case", l.LspPerCase is not null),
+                        ("LSP per Pc", l.LspPerPc is not null), ("Pcs/Cs", l.PcsPerCase is not null), ("Expiry", l.Expiry is not null),
+                        ("Invty in Cases or Pieces", l.InvCases is not null || l.InvPieces is not null),
+                        ("Moveout Scheme", Has(l.MoveoutScheme)), ("Discount / Rebate", l.Discount is not null)) is { } miss) return miss;
                 if (l.LspPerCase is < 0 || l.LspPerPc is < 0 || l.PcsPerCase is < 0 || l.InvCases is < 0 || l.InvPieces is < 0)
                     return $"Row {i + 1}: prices and quantities can't be negative.";
                 if (l.Discount is < 0 or > 1) return $"Row {i + 1}: Discount / Rebate must be between 0% and 100%.";
                 var line = new TasafNearExLine
                 {
-                    LineNo = i + 1, SalesGroup = Clip(l.SalesGroup), Account = Clip(l.Account), Category = Clip(l.Category),
+                    LineNo = i + 1, SalesGroup = w.SalesGroup, Account = w.Account, Category = w.Category,
                     ProdNo = Clip(l.ProdNo, 20), Sku = Clip(l.Sku), LspPerCase = l.LspPerCase, LspPerPc = l.LspPerPc, PcsPerCase = l.PcsPerCase,
                     Expiry = l.Expiry is DateOnly e ? new DateOnly(e.Year, e.Month, 1) : null,
                     InvCases = l.InvCases, InvPieces = l.InvPieces, MoveoutScheme = Clip(l.MoveoutScheme), Discount = l.Discount
@@ -240,15 +265,20 @@ public class TasafWorksheetService(
     }
 
     private static bool IsBlank(TasafListingFeeLineDto l) =>
-        string.IsNullOrWhiteSpace(l.SalesGroup) && string.IsNullOrWhiteSpace(l.Channel) && string.IsNullOrWhiteSpace(l.Account)
-        && string.IsNullOrWhiteSpace(l.Category) && string.IsNullOrWhiteSpace(l.ProdNo) && string.IsNullOrWhiteSpace(l.Sku) && l.LfPerSku is null && l.SkuCount is null && l.DoorCount is null
+        string.IsNullOrWhiteSpace(l.ProdNo) && string.IsNullOrWhiteSpace(l.Sku) && l.LfPerSku is null && l.SkuCount is null && l.DoorCount is null
         && l.ProjectedAnnualSales is null && string.IsNullOrWhiteSpace(l.Remarks);
 
     private static bool IsBlank(TasafNearExLineDto l) =>
-        string.IsNullOrWhiteSpace(l.SalesGroup) && string.IsNullOrWhiteSpace(l.Account) && string.IsNullOrWhiteSpace(l.Category)
-        && string.IsNullOrWhiteSpace(l.ProdNo) && string.IsNullOrWhiteSpace(l.Sku) && l.LspPerCase is null && l.LspPerPc is null && l.PcsPerCase is null
+        string.IsNullOrWhiteSpace(l.ProdNo) && string.IsNullOrWhiteSpace(l.Sku) && l.LspPerCase is null && l.LspPerPc is null && l.PcsPerCase is null
         && l.Expiry is null && l.InvCases is null && l.InvPieces is null && string.IsNullOrWhiteSpace(l.MoveoutScheme)
         && l.Discount is null;
+
+    private static bool Has(string? s) => !string.IsNullOrWhiteSpace(s);
+
+    /// <summary>Required row cells (user decision 2026-11-09): "Row 2: please fill in SKU, LF / SKU." or null.</summary>
+    private static string? RowMissing(int i, params (string Name, bool Ok)[] cells) =>
+        cells.Where(c => !c.Ok).Select(c => c.Name).ToList() is { Count: > 0 } m
+            ? $"Row {i + 1}: please fill in {string.Join(", ", m)}." : null;
 
     private static string Clip(string? s, int max = 150)
     {
@@ -266,6 +296,10 @@ public class TasafWorksheetService(
         Type            = w.Type,
         TypeLabel       = TypeLabel(w.Type),
         Title           = w.Title,
+        SalesGroup      = w.SalesGroup,
+        Channel         = w.Channel,
+        Account         = w.Account,
+        Category        = w.Category,
         ProponentUserId = w.ProponentUserId,
         ProponentName   = w.ProponentName,
         TasafId         = w.TasafId,

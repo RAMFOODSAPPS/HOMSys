@@ -73,6 +73,7 @@ public class TasafService(
                 SubmittedAt       = t.SubmittedAt,
                 Id              = t.Id,
                 RefNo           = t.RefNo,
+                TparNo          = t.TparNo,
                 Status          = t.Status,
                 Title           = t.Title,
                 SalesGroupName  = t.SalesGroup?.Name,
@@ -381,6 +382,9 @@ public class TasafService(
     private bool CanCancel(Tasaf t) =>
         (IsAdmin || t.ProponentUserId == CurrentUserId)
         && t.Status is not (TasafStatus.Approved or TasafStatus.Cancelled);
+    /// <summary>TPAR No.: the proponent or an Admin, only once Approved (the TPAR is made after approval; user decision 2026-11-09).</summary>
+    private bool CanSetTparNo(Tasaf t) =>
+        (IsAdmin || t.ProponentUserId == CurrentUserId) && t.Status == TasafStatus.Approved;
 
     /// <summary>"approve" when the TASAF's current step is waiting on the caller, else null.</summary>
     private string? MyAction(Tasaf t) =>
@@ -687,6 +691,27 @@ public class TasafService(
         await notifications.SendAsync([t.ProponentUserId, waiting, .. signed], "TASAF reverted",
             $"{t.RefNo} — {t.Title} ({from}) was reverted by an Admin and returned to {t.ProponentName}: {comment}",
             "/tasafs", "tasaf", t.Id, emailRef: t.RefNo);
+        return (Map((await repo.GetByIdAsync(id))!), null);
+    }
+
+    /// <summary>Sets (or clears) the TPAR No.; logged in the history.</summary>
+    public async Task<(TasafDto? dto, string? error)> SetTparNoAsync(int id, TasafTparNoDto dto)
+    {
+        var t = await repo.GetByIdAsync(id);
+        if (t is null) return (null, NotFound);
+        if (!CanSetTparNo(t)) return (null, "The TPAR No. can be set only on an Approved TASAF, by its proponent or an Admin.");
+        var tpar = (dto.TparNo ?? "").Trim();
+        if (tpar.Length > 50) return (null, "TPAR No. is at most 50 characters.");
+        var value = tpar.Length == 0 ? null : tpar;
+        if (value == t.TparNo) return (Map(t), null);
+
+        var from = t.TparNo;
+        t.TparNo    = value;
+        t.UpdatedAt = DateTime.UtcNow;
+        t.UpdatedBy = CurrentUser;
+        t.Actions.Add(NewAction("TPAR No.", t.Status, t.Status, IsAdmin && t.ProponentUserId != CurrentUserId ? "Admin" : "Proponent",
+            value is null ? $"Cleared (was {from})" : from is null ? $"Set to {value}" : $"Changed from {from} to {value}", await MyNameAsync()));
+        await repo.UpdateAsync(t);
         return (Map((await repo.GetByIdAsync(id))!), null);
     }
 
@@ -1141,6 +1166,7 @@ public class TasafService(
         {
             Id                = t.Id,
             RefNo             = t.RefNo,
+            TparNo            = t.TparNo,
             Status            = t.Status,
             Title             = t.Title,
             StartDate         = t.StartDate,
@@ -1208,6 +1234,7 @@ public class TasafService(
             CanDelete         = CanDelete(t),
             CanRevert         = CanRevert(t),
             CanCancel         = CanCancel(t),
+            CanSetTparNo      = CanSetTparNo(t),
             MyAction          = MyAction(t),
             SubmittedAt       = t.SubmittedAt,
             DecidedAt         = t.DecidedAt,

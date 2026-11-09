@@ -94,6 +94,22 @@ function blankProduct(): TasafProduct {
           @else { <strong class="ref-preview">assigned on save</strong> }
           <span>Date</span><strong>{{ current() ? (utc(current()!.createdAt) | date:'dd MMM yyyy h:mm a') : 'today' }}</strong>
           <span>Status</span><p-tag [value]="current()?.status ?? 'New'" [severity]="severity()" />
+          <span>TPAR No.</span>
+          <!-- Free text, no link; set only once Approved (pencil, saved on its own). -->
+          @if (tparEditing()) {
+            <span class="tpar-edit">
+              <input pInputText [(ngModel)]="tparDraft" maxlength="50" placeholder="TPAR document no." (keydown.enter)="saveTparNo()" (keydown.escape)="tparEditing.set(false)" />
+              <p-button icon="pi pi-check" [text]="true" size="small" [loading]="tparSaving()" (onClick)="saveTparNo()" pTooltip="Save" />
+              <p-button icon="pi pi-times" [text]="true" size="small" severity="secondary" (onClick)="tparEditing.set(false)" pTooltip="Cancel" />
+            </span>
+          } @else {
+            <span class="tpar-view">
+              <strong>{{ current()?.tparNo || '—' }}</strong>
+              @if (current()?.canSetTparNo) {
+                <p-button icon="pi pi-pencil" [text]="true" size="small" (onClick)="editTparNo()" pTooltip="Enter the TPAR (Trade Promo Analysis Report) document no." />
+              }
+            </span>
+          }
         </div>
       </div>
 
@@ -560,7 +576,7 @@ function blankProduct(): TasafProduct {
                   <p-button label="Attach" icon="pi pi-paperclip" size="small" [disabled]="!attachWsId" (onClick)="attachWorksheet()" />
                 </div>
               }
-              @if (current()?.canEdit && readonly()) {
+              @if (current()?.canEdit && readonly() && current()?.status === 'Draft') {
                 <small class="muted">Click Edit to attach or detach worksheets.</small>
               }
             }
@@ -583,7 +599,7 @@ function blankProduct(): TasafProduct {
             @if (current()?.submittedAt) { <span class="ok">Submitted {{ utc(current()!.submittedAt) | date:'dd MMM yyyy h:mm a' }}</span> }
           </div>
           @for (s of current()?.steps ?? []; track s.seq) {
-            <div class="signer" [class.now]="s.seq === current()!.currentStepSeq" [class.skip]="s.status === 'Skipped'">
+            <div class="signer" [class.now]="s.seq === current()!.currentStepSeq" [class.skip]="s.status === 'Skipped' || !!returnedBy()">
               <span class="muted">{{ s.roleName }}</span>
               <strong>{{ s.userName || 'Vacant' }}</strong>
               <span class="muted">{{ s.roleCode }}</span>
@@ -597,7 +613,20 @@ function blankProduct(): TasafProduct {
               }
             </div>
           }
+          <!-- Returned (by an approver or an Admin revert): the signatures above are the previous submission's. -->
+          @if (returnedBy(); as r) {
+            <div class="signer returned">
+              <span class="muted">Returned to proponent</span>
+              <strong>{{ r.byName }}</strong>
+              <span class="muted">{{ r.role }}</span>
+              <span class="bad">Returned {{ utc(r.at) | date:'dd MMM yyyy h:mm a' }}</span>
+              @if (r.comment) { <span class="muted" style="font-style: italic; font-size: 0.75rem">"{{ r.comment }}"</span> }
+            </div>
+          }
         </div>
+        @if (returnedBy()) {
+          <small class="muted">The approvals shown are from the previous submission; resubmitting starts the approval over.</small>
+        }
         @if (current()?.approvalTypeName) {
           <p class="muted">Approval matrix: {{ current()!.approvalTypeName }}</p>
         }
@@ -612,16 +641,19 @@ function blankProduct(): TasafProduct {
     </div>
 
     <!-- Approval history (toolbar History button). -->
-    <p-dialog [(visible)]="historyVisible" [modal]="true" [dismissableMask]="true" [style]="{ width: '760px', maxWidth: '95vw' }"
+    <p-dialog [(visible)]="historyVisible" [modal]="true" [dismissableMask]="true" [style]="{ width: '900px', maxWidth: '95vw' }"
       [header]="'History — ' + (current()?.refNo ?? current()?.title ?? '')">
       @if (current()?.actions?.length) {
         <table class="lines">
-          <thead><tr><th>When</th><th>Action</th><th>By</th><th>Comment</th></tr></thead>
+          <thead><tr><th>When</th><th>Action</th><th>Status</th><th>By</th><th>Comment</th></tr></thead>
           <tbody>
             @for (a of current()!.actions; track $index) {
               <tr>
                 <td style="white-space: nowrap">{{ utc(a.at) | date:'dd MMM yyyy h:mm a' }}</td>
-                <td><p-tag [value]="a.action" [severity]="sev(a.toStatus)" /></td>
+                <!-- An Admin revert sends the TASAF back to the proponent: show it as a return. -->
+                <td><p-tag [value]="a.action === 'Reverted' ? 'Returned (Admin revert)' : a.action" [severity]="sev(a.toStatus)" /></td>
+                <td style="white-space: nowrap">@if (a.fromStatus && a.fromStatus !== a.toStatus) { <span class="muted">{{ a.fromStatus }} →</span> }
+                  <strong>{{ a.toStatus }}</strong></td>
                 <td>{{ a.byName }} <span class="muted">({{ a.role }})</span></td>
                 <td>{{ a.comment || '—' }}</td>
               </tr>
@@ -653,6 +685,8 @@ function blankProduct(): TasafProduct {
       padding-bottom: 0.75rem; margin-bottom: 1rem; border-bottom: 2px solid #800000; }
     .doc-title { font-size: 1.15rem; font-weight: 700; color: #800000; letter-spacing: 0.02em; }
     .doc-meta { display: grid; grid-template-columns: auto auto; gap: 0.2rem 0.75rem; font-size: 0.85rem; align-items: center; }
+    .tpar-view, .tpar-edit { display: flex; align-items: center; gap: 0.15rem; min-height: 1.75rem; }
+    .tpar-edit input { width: 10rem; padding: 0.2rem 0.4rem; font-size: 0.85rem; }
     .card { background: var(--p-surface-card); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 0.85rem; }
     .card h3 { margin: 0 0 0.6rem; font-size: 0.95rem; color: #800000; }
     .sec-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.4rem; }
@@ -699,6 +733,7 @@ function blankProduct(): TasafProduct {
       border: 1px solid var(--p-surface-border); }
     .signer.now { border-color: #800000; background: rgba(128, 0, 0, 0.05); }
     .signer.skip { opacity: 0.55; }
+    .signer.returned { border-color: var(--p-red-600, #dc2626); }
     .ok { font-size: 0.75rem; color: var(--p-green-600, #16a34a); }
     .bad { font-size: 0.75rem; color: var(--p-red-600, #dc2626); }
     .mt { margin-top: 1rem !important; }
@@ -771,8 +806,9 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   /** The proponent's worksheets not attached anywhere yet. */
   protected freeWs = computed(() => this.wsList().filter(w => w.isMine && !w.tasafId)
     .map(w => ({ id: w.id, label: `${w.typeLabel} — ${w.title} (${w.total.toLocaleString('en-US', { minimumFractionDigits: 2 })})` })));
-  /** Attach / detach while editing the proponent's own Draft / Returned TASAF. */
-  protected canAttachWs = computed(() => !!this.current()?.canEdit && !this.readonly());
+  /** Attach / detach while editing the proponent's own TASAF, only before its first submit (user decision 2026-11-09). */
+  protected canAttachWs = computed(() => { const c = this.current();
+    return !!c?.canEdit && !this.readonly() && c.status === 'Draft' && !c.submittedAt; });
 
   private loadWorksheets() {
     this.wsApi.getAll().subscribe({ next: res => this.wsList.set(res.data ?? []), error: () => {} });
@@ -803,10 +839,17 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   }
   protected cannotDelete = computed(() => !this.current()?.canDelete);
   protected severity     = computed(() => this.sev(this.current()?.status ?? 'Draft'));
+  /** While Returned by an Admin revert (no step shows Returned): the history row that returned it. */
+  protected returnedBy   = computed(() => { const c = this.current();
+    return c?.status === 'Returned' && !c.steps.some(s => s.status === 'Returned') ? [...(c.actions ?? [])].reverse().find(a => a.toStatus === 'Returned') ?? null : null; });
   protected submitting   = signal(false);
   /** Submit only once the TASAF has been saved (unsaved edits after that are saved on submit). */
   protected submitBlocked = computed(() => this.designing() || !this.current());
   protected deciding     = signal(false);
+  /** TPAR No. (header): its own small save, so it works on any status and keeps unsaved form edits. */
+  protected tparEditing  = signal(false);
+  protected tparSaving   = signal(false);
+  protected tparDraft    = '';
   protected decision     = signal<TasafDialogAction>('approve');
   protected decisionTitle = computed(() => {
     switch (this.decision()) {
@@ -917,6 +960,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   private resetFormOnly() {
     this.tabBar.unregisterDirtyChecker(this.currentTabKey);
     this.current.set(null);
+    this.tparEditing.set(false);
     this.apiError.set(null);
     this.setModel(this.newModel());
     this.currentTabKey = TAB;
@@ -927,6 +971,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
 
   private loadTasaf(t: TasafDto) {
     this.current.set(t);
+    this.tparEditing.set(false);
     this.prefetchLogo(t.id); // Export › PDF is then instant
     this.apiError.set(null);
     this.setModel(t);
@@ -1853,6 +1898,33 @@ export class TasafPageComponent implements OnInit, OnDestroy {
         const msg = err?.error?.message ?? 'Failed to submit.';
         this.apiError.set(msg);
         this.messageSvc.add({ severity: 'error', summary: 'Cannot submit', detail: msg, life: 8000 });
+      }
+    });
+  }
+
+  editTparNo() {
+    this.tparDraft = this.current()?.tparNo ?? '';
+    this.tparEditing.set(true);
+  }
+
+  /** Saves only the TPAR No.; the rest of the form (and any unsaved edits) is left as it is. */
+  saveTparNo() {
+    const t = this.current();
+    if (!t || this.tparSaving()) return;
+    this.tparSaving.set(true);
+    this.api.setTparNo(t.id, this.tparDraft.trim()).subscribe({
+      next: res => {
+        this.tparSaving.set(false);
+        this.tparEditing.set(false);
+        if (res.data) {
+          this.current.update(c => c && c.id === res.data!.id ? { ...c, tparNo: res.data!.tparNo, actions: res.data!.actions } : c);
+          this.snapshot = JSON.stringify(this.payload()); // already saved — not a pending change
+        }
+        this.messageSvc.add({ severity: 'success', summary: 'TPAR No.', detail: res.data?.tparNo ? `Saved: ${res.data.tparNo}` : 'Cleared.' });
+      },
+      error: err => {
+        this.tparSaving.set(false);
+        this.messageSvc.add({ severity: 'error', summary: 'TPAR No.', detail: err?.error?.message ?? 'Failed to save the TPAR No.' });
       }
     });
   }

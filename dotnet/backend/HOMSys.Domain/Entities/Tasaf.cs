@@ -11,6 +11,8 @@ public class Tasaf
 
     /// <summary>YEAR-SalesGroup-ProponentInitials-NN (e.g. 2026-RKA-ER-03). Null until submitted.</summary>
     public string? RefNo { get; set; }
+    /// <summary>TPAR (Trade Promo Analysis Report) document no. for this TASAF; typed by the proponent / Admin, any time until Cancelled.</summary>
+    public string? TparNo { get; set; }
     /// <summary>The proposal number (last part of RefNo): one continuous series, unique. See TasafNumbering.</summary>
     public int? RefSeq { get; set; }
     public string Status { get; set; } = TasafStatus.Draft;

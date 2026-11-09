@@ -58,7 +58,7 @@ export function buildTasafPdf(t: TasafDto, logo?: string | null): jsPDF {
     y += 14;
   }
 
-  // Info block, 3 columns: Title · (blank) · Status / Proponent · Document No. · Date Created
+  // Info block, 3 columns: Title · TPAR No. · Status / Proponent · Document No. · Date Created
   autoTable(doc, {
     startY: y, theme: 'plain', margin: { left: M, right: M },
     styles: { fontSize: 9, cellPadding: 1.8, fillColor: [250, 243, 243], valign: 'top' },
@@ -68,7 +68,7 @@ export function buildTasafPdf(t: TasafDto, logo?: string | null): jsPDF {
       4: { textColor: 90, cellWidth: 22 }, 5: { fontStyle: 'bold' },
     },
     body: [
-      ['Title', t.title, '', '', 'Status', t.status],
+      ['Title', t.title, 'TPAR No.', t.tparNo ?? '-', 'Status', t.status],
       ['Proponent', t.proponentName, 'Document No.', t.refNo ?? '-', 'Date Created', when(t.createdAt)],
     ],
   });
@@ -182,32 +182,39 @@ export function buildTasafPdf(t: TasafDto, logo?: string | null): jsPDF {
   for (const w of t.worksheets ?? []) {
     section(`Attached Worksheet - ${w.typeLabel}${w.title !== w.typeLabel ? ': ' + w.title : ''}`);
     const int = (v: number | null) => v == null ? '-' : v.toLocaleString('en-US');
+    // Header (whole sheet), then the product rows.
+    const v = (s: string | null | undefined) => s || '-';
     if (w.type === 'NearEx') {
-      table(['Sales Group', 'Account / Store', 'Category', 'Prod No.', 'SKU', 'LSP / Case', 'LSP / Pc', 'Pcs/Cs', 'Expiry', 'Invty Cs',
+      table(['Sales Group', 'Account / Store', 'Category'], [[v(w.salesGroup), v(w.account), v(w.category)]], []);
+      table(['Prod No.', 'SKU', 'LSP / Case', 'LSP / Pc', 'Pcs/Cs', 'Expiry', 'Invty Cs',
              'Invty Pcs', 'Total Pcs', 'Total Value', 'Moveout Scheme', 'Discount', 'Moveout Cost'],
-        w.nearExLines.map(l => [l.salesGroup, l.account, l.category, l.prodNo, l.sku, n2(l.lspPerCase), n2(l.lspPerPc), int(l.pcsPerCase),
+        w.nearExLines.map(l => [l.prodNo, l.sku, n2(l.lspPerCase), n2(l.lspPerPc), int(l.pcsPerCase),
           l.expiry ? l.expiry.slice(0, 7) : '-', int(l.invCases), int(l.invPieces), int(l.totalPcs), n2(l.totalValue),
           l.moveoutScheme, l.discount == null ? '-' : pct(l.discount), n2(l.moveoutCost)]),
-        [5, 6, 7, 9, 10, 11, 12, 14, 15],
-        ['Total', '', '', '', '', '', '', '', '', '', '', int(w.nearExLines.reduce((s, l) => s + l.totalPcs, 0)),
+        [2, 3, 4, 6, 7, 8, 9, 11, 12],
+        ['Total', '', '', '', '', '', '', '', int(w.nearExLines.reduce((s, l) => s + l.totalPcs, 0)),
          n2(w.nearExLines.reduce((s, l) => s + l.totalValue, 0)), '', '', n2(w.total)]);
     } else {
-      table(['Sales Group', 'Channel', 'Account / Store', 'Category', 'Prod No.', 'SKU', 'LF / SKU', '# SKUs', '# Doors', 'Total',
-             'Projected Annual Sales', 'CTS', 'Remarks'],
-        w.listingFeeLines.map(l => [l.salesGroup, l.channel, l.account, l.category, l.prodNo, l.sku, n2(l.lfPerSku), int(l.skuCount),
+      table(['Sales Group', 'Channel', 'Account / Store', 'Category'], [[v(w.salesGroup), v(w.channel), v(w.account), v(w.category)]], []);
+      table(['Prod No.', 'SKU', 'LF / SKU', '# SKUs', '# Doors', 'Total', 'Projected Annual Sales', 'CTS', 'Remarks'],
+        w.listingFeeLines.map(l => [l.prodNo, l.sku, n2(l.lfPerSku), int(l.skuCount),
           int(l.doorCount), n2(l.total) + (l.basis === 'AllDoors' ? '\n(LF x SKUs)' : '\n(LF x Doors)'), n2(l.projectedAnnualSales),
           l.cts == null ? '-' : pct(l.cts), l.remarks]),
-        [6, 7, 8, 9, 10, 11],
-        ['Total', '', '', '', '', '', '', '', '', n2(w.total), n2(w.listingFeeLines.reduce((s, l) => s + (l.projectedAnnualSales ?? 0), 0)), '', '']);
+        [2, 3, 4, 5, 6, 7],
+        ['Total', '', '', '', '', n2(w.total), n2(w.listingFeeLines.reduce((s, l) => s + (l.projectedAnnualSales ?? 0), 0)), '', '']);
     }
   }
 
   // Approval chain
   if (t.steps.length) {
     section('Approval' + (t.approvalTypeName ? ` - ${t.approvalTypeName}` : ''));
+    // Returned by an Admin revert: no step says so, add the return as the last row (the signatures are the previous round's).
+    const rev = t.status === 'Returned' && !t.steps.some(s => s.status === 'Returned')
+      ? [...(t.actions ?? [])].reverse().find(a => a.toStatus === 'Returned') : undefined;
     table(['#', 'Role', 'Approver', 'Status', 'Date', 'Comment'],
-      t.steps.map(s => [String(s.seq), s.roleCode, s.userName || '(vacant)',
-        s.status === 'Approved' ? 'Approved\nElectronically approved' : s.status, when(s.actedAt), s.comment]), []);
+      [...t.steps.map(s => [String(s.seq), s.roleCode, s.userName || '(vacant)',
+        s.status === 'Approved' ? 'Approved\nElectronically approved' : s.status, when(s.actedAt), s.comment]),
+       ...(rev ? [['', rev.role, rev.byName, 'Returned to proponent', when(rev.at), rev.comment]] : [])], []);
   }
 
   // Footer on every page

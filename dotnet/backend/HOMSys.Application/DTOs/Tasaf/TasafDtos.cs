@@ -157,6 +157,11 @@ public class TasafDto : SaveTasafDto
     public bool CanRevert { get; set; }
     /// <summary>Proponent or Admin: withdraw it (any status but Approved / Cancelled).</summary>
     public bool CanCancel { get; set; }
+    /// <summary>TPAR (Trade Promo Analysis Report) document no. — free text, no link. Set only once Approved
+    /// (PUT tasafs/{id}/tpar-no); never part of the form save.</summary>
+    public string? TparNo { get; set; }
+    /// <summary>Proponent or Admin, only while Approved.</summary>
+    public bool CanSetTparNo { get; set; }
     /// <summary>"approve" when the current step is waiting on the caller, else null.</summary>
     public string? MyAction { get; set; }
 
@@ -212,11 +217,17 @@ public class TasafCommentDto
     public string Comment { get; set; } = string.Empty;
 }
 
+public class TasafTparNoDto
+{
+    public string? TparNo { get; set; }
+}
+
 /// <summary>List-page row.</summary>
 public class TasafListItemDto
 {
     public int Id { get; set; }
     public string? RefNo { get; set; }
+    public string? TparNo { get; set; }
     public string Status { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string? SalesGroupName { get; set; }

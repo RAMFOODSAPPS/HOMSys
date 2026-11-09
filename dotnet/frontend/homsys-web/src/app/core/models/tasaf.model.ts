@@ -119,6 +119,10 @@ export interface TasafDto extends SaveTasafDto {
   canRevert: boolean;
   /** Proponent or Admin: withdraw (any status but Approved / Cancelled). */
   canCancel: boolean;
+  /** TPAR (Trade Promo Analysis Report) document no. — free text, no link; set with tasafApi.setTparNo once Approved. */
+  tparNo: string | null;
+  /** Proponent or Admin, only while Approved. */
+  canSetTparNo: boolean;
   /** 'approve' when the current step is the caller's. */
   myAction: 'approve' | null;
   submittedAt: string | null;
@@ -163,6 +167,7 @@ export type TasafDialogAction = TasafDecision | 'revert' | 'cancel';
 export interface TasafListItem {
   id: number;
   refNo: string | null;
+  tparNo: string | null;
   status: string;
   title: string;
   salesGroupName: string | null;

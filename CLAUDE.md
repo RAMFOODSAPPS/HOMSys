@@ -540,6 +540,11 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   requires exactly one payment type, payment total = TotalCost and
   CTS ≤ the program type's `MaxCtsPercent` (8% on PROMO- types) — or, when over it, a `CtsJustification`
   (textarea under Computation, shown to approvers; migration `TasafCtsJustification`).
+  **TPAR No.** (`Tasaf.TparNo`, migration `TasafTparNo`): the document no. of the workbook's "TPAR current" sheet (Trade Promo
+  Analysis Report, which refers back to the TASA Ref Number). **Free text, no link** (there is no TPAR record yet),
+  **set only once Approved** (user decision 2026-11-09: the TPAR is made after approval; the form is locked by then): the
+  header pencil lets the proponent or an Admin set it (`PUT tasafs/{id}/tpar-no`, logged in the history); never part of
+  the form save (`TparNo` lives on `TasafDto`, not `SaveTasafDto`). Shown in the list, email / print and PDF.
   RefNo `YEAR-SG-INITIALS-NN` (workbook GUIDE sheet, e.g. `2025-RKA-ER-03`) assigned on the FIRST
   SAVE that has a Sales Group (user decision 2026-10-14; was first submit) and kept for good
   (`TasafService.PrepareRefNoAsync` → `TasafRepository.SaveWithRefNoAsync`, retries on the
@@ -553,14 +558,21 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   raise NextNumber (e.g. to continue the Excel series) but never to a number already used.
 - **Worksheets** (`/tasafs/worksheets`, `TasafWorksheetService`, `api/tasaf-worksheets`, migration `TasafWorksheets`): the
   workbook's "LF Breakdown" and "Near Ex" sheets ("PLEASE FILL OUT AND ATTACH TO THE TASAF FOR APPROVAL"). The proponent
-  fills one out and attaches / detaches it to their own Draft / Returned TASAF (`TasafWorksheet.TasafId`; optional, no
+  fills one out and attaches / detaches it to their own TASAF **only before its first submit** (status Draft, no SubmittedAt — user decision 2026-11-09; `TasafWorksheetService.IsAttachOpen`; a Returned TASAF keeps its worksheets attached and can take no new ones) (`TasafWorksheet.TasafId`; optional, no
   approval of its own, never required to submit, never feeds Cost Details). Delete only when detached. Locked (no edit / detach / delete) while
   the TASAF is past Draft / Returned. Typed columns stay typed (user decision 2026-10-30); computed ones = the
   workbook formulas: LF TOTAL = LF/SKU × Doors ("AllSkus", package for all SKUs) or × SKUs ("AllDoors", package for
   all doors) — the sheet itself uses both, per row — CTS = TOTAL ÷ Projected Annual Sales; Near Ex Total in Pcs =
   Cases × Pcs/Cs + Pieces, Total Value = Cases × LSP/Case + Pieces × LSP/Pc, Moveout Cost = Value × Discount.
-  Sales Group / Channel / Category are dropdowns of the TASAF lists (stored as names); Prod No. = active SKUs of the
-  row's Category (`tasafs/product-options`), filling SKU (editable). Unattached = only its creator sees it (user decision 2026-10-30); attached = also the TASAF's proponent / approvers and View All. Attached ones are in `TasafDto.Worksheets`
+  **Header / rows** (user decision 2026-11-09; migration `TasafWorksheetHeader`, backfilled from each sheet's first row):
+  Sales Group, Channel (Listing Fee only), Account / Store and Category are entered ONCE per worksheet
+  (`TasafWorksheet.SalesGroup/…`) above the grid, all REQUIRED to save (page + `TasafWorksheetService.Apply`); the rows
+  are the products (Prod No. onward). The table is required too: at least one row, and per row LF = Prod No., SKU, LF / SKU,
+  # of SKUs, # of Doors, Projected Annual Sales (Remarks optional); Near Ex = Prod No., SKU, LSP per Case / Pc, Pcs/Cs,
+  Expiry, Invty Cases OR Pieces, Moveout Scheme, Discount (`RowMissing`; untouched rows are dropped). Each line still gets a copy
+  of the header in its own columns on save; the lines' own values are ignored on input. Sales Group / Channel / Category
+  are dropdowns of the TASAF lists (stored as names); Account / Store = the Customer / Chain list, editable (a store name
+  can be typed); Prod No. = active SKUs of the header's Category (`tasafs/product-options`), filling SKU (editable). Unattached = only its creator sees it (user decision 2026-10-30); attached = also the TASAF's proponent / approvers and View All. Attached ones are in `TasafDto.Worksheets`
   → the email / print renderer and the PDF; the form's "Attached Worksheets" block (layout key `worksheets`).
 - **Access**: `tasaf` (17) create/see own + those you review/approve; `tasaf-view-all`
   (18) = only Admin, COO and TMM (migration `TasafViewAllTmmCooOnly`, user decision 2026-10-30 — GKAM / NSM / NSD see

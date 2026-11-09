@@ -50,6 +50,12 @@ export interface TasafNearExLine {
 export interface SaveTasafWorksheet {
   type: TasafWorksheetType;
   title: string;
+  /** Header — one value for the whole sheet (TASAF list names). The lines' own copies are ignored on save. */
+  salesGroup: string;
+  /** Listing Fee only. */
+  channel: string;
+  account: string;
+  category: string;
   listingFeeLines: TasafListingFeeLine[];
   nearExLines: TasafNearExLine[];
 }

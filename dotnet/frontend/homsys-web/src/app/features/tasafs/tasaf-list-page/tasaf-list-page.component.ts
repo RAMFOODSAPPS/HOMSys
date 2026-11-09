@@ -20,6 +20,7 @@ const VIEW_KEY = 'homsys_tasaf_list_view';
 
 const EXPORT_COLS: ExportColumn[] = [
   { header: 'Document No',  field: 'refNo' },
+  { header: 'TPAR No.',     field: 'tparNo' },
   { header: 'Status',       field: 'status' },
   { header: 'Title',        field: 'title' },
   { header: 'Sales Group',  field: 'salesGroupName' },
@@ -55,6 +56,7 @@ const EXPORT_COLS: ExportColumn[] = [
       <ng-template pTemplate="header">
         <tr>
           <th pSortableColumn="refNo">Document No <p-sortIcon field="refNo" /></th>
+          <th pSortableColumn="tparNo">TPAR No. <p-sortIcon field="tparNo" /></th>
           <th pSortableColumn="status">Status <p-sortIcon field="status" /></th>
           <th pSortableColumn="title">Activity Title <p-sortIcon field="title" /></th>
           <th pSortableColumn="salesGroupName">Sales Group <p-sortIcon field="salesGroupName" /></th>
@@ -71,6 +73,7 @@ const EXPORT_COLS: ExportColumn[] = [
       <ng-template pTemplate="body" let-t>
         <tr [pSelectableRow]="t" (dblclick)="open(t)" [class.awaiting]="t.awaitingMe">
           <td>{{ t.refNo || '—' }}</td>
+          <td>{{ t.tparNo || '—' }}</td>
           <td>
             <p-tag [value]="t.status" [severity]="severity(t.status)" />
             @if (t.awaitingMe) { <div class="sub mine">Your action</div> }
@@ -88,7 +91,7 @@ const EXPORT_COLS: ExportColumn[] = [
         </tr>
       </ng-template>
       <ng-template pTemplate="emptymessage">
-        <tr><td colspan="12" class="text-center">{{ view() === 'action' ? 'Nothing is waiting for your action.' : 'No TASAFs yet.' }}</td></tr>
+        <tr><td colspan="13" class="text-center">{{ view() === 'action' ? 'Nothing is waiting for your action.' : 'No TASAFs yet.' }}</td></tr>
       </ng-template>
     </p-table>
   `,
@@ -139,7 +142,7 @@ export class TasafListPageComponent implements OnInit, OnDestroy {
     const rows = this.all().filter(t => v === 'all' || (v === 'mine' ? t.isMine : t.awaitingMe));
     if (!term) return rows;
     return rows.filter(t =>
-      [t.refNo, t.status, t.title, t.salesGroupName, t.chainName, t.customerName, t.programTypeName, t.proponentName]
+      [t.refNo, t.tparNo, t.status, t.title, t.salesGroupName, t.chainName, t.customerName, t.programTypeName, t.proponentName]
         .some(v => (v ?? '').toLowerCase().includes(term)));
   });
 

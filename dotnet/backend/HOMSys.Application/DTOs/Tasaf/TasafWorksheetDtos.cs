@@ -49,6 +49,12 @@ public class SaveTasafWorksheetDto
     /// <summary>"ListingFee" or "NearEx"; fixed once created.</summary>
     public string Type { get; set; } = "ListingFee";
     public string Title { get; set; } = string.Empty;
+    /// <summary>Header (whole sheet); the lines' own SalesGroup / Channel / Account / Category are ignored on save.</summary>
+    public string SalesGroup { get; set; } = string.Empty;
+    /// <summary>Listing Fee only.</summary>
+    public string Channel { get; set; } = string.Empty;
+    public string Account { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
     public List<TasafListingFeeLineDto> ListingFeeLines { get; set; } = [];
     public List<TasafNearExLineDto> NearExLines { get; set; } = [];
 }
