@@ -65,7 +65,9 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("collections-finance", p => p.RequireClaim("permission", "collections-verify", "collections-manage"))
     .AddPolicy("pdc-view", p => p.RequireClaim("permission", "pdc-view", "pdc-tag"))
     .AddPolicy("pdc-tag", p => p.RequireClaim("permission", "pdc-tag"))
-    .AddPolicy("pdc-confirm", p => p.RequireClaim("permission", "pdc-confirm"));
+    .AddPolicy("pdc-confirm", p => p.RequireClaim("permission", "pdc-confirm"))
+    .AddPolicy("rdp-uba", p => p.RequireClaim("permission", "rdp-uba"))
+    .AddPolicy("rdp-upload", p => p.RequireClaim("permission", "rdp-upload"));
 
 // CORS — allow specific origins and credentials (required for HttpOnly cookie)
 builder.Services.AddCors(options =>
@@ -122,6 +124,8 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<HOMSys.Infrastructure.Data.AppDbContext>();
     db.Database.Migrate();
+    // UBA dashboard: roll the RDP sales lines up in memory now, so the first dashboard visit doesn't wait for it.
+    HOMSys.Infrastructure.Rdp.RdpUbaEngine.Warm(db.Database.GetConnectionString());
 }
 
 // One-off head-office masters import, read directly from HO's production drive

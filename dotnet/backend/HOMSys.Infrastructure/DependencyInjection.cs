@@ -91,6 +91,8 @@ public static class DependencyInjection
         services.AddScoped<TasafPriceService>();
         services.AddScoped<TasafService>();
         services.AddScoped<TasafWorksheetService>();
+        services.AddScoped<HOMSys.Infrastructure.Rdp.RdpSalesService>();
+        services.AddScoped<HOMSys.Infrastructure.Rdp.RdpUbaService>();
         services.AddScoped<NotificationService>();
         services.AddScoped<FormLayoutService>();
         services.AddScoped<ProductCatalogService>();

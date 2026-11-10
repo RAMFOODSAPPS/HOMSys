@@ -1846,6 +1846,20 @@ namespace HOMSys.Infrastructure.Migrations
                             Description = "Custodian Verifier: encode CRs and Remittance Advices (NKA) for every branch, uploading the chain's RA Excel",
                             Key = "collections-ra-encode",
                             Name = "Remittance Advice Encoding"
+                        },
+                        new
+                        {
+                            Id = 28,
+                            Description = "View the unique buying accounts dashboard built from RDP (distributor) sales files",
+                            Key = "rdp-uba",
+                            Name = "UBA Dashboard"
+                        },
+                        new
+                        {
+                            Id = 29,
+                            Description = "Upload RDP (distributor) sales files and maintain the RDP list and channel mapping",
+                            Key = "rdp-upload",
+                            Name = "RDP Sales Upload"
                         });
                 });
 
@@ -2233,6 +2247,1069 @@ namespace HOMSys.Infrastructure.Migrations
                     b.HasKey("CategoryCode");
 
                     b.ToTable("ProductCategories");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.RdpChannelMap", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Label")
+                        .IsUnique();
+
+                    b.ToTable("RdpChannelMaps");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Channel = "Sari-sari store",
+                            Label = "SARI-SARI STORE"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Channel = "Market stall / Public market",
+                            Label = "MARKET STALL / PUBLIC MARKET"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Channel = "Grocery",
+                            Label = "GROCERY"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Channel = "Supermarket / Hypermarket",
+                            Label = "SUPERMARKET / HYPERMARKET"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Channel = "Convenience store / Minimart",
+                            Label = "CONVENIENCE STORE / MINIMART"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Channel = "Wholesaler / Sub-distributor",
+                            Label = "WHOLESALER / SUB-DISTRIBUTOR"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Channel = "Drugstore / Pharmacy",
+                            Label = "DRUGSTORE / PHARMACY"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Channel = "Foodservice / HORECA",
+                            Label = "FOODSERVICE / HORECA"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Channel = "Bakery / Baking supplies",
+                            Label = "BAKERY / BAKING SUPPLIES"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Channel = "Meat shop",
+                            Label = "MEAT SHOP"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Channel = "Cooperative",
+                            Label = "COOPERATIVE"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Channel = "Other channels",
+                            Label = "OTHER CHANNELS"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Channel = "Sari-sari store",
+                            Label = "SARI-SARI"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Channel = "Sari-sari store",
+                            Label = "SARI - SARI STORE"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Channel = "Sari-sari store",
+                            Label = "SIDE STREET"
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Channel = "Sari-sari store",
+                            Label = "SSST"
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Channel = "Sari-sari store",
+                            Label = "SARISARI"
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Channel = "Market stall / Public market",
+                            Label = "MARKET STALL"
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Channel = "Market stall / Public market",
+                            Label = "PUBLIC MARKET"
+                        },
+                        new
+                        {
+                            Id = 20,
+                            Channel = "Market stall / Public market",
+                            Label = "MARKET STALL (DRY)"
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Channel = "Market stall / Public market",
+                            Label = "MARKET STALL RETAIL"
+                        },
+                        new
+                        {
+                            Id = 22,
+                            Channel = "Market stall / Public market",
+                            Label = "PUBLIC MARKETS"
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Channel = "Grocery",
+                            Label = "GROCERY STORE"
+                        },
+                        new
+                        {
+                            Id = 24,
+                            Channel = "Grocery",
+                            Label = "GROCERIES"
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Channel = "Grocery",
+                            Label = "GROC"
+                        },
+                        new
+                        {
+                            Id = 26,
+                            Channel = "Supermarket / Hypermarket",
+                            Label = "SUPERMARKET"
+                        },
+                        new
+                        {
+                            Id = 27,
+                            Channel = "Supermarket / Hypermarket",
+                            Label = "KEY SUPERMARKET"
+                        },
+                        new
+                        {
+                            Id = 28,
+                            Channel = "Supermarket / Hypermarket",
+                            Label = "SMKT"
+                        },
+                        new
+                        {
+                            Id = 29,
+                            Channel = "Supermarket / Hypermarket",
+                            Label = "HYPERMARKET"
+                        },
+                        new
+                        {
+                            Id = 30,
+                            Channel = "Supermarket / Hypermarket",
+                            Label = "SMALL SUPERMARKET"
+                        },
+                        new
+                        {
+                            Id = 31,
+                            Channel = "Convenience store / Minimart",
+                            Label = "MINI MART"
+                        },
+                        new
+                        {
+                            Id = 32,
+                            Channel = "Convenience store / Minimart",
+                            Label = "CONVENIENCE STORE"
+                        },
+                        new
+                        {
+                            Id = 33,
+                            Channel = "Convenience store / Minimart",
+                            Label = "CONV"
+                        },
+                        new
+                        {
+                            Id = 34,
+                            Channel = "Convenience store / Minimart",
+                            Label = "MINIMART"
+                        },
+                        new
+                        {
+                            Id = 35,
+                            Channel = "Convenience store / Minimart",
+                            Label = "CONVENIENCE STORE/ MINIMART"
+                        },
+                        new
+                        {
+                            Id = 36,
+                            Channel = "Convenience store / Minimart",
+                            Label = "CONVIENCE STORE"
+                        },
+                        new
+                        {
+                            Id = 37,
+                            Channel = "Wholesaler / Sub-distributor",
+                            Label = "WHOLESALER"
+                        },
+                        new
+                        {
+                            Id = 38,
+                            Channel = "Wholesaler / Sub-distributor",
+                            Label = "WLSL"
+                        },
+                        new
+                        {
+                            Id = 39,
+                            Channel = "Wholesaler / Sub-distributor",
+                            Label = "SUB-D"
+                        },
+                        new
+                        {
+                            Id = 40,
+                            Channel = "Wholesaler / Sub-distributor",
+                            Label = "SUBDI"
+                        },
+                        new
+                        {
+                            Id = 41,
+                            Channel = "Wholesaler / Sub-distributor",
+                            Label = "SUB DISTRIBUTOR"
+                        },
+                        new
+                        {
+                            Id = 42,
+                            Channel = "Wholesaler / Sub-distributor",
+                            Label = "MARKET STALL WHOLESALE"
+                        },
+                        new
+                        {
+                            Id = 43,
+                            Channel = "Drugstore / Pharmacy",
+                            Label = "PHARMACY"
+                        },
+                        new
+                        {
+                            Id = 44,
+                            Channel = "Drugstore / Pharmacy",
+                            Label = "DRUGSTORE"
+                        },
+                        new
+                        {
+                            Id = 45,
+                            Channel = "Drugstore / Pharmacy",
+                            Label = "DRUG STORE"
+                        },
+                        new
+                        {
+                            Id = 46,
+                            Channel = "Drugstore / Pharmacy",
+                            Label = "DRGS"
+                        },
+                        new
+                        {
+                            Id = 47,
+                            Channel = "Foodservice / HORECA",
+                            Label = "FILIPINO RESTAURANT"
+                        },
+                        new
+                        {
+                            Id = 48,
+                            Channel = "Foodservice / HORECA",
+                            Label = "AT WORK CANTEEN"
+                        },
+                        new
+                        {
+                            Id = 49,
+                            Channel = "Foodservice / HORECA",
+                            Label = "RESTAURANT"
+                        },
+                        new
+                        {
+                            Id = 50,
+                            Channel = "Foodservice / HORECA",
+                            Label = "OTHER ASIAN RESTAURANTS"
+                        },
+                        new
+                        {
+                            Id = 51,
+                            Channel = "Foodservice / HORECA",
+                            Label = "HOTEL"
+                        },
+                        new
+                        {
+                            Id = 52,
+                            Channel = "Foodservice / HORECA",
+                            Label = "RESORT"
+                        },
+                        new
+                        {
+                            Id = 53,
+                            Channel = "Bakery / Baking supplies",
+                            Label = "BAKERY"
+                        },
+                        new
+                        {
+                            Id = 54,
+                            Channel = "Bakery / Baking supplies",
+                            Label = "BAKING SUPPLIES"
+                        },
+                        new
+                        {
+                            Id = 55,
+                            Channel = "Bakery / Baking supplies",
+                            Label = "BAKESHOP"
+                        },
+                        new
+                        {
+                            Id = 56,
+                            Channel = "Bakery / Baking supplies",
+                            Label = "BAKERY SUPPLIES"
+                        },
+                        new
+                        {
+                            Id = 57,
+                            Channel = "Bakery / Baking supplies",
+                            Label = "BKRY"
+                        },
+                        new
+                        {
+                            Id = 58,
+                            Channel = "Meat shop",
+                            Label = "MEAT SHOP- INSTI"
+                        },
+                        new
+                        {
+                            Id = 59,
+                            Channel = "Cooperative",
+                            Label = "COOPERATIVES"
+                        },
+                        new
+                        {
+                            Id = 60,
+                            Channel = "Cooperative",
+                            Label = "COOPERATIVE GROWERS"
+                        },
+                        new
+                        {
+                            Id = 61,
+                            Channel = "Cooperative",
+                            Label = "COOPERATIVE-INSTI"
+                        },
+                        new
+                        {
+                            Id = 62,
+                            Channel = "Other channels",
+                            Label = "END USER"
+                        },
+                        new
+                        {
+                            Id = 63,
+                            Channel = "Other channels",
+                            Label = "RETAIL"
+                        },
+                        new
+                        {
+                            Id = 64,
+                            Channel = "Other channels",
+                            Label = "OTHER"
+                        },
+                        new
+                        {
+                            Id = 65,
+                            Channel = "Other channels",
+                            Label = "DEPARTMENT STORE"
+                        },
+                        new
+                        {
+                            Id = 66,
+                            Channel = "Other channels",
+                            Label = "OTHR"
+                        },
+                        new
+                        {
+                            Id = 67,
+                            Channel = "Other channels",
+                            Label = "OTP / LGU ORDER / SERVICING ONLY"
+                        });
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.RdpDistributor", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Area")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("CustKey")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FileNames")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Rdm")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("SiteId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Territory")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustKey")
+                        .IsUnique();
+
+                    b.HasIndex("SiteId");
+
+                    b.ToTable("RdpDistributors");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Area = "NCL GT",
+                            CustKey = 1010022,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "DIRECT REACH DISTRIBUTOR INC.",
+                            Rdm = "RICARDO ANTONIO",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Area = "SL GT",
+                            CustKey = 1610289,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "COTTON CITY MARKETING CORPORATION",
+                            Rdm = "RENAN MARUKOT",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Area = "SL GT",
+                            CustKey = 1610292,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "CHASE MEGA CORPORATION",
+                            Rdm = "RENAN MARUKOT",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Area = "NCL GT",
+                            CustKey = 2110253,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "TJA MARKETING CORPORATION",
+                            Rdm = "RICARDO ANTONIO",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Area = "NCL GT",
+                            CustKey = 2110286,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "DRB SALES,INC.",
+                            Rdm = "RICARDO ANTONIO",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Area = "GMA GT",
+                            CustKey = 2210124,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "BONHEUR MARKETING CORPORATION",
+                            Rdm = "ANDREW ANICETO",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Area = "GMA GT",
+                            CustKey = 2210128,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "SOUTHLINE CHANNEL MARKETING",
+                            Rdm = "ANDREW ANICETO",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Area = "GMA GT",
+                            CustKey = 2210129,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "RACE VENTURES INC.",
+                            Rdm = "ANDREW ANICETO",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Area = "SL GT",
+                            CustKey = 2210163,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "COEL MARKETING, INC.",
+                            Rdm = "RENAN MARUKOT",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Area = "VIS GT",
+                            CustKey = 2210172,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "NETMAN DISTRIBUTORS, INC.",
+                            Rdm = "NIKKO CAPIOSO",
+                            Territory = "Visayas"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Area = "SL GT",
+                            CustKey = 2210186,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "TWO PRINCE TRADING OPC",
+                            Rdm = "RENAN MARUKOT",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Area = "SL GT",
+                            CustKey = 2210206,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "SOUTHCORE MARKETING CORPORATION",
+                            Rdm = "RENAN MARUKOT",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Area = "SL GT",
+                            CustKey = 2210214,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "CHUA PHILIPPINES CORPORATION",
+                            Rdm = "RENAN MARUKOT",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Area = "SL GT",
+                            CustKey = 2210219,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "EIGHT PRINCE TRADING OPC",
+                            Rdm = "RENAN MARUKOT",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Area = "GMA GT",
+                            CustKey = 2210228,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "1 TO 1 MARKETING INC.",
+                            Rdm = "ANDREW ANICETO",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Area = "SL GT",
+                            CustKey = 2310257,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "JT INTANDEM DISTRIBUTION",
+                            Rdm = "RENAN MARUKOT",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Area = "NCL GT",
+                            CustKey = 2510474,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "CHIP ACCENDO ENTERPRISES",
+                            Rdm = "RICARDO ANTONIO",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Area = "NCL GT",
+                            CustKey = 2510475,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "CHIP ACCENDO ENTERPRISES",
+                            Rdm = "RICARDO ANTONIO",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Area = "NCL GT",
+                            CustKey = 2610118,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "CHEERS TRADESTAR INC.",
+                            Rdm = "RICARDO ANTONIO",
+                            Territory = "Luzon"
+                        },
+                        new
+                        {
+                            Id = 20,
+                            Area = "VIS GT",
+                            CustKey = 4114314,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "APEX FOODS DISTRIBUTION CORP.",
+                            Rdm = "NIKKO CAPIOSO",
+                            Territory = "Visayas"
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Area = "VIS GT",
+                            CustKey = 4348770,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "JACAL FOOD MARKETING",
+                            Rdm = "NIKKO CAPIOSO",
+                            Territory = "Visayas"
+                        },
+                        new
+                        {
+                            Id = 22,
+                            Area = "VIS GT",
+                            CustKey = 4425667,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "BERTAHAN DISTRIBUTION CORPORATION",
+                            Rdm = "NIKKO CAPIOSO",
+                            Territory = "Visayas"
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Area = "MIN GT",
+                            CustKey = 5410194,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "DESAN CONSUMERS INC.",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        },
+                        new
+                        {
+                            Id = 24,
+                            Area = "MIN GT",
+                            CustKey = 6153055,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "SDC GLOBAL CHOICE CORPORATION",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Area = "MIN GT",
+                            CustKey = 6153057,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "ROMARK SALES INC.",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        },
+                        new
+                        {
+                            Id = 26,
+                            Area = "MIN GT",
+                            CustKey = 6153073,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "CAMIGUIN ISLA TRADING INCORPORATED",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        },
+                        new
+                        {
+                            Id = 27,
+                            Area = "MIN GT",
+                            CustKey = 6153078,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "HCB FOOD PRODUCTS MARKETING",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        },
+                        new
+                        {
+                            Id = 28,
+                            Area = "MIN GT",
+                            CustKey = 6153082,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "PRIMUS VENTURES",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        },
+                        new
+                        {
+                            Id = 29,
+                            Area = "MIN GT",
+                            CustKey = 6290074,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "DAVAO SQUIRE DISTRIBUTORS INC.",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        },
+                        new
+                        {
+                            Id = 30,
+                            Area = "MIN GT",
+                            CustKey = 6290090,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "CERSUM MARKETING OPC",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        },
+                        new
+                        {
+                            Id = 31,
+                            Area = "MIN GT",
+                            CustKey = 6394358,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "BFV CORPORATION",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        },
+                        new
+                        {
+                            Id = 32,
+                            Area = "MIN GT",
+                            CustKey = 6394361,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "BFV POINT-OF-SALE MARKETING",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        },
+                        new
+                        {
+                            Id = 33,
+                            Area = "MIN GT",
+                            CustKey = 6410129,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "CERSUM MARKETING OPC",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        },
+                        new
+                        {
+                            Id = 34,
+                            Area = "MIN GT",
+                            CustKey = 6410136,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "DESAN CONSUMERS INC.",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        },
+                        new
+                        {
+                            Id = 35,
+                            Area = "MIN GT",
+                            CustKey = 6571170,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "YI SHUN CONSUMER GOODS TRADING",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        },
+                        new
+                        {
+                            Id = 36,
+                            Area = "VIS GT",
+                            CustKey = 6710039,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "COVERBEST DISTRIBUTIONS CORPORATION",
+                            Rdm = "NIKKO CAPIOSO",
+                            Territory = "Visayas"
+                        },
+                        new
+                        {
+                            Id = 37,
+                            Area = "MIN GT",
+                            CustKey = 6910107,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "SHERWIN XR MARKETING",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        },
+                        new
+                        {
+                            Id = 38,
+                            Area = "MIN GT",
+                            CustKey = 6910122,
+                            FileNames = "",
+                            IsActive = true,
+                            Name = "PRIMUS VENTURES",
+                            Rdm = "ROY AGUHOB",
+                            Territory = "Mindanao"
+                        });
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.RdpSalesLine", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AccountCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("AccountKey")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("AccountName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal?>("Cases")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("ChannelLabel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("DistributorId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("InvoiceDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("InvoiceNo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ItemDesc")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal>("NetAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly>("Period")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Province")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Salesman")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SkuCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("TxnType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Uom")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("UploadId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UploadId");
+
+                    b.HasIndex("DistributorId", "Period");
+
+                    b.ToTable("RdpSalesLines");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.RdpSalesUpload", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CustKeys")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<int>("LineCount")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("NetAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Periods")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("ReplacedLines")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("RdpSalesUploads");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.RefreshToken", b =>
@@ -2681,6 +3758,16 @@ namespace HOMSys.Infrastructure.Migrations
                         {
                             RoleId = 1,
                             PermissionId = 27
+                        },
+                        new
+                        {
+                            RoleId = 1,
+                            PermissionId = 28
+                        },
+                        new
+                        {
+                            RoleId = 1,
+                            PermissionId = 29
                         });
                 });
 
@@ -7518,6 +8605,31 @@ namespace HOMSys.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Site");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.RdpDistributor", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Site");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.RdpSalesLine", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.RdpDistributor", null)
+                        .WithMany()
+                        .HasForeignKey("DistributorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HOMSys.Domain.Entities.RdpSalesUpload", null)
+                        .WithMany()
+                        .HasForeignKey("UploadId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.RefreshToken", b =>

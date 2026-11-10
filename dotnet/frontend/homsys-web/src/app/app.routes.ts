@@ -151,6 +151,18 @@ export const routes: Routes = [
           import('./features/customers/customers-page.component').then(m => m.CustomersPageComponent)
       },
       {
+        path: 'uba-dashboard',
+        data: { permission: 'rdp-uba' },
+        loadComponent: () =>
+          import('./features/rdp/uba-dashboard-page.component').then(m => m.UbaDashboardPageComponent)
+      },
+      {
+        path: 'rdp-upload',
+        data: { permission: 'rdp-upload' },
+        loadComponent: () =>
+          import('./features/rdp/rdp-upload-page.component').then(m => m.RdpUploadPageComponent)
+      },
+      {
         path: 'tasafs',
         data: { permission: 'tasaf' },
         loadChildren: () =>

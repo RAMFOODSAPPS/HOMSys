@@ -153,6 +153,26 @@ import { LayoutService } from '../../core/services/layout.service';
           </li>
         }
 
+        @if (auth.isAdmin() || auth.hasPermission('rdp-uba') || auth.hasPermission('rdp-upload')) {
+          <li class="menu-group">Distributor Partners</li>
+        }
+        @if (auth.isAdmin() || auth.hasPermission('rdp-uba')) {
+          <li>
+            <a routerLink="/uba-dashboard" routerLinkActive="active" (click)="onNavClick()">
+              <i class="pi pi-chart-line"></i>
+              <span>UBA Dashboard</span>
+            </a>
+          </li>
+        }
+        @if (auth.isAdmin() || auth.hasPermission('rdp-upload')) {
+          <li>
+            <a routerLink="/rdp-upload" routerLinkActive="active" (click)="onNavClick()">
+              <i class="pi pi-upload"></i>
+              <span>RDP Sales Upload</span>
+            </a>
+          </li>
+        }
+
         @if (auth.isAdmin() || auth.hasPermission('sales-orders') || auth.hasPermission('oos-report') || auth.hasPermission('pricelist-export')) {
           <li class="menu-group">Sales</li>
         }

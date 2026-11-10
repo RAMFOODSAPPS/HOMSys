@@ -169,6 +169,14 @@ export class ModulebarComponent {
       ]
     },
     {
+      label: 'Distributor Partners',
+      icon: 'pi-truck',
+      items: [
+        { label: 'UBA Dashboard',    icon: 'pi pi-chart-line', routerLink: '/uba-dashboard', permission: 'rdp-uba' },
+        { label: 'RDP Sales Upload', icon: 'pi pi-upload',     routerLink: '/rdp-upload',    permission: 'rdp-upload' }
+      ]
+    },
+    {
       label: 'Trade Marketing',
       icon: 'pi-megaphone',
       items: [

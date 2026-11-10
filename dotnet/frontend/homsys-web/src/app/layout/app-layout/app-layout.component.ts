@@ -154,6 +154,16 @@ import { LayoutService } from '../../core/services/layout.service';
     @media (max-width: 600px) {
       .layout-content { padding: 0.625rem; }
     }
+
+    /* A sticky paginator (styles.scss) sticks inside the scroll container's padding, so bottom padding
+       left a gap under it that rows showed through. Keep the end-of-page space as a spacer instead. */
+    .layout-content { padding-bottom: 0 !important; }
+    .layout-content::after { content: ''; display: block; height: 1.25rem; }
+    .layout-content:has(app-pricelist-export-page)::after,
+    .layout-content:has(app-collection-page)::after,
+    .layout-content:has(app-bank-statement-page)::after,
+    .layout-content:has(app-collection-verify-page)::after,
+    .layout-content:has(app-remittance-page)::after { display: none; }
   `]
 })
 export class AppLayoutComponent {

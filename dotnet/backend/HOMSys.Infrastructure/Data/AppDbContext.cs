@@ -126,9 +126,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     // Form Designer layouts (admin-arranged form fields) — see FormLayoutService.
     public DbSet<FormLayout> FormLayouts => Set<FormLayout>();
 
+    // RDP (RAM Distributor Partner) sales files + UBA dashboard — see RdpModel.
+    public DbSet<RdpDistributor> RdpDistributors => Set<RdpDistributor>();
+    public DbSet<RdpChannelMap> RdpChannelMaps => Set<RdpChannelMap>();
+    public DbSet<RdpSalesUpload> RdpSalesUploads => Set<RdpSalesUpload>();
+    public DbSet<RdpSalesLine> RdpSalesLines => Set<RdpSalesLine>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         TasafModel.Configure(modelBuilder);
+        RdpModel.Configure(modelBuilder);
 
         modelBuilder.Entity<FormLayout>(e =>
         {
@@ -312,7 +319,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new Permission { Id = 24, Key = "pdc-view", Name = "PDC Monitoring", Description = "View the post-dated check maturity report" },
             new Permission { Id = 25, Key = "pdc-tag", Name = "PDC Outcome Tagging", Description = "Tag deposited post-dated checks as Succeeded or Bounced" },
             new Permission { Id = 26, Key = "pdc-confirm", Name = "Matured PDC Confirmation", Description = "Confirm a matured PDC's deposit against the bank statement (CNC Verifier) — posts its JV to HOMS" },
-            new Permission { Id = 27, Key = "collections-ra-encode", Name = "Remittance Advice Encoding", Description = "Custodian Verifier: encode CRs and Remittance Advices (NKA) for every branch, uploading the chain's RA Excel" }
+            new Permission { Id = 27, Key = "collections-ra-encode", Name = "Remittance Advice Encoding", Description = "Custodian Verifier: encode CRs and Remittance Advices (NKA) for every branch, uploading the chain's RA Excel" },
+            new Permission { Id = 28, Key = "rdp-uba", Name = "UBA Dashboard", Description = "View the unique buying accounts dashboard built from RDP (distributor) sales files" },
+            new Permission { Id = 29, Key = "rdp-upload", Name = "RDP Sales Upload", Description = "Upload RDP (distributor) sales files and maintain the RDP list and channel mapping" }
         );
 
         // Admin gets all permissions by default
@@ -343,7 +352,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new RolePermission { RoleId = 1, PermissionId = 24 },
             new RolePermission { RoleId = 1, PermissionId = 25 },
             new RolePermission { RoleId = 1, PermissionId = 26 },
-            new RolePermission { RoleId = 1, PermissionId = 27 }
+            new RolePermission { RoleId = 1, PermissionId = 27 },
+            new RolePermission { RoleId = 1, PermissionId = 28 },
+            new RolePermission { RoleId = 1, PermissionId = 29 }
         );
 
         // Seed default admin user (password: Admin@1234)

@@ -85,4 +85,11 @@ export const AUTH_MODULES: AuthModule[] = [
       { key: 'data-analytics-admin', icon: 'pi-star' },
     ],
   },
+  {
+    key: 'rdp', label: 'Distributor Partners', icon: 'pi-truck',
+    pages: [
+      { key: 'rdp-uba',    icon: 'pi-chart-line', pages: ['UBA Dashboard'] },
+      { key: 'rdp-upload', icon: 'pi-upload',     pages: ['RDP Sales Upload'] },
+    ],
+  },
 ];

@@ -592,6 +592,59 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   (any module), `api/notifications`, topbar bell polls every 60 s. A notification's
   `Link` is navigated with state `{ <EntityType>Id: EntityId }`.
 
+## RDP sales + UBA dashboard (Distributor Partners)
+
+RDPs (RAM Distributor Partners) send monthly sales files laid out like `RAM RDP Sales Raw Data Template.xlsx`
+(TMG; OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). HOMSys only **imports** them and builds the UBA (unique buying
+accounts) dashboard from the TMG × IT "UBA Tracker" deck. SQL-only, no BMS involvement.
+
+- **Masters** (`RdpModel.cs`, migration `AddRdpSales`): `RdpDistributors` = the template's "RDP List" sheet (CUSTKEY,
+  name, RDM, area, territory; `SiteId` = servicing branch, linked to Sites by code in the migration). `RdpChannelMaps` =
+  label as sent (upper case, single spaces) → one of RAM's 12 standard channel types ("Reference" sheet). It's resolved
+  at query time, so a new mapping relabels past uploads.
+- **Upload** (`/rdp-upload`, `RdpSalesService`/`RdpSalesParser`, permission `rdp-upload` 29): preview, then import.
+  Columns are matched by header text (the template's headers plus aliases); `.xlsx`/`.xlsb`/`.xls`/`.csv`, max 60 MB.
+  The aliases (`RdpSalesParser.Aliases`, in PRIORITY order — first listed wins when a file has two candidates) also cover
+  every RDP's own export in OneDrive `STT RDPs 2026 - For IT` (all 18 files imported locally 2026-11-09; the
+  "DRDI STT SEPT … NO PER SKU" summary is not importable). In a workbook the sheet whose header names the most known
+  columns is read (ties: a "raw" sheet), streamed and cut to the mapped columns (GT MIN = 650k rows). Per-row rules:
+  MONTH without YEAR takes the invoice date's year; MONTH decides day/month order of ambiguous dates (files mix
+  07-01-2026 / 29/08/2026; Excel stores some as swapped serials); an impossible date (9/31) is dropped when MONTH/YEAR
+  exist; separate case + piece columns (SOLD CS/SOLD PC, CASE/PCS) combine via the pack size; QTY IN CASE / NET OF CM QTY
+  give cases; a non-numeric AMOUNT falls back to QTY × PRICE; QuickBooks reports (Chip Accendo Nueva Ecija) take the SKU
+  from the item group line and skip "Total …" rows; the SKU also comes from "9318 (…)"/"NRF9712.1 (…)" item text or a
+  LOOKUP CODE/Stockcode ("R9748"); other principals' rows (PRINCIPAL ≠ RAM) and rows with no account are skipped.
+  A line with no SKU is kept; `RdpSkuMatcher` then matches its description to `Products` (name prefix + pieces + size,
+  unique only — 67k of GT Visayas' lines), else UNTAGGED. Skips/repairs are listed as preview **notes**.
+  Files naming the RDP in a column (GT Visayas "RDP", GT MIN "Distributor Name") resolve by `RdpDistributor.FileNames`
+  (";"-separated, RDP list dialog; migration `RdpDistributorFileNames` seeds MIN's / Visayas' names — BFV SIBUGAY,
+  CERSUM North Cotabato and the two PRIMUS mappings are guesses for TMG to confirm), the full name, or a unique first
+  word; unknown names are left out and listed (GT MIN has 7 distributors not in the RDP list). Amounts are as sent:
+  most are VAT-inclusive, GT Visayas' AMOUNT is ex-VAT. The RDP comes from
+  the RDP CUSTKEY column, or is picked when the file has none (a mismatching CUSTKEY is an error). **Any error blocks
+  the whole file.** An import **replaces every (RDP, month) it contains**, as the template asks ("send the complete
+  month again"). Lines are bulk-copied (`SqlBulkCopy`). Credit Memo / Return / Discount amounts are forced negative.
+  `AccountKey` = account code, else `~NAME|CITY`. `Cases` = qty for case units, else qty ÷ `Products.Pieces`.
+  Deleting an upload removes only its lines still current. The **Sales lines** tab (`GET api/rdp/lines`, server-paged,
+  file order) shows the imported lines in the template's own 17 columns and header colours; opening an upload's lines
+  (or finishing an import) filters it to that file.
+- **UBA rules** (`RdpUbaService`, `/uba-dashboard`, permission `rdp-uba` 28): an account is (DistributorId, AccountKey).
+  It is **buying** in a month when its net that month is > 0. **Free Goods and Adjustment lines are excluded from
+  everything.** Within a split slice the rule applies to the slice's own net, so children can add up to more than
+  their parent. Over a range, an account counts once. Channel = the account's most common label in the range (mapped
+  label first). "vs prior" = the same number of months just before, **like-for-like** (only RDPs with data in both
+  periods). Category = `ProductCategories.GroupNo` named from `TasafProductGroups`; sub-category = `Products.Category`.
+  Unknown SKUs show as UNTAGGED. Dimension SQL is whitelisted; one `GROUPING SETS` query gives every level at once.
+  **The numbers are computed in memory** by `RdpUbaEngine`: the lines rolled up to account × month × SKU (~0.9M rows for
+  ~1M lines) plus each account's attributes, loaded once per **data version** (upload count/max id, channel maps, RDP
+  `UpdatedAt`) in ~5 s and warmed in the background at API startup and after every upload / delete / RDP edit / channel
+  mapping (`RdpUbaEngine.Warm`). Any filter or split is then ~0.1–0.6 s. Because of the roll-up, **channel, province,
+  city and salesman are account attributes** (the account's most common value over all its lines), not per line.
+  Product master changes (categories) are picked up at the next data change or restart. (SQL GROUPING SETS per request
+  took ~10 s at this size; a columnstore index was slower on this Standard edition.) The Sales lines tab, RDP list and
+  uploads list cache their counts / totals per upload version.
+- Not branch-scoped: national TMG data, gated only by the permission.
+
 ## Form Designer (admin-arranged form layouts)
 
 VB-style designer on a 12-column snap grid: move/resize fields, relabel, hide optional

@@ -38,6 +38,13 @@ const GROUPS: DashboardGroup[] = [
     ]
   },
   {
+    title: 'Distributor Partners',
+    cards: [
+      { label: 'UBA Dashboard',     icon: 'pi-chart-line',             route: '/uba-dashboard',       permission: 'rdp-uba' },
+      { label: 'RDP Sales Upload',  icon: 'pi-upload',                 route: '/rdp-upload',          permission: 'rdp-upload' }
+    ]
+  },
+  {
     title: 'Sales',
     cards: [
       { label: 'Sales Orders',      icon: 'pi-file-edit',              route: '/sales-orders/list', permission: 'sales-orders' },
