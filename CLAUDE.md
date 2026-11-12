@@ -476,7 +476,10 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   **Chains and their stores = the Excel** (user decision 2026-10-30; migration `TasafChainsFromExcel`): chain names /
   order = the DATA sheet ("SVI - Main", "Robinson - Main", …; was SM Group / RRHI), + "RKA- Grand Union" (RKA, CUSTOMER
   FILE only). `TasafChainCustomers` = every CUSTOMER FILE row (ChainId, CustKey, CusName, AreaName = REGION, SalesGroup
-  = SALESGROUP code, SiteCode = SERVICING BRANCH; 1,716 rows, unique per chain+store+group+region). Stores keep their own
+  = SALESGROUP code, SiteCode = SERVICING BRANCH; 1,716 rows, unique per chain+store+group+region). Reloaded from the
+  updated Excel by migration `TasafChainCustomersReload` (2026-11-12: Landmark → NKA, Waltermart 55 NKA stores, no NKA
+  stores for Suysing / Metro Gaisano / Grand Union; the Excel's "LANDMARK MAIN" / "Grand Union" / "SUPER 8" = the
+  existing chains). To update again: regenerate the VALUES list from the CUSTOMER FILE sheet in a new migration. Stores keep their own
   SALESGROUP, so a chain is offered under every group its stores have (Landmark - Main → RKA, Waltermart - Main → NKA and
   RKA); `customer-options` / `chain-store-counts` take `salesGroupId`. A chain with listed stores offers exactly those
   as Cust Keys (picked group + areas; name + address from cust4win when found), its store count comes from the list, and Branch(es) is filled from the picked stores' servicing branches (`siteCodes` in
