@@ -1288,7 +1288,10 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   // ── Product scope (Book2.xlsx): Category → Sub-Category → Segment ──
   /** Product Categories ("product-groups" list), shown by name only ("Peas & Beans"; the code stays for the SKU match). */
   productCategoryOptions() {
-    return this.cached('pc', () => this.list('product-groups').map(o => ({ ...o, label: o.name })));
+    // "Exclude from TASAF" categories are not offered, unless this TASAF already names one.
+    return this.cached('pc', () => this.list('product-groups')
+      .filter(o => !o.excludeFromTasaf || this.m.productCategoryIds.includes(o.id))
+      .map(o => ({ ...o, label: o.name })));
   }
 
   /** Sub-Category options: the product master's categories (Products page), see options().subCategories. */

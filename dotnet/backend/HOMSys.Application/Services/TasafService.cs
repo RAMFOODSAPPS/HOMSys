@@ -45,7 +45,9 @@ public class TasafService(
                     ParentId = (x as ITasafParentLookup)?.ParentId,
                     Amount   = (x as ITasafAmountLookup)?.Amount,
                     BranchCodes = (x as TasafArea)?.BranchCodes,
-                    AreaNames   = (x as ITasafAreasLookup)?.AreaNames
+                    AreaNames   = (x as ITasafAreasLookup)?.AreaNames,
+                    // Kept in the list (a saved TASAF / worksheet may name it); the form hides it from new picks.
+                    ExcludeFromTasaf = x is TasafProductGroup { ExcludeFromTasaf: true }
                 })
                 .ToList();
         }
@@ -287,7 +289,10 @@ public class TasafService(
         }
 
         // A segment named on the TASAF keeps its SKUs even if excluded since; a whole category leaves excluded ones out.
-        var excluded = TasafMasterService.ExcludedSegmentCodes(await lookups.GetAllAsync(typeof(TasafProductGroup)));
+        var allGroups = await lookups.GetAllAsync(typeof(TasafProductGroup));
+        var excluded = TasafMasterService.ExcludedSegmentCodes(allGroups);
+        // A category marked "Exclude from TASAF" is left out of the scope-less / ALL list; picked by name it keeps its SKUs.
+        var excludedGroups = TasafMasterService.ExcludedGroupNos(allGroups);
         var covered = new HashSet<int>();
         var subs = (await SubCategoryOptionsAsync(includeExcluded: true)).ToDictionary(o => o.Code, StringComparer.OrdinalIgnoreCase);
         foreach (var code in subCategoryCodes.Select(c => c.Trim()).Distinct(StringComparer.OrdinalIgnoreCase))
@@ -300,7 +305,8 @@ public class TasafService(
             await WholeCategory(id);
 
         IEnumerable<HOMSys.Application.DTOs.Products.ProductCatalogDto> picked =
-            catalog.Where(p => codes.Contains(p.Category.Trim()) || !excluded.Contains(p.Category.Trim()));
+            catalog.Where(p => codes.Contains(p.Category.Trim())
+                               || (!excluded.Contains(p.Category.Trim()) && (!excludedGroups.Contains(p.GroupNo) || groupNos.Contains(p.GroupNo))));
         if (!everything && (codes.Count > 0 || groupNos.Count > 0))
             picked = picked.Where(p => codes.Contains(p.Category.Trim()) || groupNos.Contains(p.GroupNo));
 

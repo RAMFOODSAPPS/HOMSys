@@ -210,6 +210,8 @@ export interface TasafOption {
   branchCodes?: string | null;
   /** Sales groups / chains: comma-separated area names they're offered for (blank = all areas). */
   areaNames?: string | null;
+  /** Product categories: not offered for new picks (a saved TASAF / worksheet that names it keeps it). */
+  excludeFromTasaf?: boolean;
 }
 
 export interface TasafFormOptions {

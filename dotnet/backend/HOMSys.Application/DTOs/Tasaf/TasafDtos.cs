@@ -265,6 +265,8 @@ public class TasafOptionDto
     public string? BranchCodes { get; set; }
     /// <summary>Sales groups / chains: comma-separated area names they're offered for (blank = all areas).</summary>
     public string? AreaNames { get; set; }
+    /// <summary>Product Categories: not offered on TASAF (kept only where a TASAF / worksheet already names it).</summary>
+    public bool ExcludeFromTasaf { get; set; }
 }
 
 /// <summary>Every dropdown the form needs, in one call. Keys match TasafMasterService.Masters.</summary>

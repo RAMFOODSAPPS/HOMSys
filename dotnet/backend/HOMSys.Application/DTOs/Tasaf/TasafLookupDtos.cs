@@ -21,6 +21,8 @@ public class TasafLookupDto
     public string? AreaNames { get; set; }
     /// <summary>Product Categories: segment codes TASAF must not offer, comma-separated.</summary>
     public string? ExcludedSegments { get; set; }
+    /// <summary>Product Categories: left out of TASAF, still active elsewhere.</summary>
+    public bool ExcludeFromTasaf { get; set; }
     public DateTime CreatedAt { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime? UpdatedAt { get; set; }
@@ -44,6 +46,8 @@ public class SaveTasafLookupDto
     public List<string>? AreaNames { get; set; }
     /// <summary>Product Categories: excluded segment codes; null = leave unchanged.</summary>
     public List<string>? ExcludedSegments { get; set; }
+    /// <summary>Product Categories: left out of TASAF; null = leave unchanged.</summary>
+    public bool? ExcludeFromTasaf { get; set; }
 }
 
 /// <summary>Describes one master list to the setup page (which optional fields it shows).</summary>

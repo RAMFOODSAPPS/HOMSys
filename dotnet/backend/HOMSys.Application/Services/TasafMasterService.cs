@@ -81,6 +81,13 @@ public class TasafMasterService(ITasafLookupRepository repo, IProductRepository 
             .SelectMany(g => g.ExcludedSegments.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Product master GroupNos of the Product Categories marked "Exclude from TASAF".</summary>
+    public static HashSet<int> ExcludedGroupNos(IEnumerable<TasafLookup> productGroups) =>
+        productGroups.OfType<TasafProductGroup>()
+            .Where(g => g.ExcludeFromTasaf && int.TryParse(g.Code.Trim(), out _))
+            .Select(g => int.Parse(g.Code.Trim()))
+            .ToHashSet();
+
     // ── Approval rules (approval type × role → always / over amount / not required) ──
     public async Task<TasafApprovalRulesDto> GetRulesAsync()
     {
@@ -296,6 +303,8 @@ public class TasafMasterService(ITasafLookupRepository repo, IProductRepository 
             ar.AreaNames = string.Join(", ", dto.AreaNames.Select(n => n.Trim()).Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
         if (e is TasafProductGroup pg && dto.ExcludedSegments is not null)
             pg.ExcludedSegments = string.Join(", ", dto.ExcludedSegments.Select(c => c.Trim()).Where(c => c.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
+        if (e is TasafProductGroup pgx && dto.ExcludeFromTasaf is bool exclude)
+            pgx.ExcludeFromTasaf = exclude;
         if (e is TasafSalesGroup g && dto.UserIds is not null)
         {
             var want = dto.UserIds.ToHashSet();
@@ -341,6 +350,7 @@ public class TasafMasterService(ITasafLookupRepository repo, IProductRepository 
                 Text        = (e as ITasafTextLookup)?.Text,
                 AreaNames   = (e as ITasafAreasLookup)?.AreaNames,
                 ExcludedSegments = (e as TasafProductGroup)?.ExcludedSegments,
+                ExcludeFromTasaf = e is TasafProductGroup { ExcludeFromTasaf: true },
                 CreatedAt   = e.CreatedAt,
                 CreatedBy   = e.CreatedBy,
                 UpdatedAt   = e.UpdatedAt,

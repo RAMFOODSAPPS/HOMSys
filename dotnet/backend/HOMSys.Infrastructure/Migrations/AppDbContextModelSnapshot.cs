@@ -7321,6 +7321,9 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<bool>("ExcludeFromTasaf")
+                        .HasColumnType("bit");
+
                     b.Property<string>("ExcludedSegments")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -7363,6 +7366,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludeFromTasaf = false,
                             ExcludedSegments = "",
                             IsActive = true,
                             Name = "Tom Sauce/Paste",
@@ -7375,6 +7379,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludeFromTasaf = false,
                             ExcludedSegments = "",
                             IsActive = true,
                             Name = "Peas & Beans",
@@ -7387,6 +7392,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludeFromTasaf = false,
                             ExcludedSegments = "",
                             IsActive = true,
                             Name = "Pasta & Sauces",
@@ -7399,6 +7405,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludeFromTasaf = false,
                             ExcludedSegments = "",
                             IsActive = true,
                             Name = "Mitra",
@@ -7411,6 +7418,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludeFromTasaf = false,
                             ExcludedSegments = "",
                             IsActive = true,
                             Name = "Raisins",
@@ -7423,6 +7431,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludeFromTasaf = false,
                             ExcludedSegments = "",
                             IsActive = true,
                             Name = "Pickles",
@@ -7435,6 +7444,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludeFromTasaf = false,
                             ExcludedSegments = "",
                             IsActive = true,
                             Name = "Fruits & Vegetables",
@@ -7447,6 +7457,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludeFromTasaf = false,
                             ExcludedSegments = "",
                             IsActive = true,
                             Name = "Baking & Dry Goods",
@@ -7459,6 +7470,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludeFromTasaf = false,
                             ExcludedSegments = "",
                             IsActive = true,
                             Name = "Condiments",
@@ -7471,6 +7483,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludeFromTasaf = false,
                             ExcludedSegments = "",
                             IsActive = false,
                             Name = "TOTAL RAM / CORPORATE PROGRAM",
@@ -7483,6 +7496,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludeFromTasaf = false,
                             ExcludedSegments = "",
                             IsActive = true,
                             Name = "Non Food & Toll Pack",

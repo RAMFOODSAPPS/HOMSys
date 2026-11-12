@@ -72,6 +72,8 @@ export interface TasafLookupDto {
   areaNames?: string | null;
   /** Product categories: comma-separated segment codes the TASAF form does not offer. */
   excludedSegments?: string | null;
+  /** Product categories: left out of TASAF, still active elsewhere. */
+  excludeFromTasaf?: boolean;
   createdAt: string;
   createdBy: string;
   updatedAt?: string;
@@ -93,6 +95,8 @@ export interface SaveTasafLookupDto {
   areaNames?: string[] | null;
   /** Product categories: excluded segment codes; null = leave unchanged. */
   excludedSegments?: string[] | null;
+  /** Product categories: left out of TASAF; null = leave unchanged. */
+  excludeFromTasaf?: boolean | null;
 }
 
 export interface TasafUserOption {

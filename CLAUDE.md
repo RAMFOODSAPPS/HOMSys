@@ -520,6 +520,11 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   `TasafProductGroupExcludedSegments`; picker on Product Categories, `GET tasaf-masters/segments`): not offered in the
   Segment picker and their SKUs left out of a whole-category / no-scope SKU list. A TASAF that already names one keeps it
   (and its SKUs).
+  **Exclude from TASAF** (`TasafProductGroup.ExcludeFromTasaf`, migration `TasafProductGroupExcludeFromTasaf`; toggle on
+  Product Categories, user decision 2026-11-12 for Mitra): the whole category is not offered on the TASAF form or the
+  worksheet Category dropdown, and its SKUs are left out of a no-scope SKU list, while it stays **active** for every other
+  module. `IsActive` is the general switch (future modules may read this list); this flag is TASAF-only. A TASAF / worksheet
+  that already names the category keeps it (and its SKUs).
   **LSP / Case** = the picked Cust Keys' price **with VAT** as of StartDate (today if blank): base price + ZONE + ZONE2 add-ons,
   the Sales Order rule, bulk-priced by `TasafPriceService` (`POST tasafs/product-prices`, grouped by price; `IncludesVat`
   const). Blank until Cust Keys are picked. All picked stores must share ONE price per SKU — Submit is refused otherwise

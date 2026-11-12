@@ -127,6 +127,13 @@ public class TasafProductGroup : TasafLookup
     /// A TASAF that already lists one keeps it.
     /// </summary>
     public string ExcludedSegments { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Leave the whole category out of TASAF (Product Category / Segment pickers, SKU lists, worksheet Category) while
+    /// it stays active for every other module. IsActive is the general switch; this one is TASAF-only.
+    /// A TASAF or worksheet that already names it keeps it.
+    /// </summary>
+    public bool ExcludeFromTasaf { get; set; }
 }
 
 /// <summary>Cost Details description, e.g. "Promotions - Free Goods".</summary>

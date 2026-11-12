@@ -271,7 +271,10 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
                 @if (m.areasLabel) { <td class="kw">{{ r.areaNames || '— all areas —' }}</td> }
                 @if (m.segmentsLabel) { <td class="kw">{{ excludedLabel(r.excludedSegments) || '— none —' }}</td> }
                 <td>{{ r.description || '—' }}</td>
-                <td><p-tag [value]="r.isActive ? 'Active' : 'Inactive'" [severity]="r.isActive ? 'success' : 'danger'" /></td>
+                <td>
+                  <p-tag [value]="r.isActive ? 'Active' : 'Inactive'" [severity]="r.isActive ? 'success' : 'danger'" />
+                  @if (r.excludeFromTasaf) { <p-tag value="Not in TASAF" severity="warn" styleClass="ml-1" /> }
+                </td>
               </tr>
             </ng-template>
             <ng-template pTemplate="emptymessage">
@@ -370,6 +373,14 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
           <label>Active</label>
           <p-toggleswitch formControlName="isActive" />
         </div>
+        @if (current()?.segmentsLabel) {
+          <div class="field-inline">
+            <label>Exclude from TASAF</label>
+            <p-toggleswitch formControlName="excludeFromTasaf" />
+          </div>
+          <small class="optional-label">Not offered on the TASAF form or worksheets (category, segments, SKUs) but stays
+            active for every other module. TASAFs and worksheets that already name it keep it.</small>
+        }
         <div class="form-actions">
           <p-button label="Cancel" [text]="true" severity="secondary" (onClick)="dialogVisible = false" />
           <p-button type="submit" [label]="editing() ? 'Save Changes' : 'Create'" [loading]="saving()" />
@@ -532,7 +543,8 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     amount:      [null as number | null],
     text:        [""],
     areaNames:   [[] as string[]],
-    excludedSegments: [[] as string[]]
+    excludedSegments: [[] as string[]],
+    excludeFromTasaf: [false]
   });
 
   /** Product master segments (Product Categories › Excluded segments). */
@@ -812,7 +824,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     this.editing.set(null);
     this.apiError.set(null);
     const nextOrder = Math.max(0, ...this.rows().map(r => r.sortOrder)) + 1;
-    this.form.reset({ name: '', code: '', sortOrder: nextOrder, description: '', isActive: true, parentId: null, userId: null, userIds: [], amount: null, text: '', areaNames: [], excludedSegments: [] });
+    this.form.reset({ name: '', code: '', sortOrder: nextOrder, description: '', isActive: true, parentId: null, userId: null, userIds: [], amount: null, text: '', areaNames: [], excludedSegments: [], excludeFromTasaf: false });
     this.dialogVisible = true;
   }
 
@@ -830,7 +842,8 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
       name: r.name, code: r.code, sortOrder: r.sortOrder, description: r.description,
       isActive: r.isActive, parentId: r.parentId ?? null, userId: r.userId ?? null, userIds: r.userIds ?? [], amount: r.amount ?? null,
       text: r.text ?? '', areaNames: areas,
-      excludedSegments: (r.excludedSegments ?? '').split(',').map(c => c.trim()).filter(c => c)
+      excludedSegments: (r.excludedSegments ?? '').split(',').map(c => c.trim()).filter(c => c),
+      excludeFromTasaf: !!r.excludeFromTasaf
     });
     this.dialogVisible = true;
   }
@@ -849,7 +862,8 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
       parentId: v.parentId, userId: v.userId, amount: v.amount, text: v.text ?? '',
       userIds: m.usersLabel ? (v.userIds ?? []) : null,
       areaNames: m.areasLabel ? (v.areaNames ?? []) : null,
-      excludedSegments: m.segmentsLabel ? (v.excludedSegments ?? []) : null
+      excludedSegments: m.segmentsLabel ? (v.excludedSegments ?? []) : null,
+      excludeFromTasaf: m.segmentsLabel ? !!v.excludeFromTasaf : null
     };
     const editing = this.editing();
     this.saving.set(true);
@@ -907,6 +921,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
       ...(m.userLabel   ? [{ header: m.userLabel,   field: 'userName' }] : []),
       ...(m.amountLabel ? [{ header: this.shortLabel(m.amountLabel), field: 'amount', formatter: (v: unknown) => v == null ? '' : String(v) }] : []),
       ...(m.segmentsLabel ? [{ header: this.shortLabel(m.segmentsLabel), field: 'excludedSegments', formatter: (v: unknown) => this.excludedLabel(v as string) }] : []),
+      ...(m.segmentsLabel ? [{ header: 'Exclude from TASAF', field: 'excludeFromTasaf', formatter: (v: unknown) => v ? 'Yes' : 'No' }] : []),
       { header: 'Description', field: 'description' },
       { header: 'Status', field: 'isActive', formatter: v => v ? 'Active' : 'Inactive' },
     ];

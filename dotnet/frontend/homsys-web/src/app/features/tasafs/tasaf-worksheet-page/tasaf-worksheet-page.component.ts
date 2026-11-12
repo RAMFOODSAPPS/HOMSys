@@ -405,7 +405,8 @@ export class TasafWorksheetPageComponent implements OnInit, OnDestroy {
         channels:         (l['channels'] ?? []).map(o => o.name),
         // Account / Store = the TASAF's Customer / Chain list; editable, so a single store can still be typed.
         chains:           (l['chains'] ?? []).map(o => o.name),
-        'product-groups': (l['product-groups'] ?? []).map(o => o.name),
+        // "Exclude from TASAF" categories aren't offered; pick() still keeps one a saved worksheet names.
+        'product-groups': (l['product-groups'] ?? []).filter(o => !o.excludeFromTasaf).map(o => o.name),
       });
       this.catIdByName = new Map((l['product-groups'] ?? []).map(o => [o.name, o.id]));
       this.pickCache.clear();
