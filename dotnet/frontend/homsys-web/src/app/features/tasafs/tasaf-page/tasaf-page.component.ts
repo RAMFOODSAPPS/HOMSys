@@ -150,7 +150,7 @@ function blankProduct(): TasafProduct {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
               <p-datepicker [ngModel]="startDate" (ngModelChange)="startDate = $event; schedulePrices()" dateFormat="M d, yy" placeholder="Select start date" [showIcon]="true"
-                [showButtonBar]="true" [maxDate]="endDate" appendTo="body" styleClass="w-full" inputStyleClass="w-full"
+                [showButtonBar]="true" [minDate]="today" [maxDate]="endDate" appendTo="body" styleClass="w-full" inputStyleClass="w-full"
                 [disabled]="readonly()" />
             </div>
           }
@@ -158,7 +158,7 @@ function blankProduct(): TasafProduct {
             <div class="field">
               <label>{{ cap(it) }}@if (isReq(it)) { <span class="req">*</span> }</label>
               <p-datepicker [(ngModel)]="endDate" dateFormat="M d, yy" placeholder="Select end date" [showIcon]="true"
-                [showButtonBar]="true" [minDate]="startDate" appendTo="body" styleClass="w-full" inputStyleClass="w-full"
+                [showButtonBar]="true" [minDate]="endMinDate()" appendTo="body" styleClass="w-full" inputStyleClass="w-full"
                 [disabled]="readonly()" />
             </div>
           }
@@ -898,6 +898,12 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   /** Program duration pickers (Date); sent as 'yyyy-MM-dd'. */
   protected startDate: Date | null = null;
   protected endDate: Date | null = null;
+  /** Earliest pickable date: today (past dates are disabled in both calendars). */
+  protected readonly today = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();
+  /** End date can't be before the start date, nor before today. */
+  protected endMinDate(): Date {
+    return this.startDate && this.startDate > this.today ? this.startDate : this.today;
+  }
   duration() { return programDuration(this.startDate, this.endDate); }
 
   ngOnInit() {

@@ -936,6 +936,13 @@ public class TasafService(
             if (d is { Year: < 2000 or > 2100 }) return $"{label} date is invalid.";
         if (dto is { StartDate: DateOnly start, EndDate: DateOnly end } && end < start)
             return "End date cannot be before the start date.";
+        // No past dates (Manila today). A date already saved on this TASAF is kept as-is,
+        // so an older draft / Returned TASAF still saves without re-picking it.
+        var today = DateOnly.FromDateTime(TodayPh());
+        if (dto.StartDate is DateOnly s && s < today && s != t.StartDate)
+            return "Start date cannot be in the past.";
+        if (dto.EndDate is DateOnly e && e < today && e != t.EndDate)
+            return "End date cannot be in the past.";
 
         // Every picked lookup must exist (inactive is allowed, so an older draft still saves).
         var checks = new (int? id, string key, string label)[]
