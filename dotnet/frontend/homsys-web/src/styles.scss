@@ -1328,3 +1328,17 @@ app-pdc-page.pdcm-fill { display: flex; flex-direction: column; height: 100%; mi
   .az-pages { display: none; }
   .az-actions { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--az-line); max-height: none; }
 }
+
+/* Find panel (shared/find-panel): one labelled field per row, controls full width. Global because the drawer is
+   appended to <body>, out of reach of the component's scoped styles. */
+.find-panel .ff { display: flex; flex-direction: column; margin-bottom: 0.9rem; }
+.find-panel .ff > label { display: block; font-weight: 600; font-size: 0.8rem; margin-bottom: 0.3rem; }
+.find-panel .ff > label .hint { font-weight: 400; color: var(--p-text-muted-color); }
+.find-panel .ff > input,
+.find-panel .ff > .p-select, .find-panel .ff > p-select,
+.find-panel .ff > .p-multiselect, .find-panel .ff > p-multiselect,
+.find-panel .ff .p-datepicker, .find-panel .ff p-datepicker,
+.find-panel .ff .p-inputnumber, .find-panel .ff p-inputnumber,
+.find-panel .ff .p-inputnumber input, .find-panel .ff .p-datepicker input { width: 100%; }
+.find-panel .ff .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.find-panel .ff .pair > * { min-width: 0; }

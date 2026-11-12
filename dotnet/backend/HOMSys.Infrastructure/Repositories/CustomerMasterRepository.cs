@@ -26,6 +26,18 @@ public class CustomerMasterRepository(AppDbContext db) : ICustomerMasterReposito
             _          => q.Where(x => !x.c.Inactive),
         };
 
+        // Find panel filters.
+        if (query.Region != null)          q = q.Where(x => x.k != null && x.k.Region == query.Region);
+        if (query.SalesGroup != null)      q = q.Where(x => x.k != null && x.k.SalesGroup == query.SalesGroup);
+        if (query.ServicingBranch != null) q = q.Where(x => x.k != null && x.k.ServicingBranch == query.ServicingBranch);
+        if (query.ChainGroup != null)      q = q.Where(x => x.k != null && x.k.ChainGroup == query.ChainGroup);
+        if (query.Zone != null)            q = q.Where(x => x.c.CZone.StartsWith(query.Zone));
+        if (query.Terms == "cash")         q = q.Where(x => x.c.Term == 0);
+        if (query.Terms == "credit")       q = q.Where(x => x.c.Term != 0);
+        if (query.InvBlocked != null)      q = q.Where(x => x.c.BlockInv == query.InvBlocked);
+        if (query.FirstOrderFrom != null)  q = q.Where(x => x.c.FirstOrder >= query.FirstOrderFrom);
+        if (query.FirstOrderTo != null)    q = q.Where(x => x.c.FirstOrder <= query.FirstOrderTo);
+
         // Every word must match somewhere — same pattern as CustomerRepository.SearchAsync.
         foreach (var token in (query.Term ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
             q = q.Where(x => x.c.CustKey.Contains(token) || x.c.CusName.Contains(token) || x.c.AddrLn1.Contains(token)
@@ -83,6 +95,19 @@ public class CustomerMasterRepository(AppDbContext db) : ICustomerMasterReposito
             .ToListAsync();
 
         return new CustomerPageDto { Total = total, Rows = rows };
+    }
+
+    public async Task<CustomerFilterOptionsDto> GetFilterOptionsAsync()
+    {
+        var k = db.CustomerClassifications.AsNoTracking();
+        static IQueryable<string> Distinct(IQueryable<string> s) => s.Where(v => v != "").Distinct().OrderBy(v => v);
+        return new CustomerFilterOptionsDto
+        {
+            Regions           = await Distinct(k.Select(x => x.Region)).ToListAsync(),
+            SalesGroups       = await Distinct(k.Select(x => x.SalesGroup)).ToListAsync(),
+            ServicingBranches = await Distinct(k.Select(x => x.ServicingBranch)).ToListAsync(),
+            ChainGroups       = await Distinct(k.Select(x => x.ChainGroup)).ToListAsync(),
+        };
     }
 
     public async Task<List<CustomerBranchCountDto>> GetBranchCountsAsync() =>

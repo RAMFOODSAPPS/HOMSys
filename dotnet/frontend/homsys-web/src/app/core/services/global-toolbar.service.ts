@@ -57,6 +57,10 @@ export interface ToolbarConfig {
   find?:         ToolbarHandler;
   search?:       (term: string) => void;
   initialSearch?: string;
+  /** The page's current search term — keeps the toolbar box in step when the Find panel changes it. */
+  searchValue?: Signal<string>;
+  /** Opens the page's Find panel (filters); `active` = number of filters set (badge). */
+  filters?: ToolbarHandler & { active?: Signal<number> };
   print?:  ToolbarHandler;
   export?: ExportConfig;
   import?: ToolbarHandler;

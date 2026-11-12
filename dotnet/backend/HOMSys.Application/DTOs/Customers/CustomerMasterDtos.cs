@@ -9,6 +9,20 @@ public class CustomerQuery
     public string? Branch { get; set; }
     /// <summary>active (default) | inactive | all.</summary>
     public string? Status { get; set; }
+
+    // Find panel filters (exact values from GET customers/filter-options; blank = any).
+    public string? Region { get; set; }
+    public string? SalesGroup { get; set; }
+    public string? ServicingBranch { get; set; }
+    public string? ChainGroup { get; set; }
+    /// <summary>CZone, starts with.</summary>
+    public string? Zone { get; set; }
+    /// <summary>cash (Term 0) | credit.</summary>
+    public string? Terms { get; set; }
+    public bool? InvBlocked { get; set; }
+    public DateOnly? FirstOrderFrom { get; set; }
+    public DateOnly? FirstOrderTo { get; set; }
+
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 25;
     /// <summary>One of CustomerMasterService.SortFields; default custKey.</summary>
@@ -61,6 +75,15 @@ public class CustomerMasterDto
     public bool Inactive { get; set; }
     public DateOnly? FirstOrder { get; set; }
     public DateTime ImportedAt { get; set; }
+}
+
+/// <summary>Distinct HOMSys classification values for the Customers Find panel.</summary>
+public class CustomerFilterOptionsDto
+{
+    public List<string> Regions { get; set; } = [];
+    public List<string> SalesGroups { get; set; } = [];
+    public List<string> ServicingBranches { get; set; } = [];
+    public List<string> ChainGroups { get; set; } = [];
 }
 
 public class CustomerBranchCountDto

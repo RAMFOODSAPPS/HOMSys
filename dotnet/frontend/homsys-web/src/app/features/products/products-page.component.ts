@@ -7,6 +7,11 @@ import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { DrawerModule } from 'primeng/drawer';
 import { MessageModule } from 'primeng/message';
+import { MultiSelectModule } from 'primeng/multiselect';
+import { InputTextModule } from 'primeng/inputtext';
+import { InputNumberModule } from 'primeng/inputnumber';
+import { DatePickerModule } from 'primeng/datepicker';
+import { FindPanelComponent } from '../../shared/find-panel/find-panel.component';
 import { GlobalToolbarService } from '../../core/services/global-toolbar.service';
 import { ExportColumn, ExportService } from '../../core/services/export.service';
 import { PriceHistoryRow, ProductCatalogItem, ProductCatalogService } from '../../core/services/product-catalog.service';
@@ -40,8 +45,60 @@ const EXPORT_COLS: ExportColumn[] = [
 @Component({
   selector: 'app-products-page',
   standalone: true,
-  imports: [FormsModule, DatePipe, DecimalPipe, TableModule, TagModule, SelectModule, SelectButtonModule, DrawerModule, MessageModule],
+  imports: [FormsModule, DatePipe, DecimalPipe, TableModule, TagModule, SelectModule, SelectButtonModule, DrawerModule, MessageModule,
+    MultiSelectModule, InputTextModule, InputNumberModule, DatePickerModule, FindPanelComponent],
   template: `
+    <app-find-panel [(visible)]="findVisible" [active]="activeFilters()" (clear)="clearFilters()">
+      <div class="ff">
+        <label>Search <span class="hint">(ProdNo, description, brand, barcode…)</span></label>
+        <input pInputText [ngModel]="searchTerm()" (ngModelChange)="searchTerm.set($event)" />
+      </div>
+      <div class="ff">
+        <label>Status</label>
+        <p-select [options]="statusViews" optionLabel="label" optionValue="value" [ngModel]="statusView()"
+          (ngModelChange)="statusView.set($event)" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Product Category</label>
+        <p-multiselect [options]="optsOf('productCategory')" [ngModel]="productCats()" (ngModelChange)="productCats.set($event)"
+          placeholder="All" [filter]="true" [showClear]="true" display="chip" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Category <span class="hint">(code)</span></label>
+        <p-multiselect [options]="optsOf('category')" [ngModel]="categories()" (ngModelChange)="categories.set($event)"
+          placeholder="All" [filter]="true" [showClear]="true" display="chip" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Segment</label>
+        <p-select [options]="groups()" [ngModel]="group()" (ngModelChange)="group.set($event)"
+          placeholder="All" [showClear]="true" [filter]="true" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Sub-Category</label>
+        <p-multiselect [options]="optsOf('subCat')" [ngModel]="subCats()" (ngModelChange)="subCats.set($event)"
+          placeholder="All" [filter]="true" [showClear]="true" display="chip" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Brand</label>
+        <p-multiselect [options]="optsOf('brand')" [ngModel]="brands()" (ngModelChange)="brands.set($event)"
+          placeholder="All" [filter]="true" [showClear]="true" display="chip" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>LSP / Case</label>
+        <div class="pair">
+          <p-inputnumber [ngModel]="priceMin()" (ngModelChange)="priceMin.set($event)" mode="decimal" [minFractionDigits]="0" [maxFractionDigits]="2" placeholder="Min" />
+          <p-inputnumber [ngModel]="priceMax()" (ngModelChange)="priceMax.set($event)" mode="decimal" [minFractionDigits]="0" [maxFractionDigits]="2" placeholder="Max" />
+        </div>
+      </div>
+      <div class="ff">
+        <label>Price From <span class="hint">(effective date)</span></label>
+        <div class="pair">
+          <p-datepicker [ngModel]="pfFrom()" (ngModelChange)="pfFrom.set($event)" dateFormat="mm/dd/yy" [showButtonBar]="true" appendTo="body" placeholder="From" />
+          <p-datepicker [ngModel]="pfTo()" (ngModelChange)="pfTo.set($event)" dateFormat="mm/dd/yy" [showButtonBar]="true" appendTo="body" placeholder="To" />
+        </div>
+      </div>
+    </app-find-panel>
+
     <div class="filters">
       <p-select [options]="groups()" [ngModel]="group()" (ngModelChange)="group.set($event)"
         placeholder="All segments" [showClear]="true" [filter]="true" styleClass="group-sel" />
@@ -176,14 +233,58 @@ export class ProductsPageComponent implements OnInit, OnDestroy {
   protected groups = computed(() =>
     [...new Set(this.all().map(p => p.groupDesc).filter((g): g is string => !!g))].sort());
 
+  // Find panel filters (blank / empty = any).
+  protected findVisible = signal(false);
+  protected productCats = signal<string[]>([]);
+  protected categories  = signal<string[]>([]);
+  protected subCats     = signal<string[]>([]);
+  protected brands      = signal<string[]>([]);
+  protected priceMin    = signal<number | null>(null);
+  protected priceMax    = signal<number | null>(null);
+  protected pfFrom      = signal<Date | null>(null);
+  protected pfTo        = signal<Date | null>(null);
+
+  protected activeFilters = computed(() =>
+    [this.searchTerm().trim(), this.statusView() !== 'active', this.group(), this.productCats().length, this.categories().length,
+     this.subCats().length, this.brands().length, this.priceMin() != null, this.priceMax() != null, this.pfFrom(), this.pfTo()]
+      .filter(Boolean).length);
+
+  /** Distinct non-blank values of a field, sorted (Find panel options). */
+  private optCache = computed(() => {
+    const keys = ['productCategory', 'category', 'subCat', 'brand'] as const;
+    return Object.fromEntries(keys.map(k => [k,
+      [...new Set(this.all().map(p => (p[k] ?? '').trim()).filter(v => v))].sort()])) as Record<string, string[]>;
+  });
+  optsOf(key: 'productCategory' | 'category' | 'subCat' | 'brand') { return this.optCache()[key]; }
+
+  clearFilters() {
+    this.searchTerm.set(''); this.statusView.set('active'); this.group.set(null);
+    this.productCats.set([]); this.categories.set([]); this.subCats.set([]); this.brands.set([]);
+    this.priceMin.set(null); this.priceMax.set(null); this.pfFrom.set(null); this.pfTo.set(null);
+  }
+
   protected filtered = computed(() => {
     const term = this.searchTerm().toLowerCase().trim();
     const tokens = term ? term.split(/\s+/) : [];
     const g = this.group();
     const v = this.statusView();
+    const pc = new Set(this.productCats()), cat = new Set(this.categories()), sc = new Set(this.subCats()), br = new Set(this.brands());
+    const min = this.priceMin(), max = this.priceMax();
+    const from = this.pfFrom(), to = this.pfTo();
+    const fromT = from ? new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime() : null;
+    const toT   = to ? new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59).getTime() : null;
+    const day = (s: string | null) => s ? new Date(s.length === 10 ? s + 'T00:00:00' : s).getTime() : NaN;
     return this.all().filter(p =>
       (v === 'all' || (v === 'active') === (p.status === 'Active')) &&
       (!g || p.groupDesc === g) &&
+      (!pc.size || pc.has((p.productCategory ?? '').trim())) &&
+      (!cat.size || cat.has(p.category.trim())) &&
+      (!sc.size || sc.has((p.subCat ?? '').trim())) &&
+      (!br.size || br.has(p.brand.trim())) &&
+      (min == null || (p.newPrice ?? -Infinity) >= min) &&
+      (max == null || (p.newPrice ?? Infinity) <= max) &&
+      (fromT == null || day(p.priceFrom) >= fromT) &&
+      (toT == null || day(p.priceFrom) <= toT) &&
       tokens.every(t =>
         p.cProdNo.toLowerCase().includes(t) || p.prodDesc.toLowerCase().includes(t) ||
         p.packSize.toLowerCase().includes(t) || p.brand.toLowerCase().includes(t) ||
@@ -196,6 +297,8 @@ export class ProductsPageComponent implements OnInit, OnDestroy {
       title:   'Products',
       refresh: { onClick: () => this.load(), loading: this.loading },
       search:  term => this.searchTerm.set(term),
+      searchValue: this.searchTerm,
+      filters: { onClick: () => this.findVisible.set(true), active: this.activeFilters },
       print:   { onClick: () => window.print() },
       export:  { pdf: () => this.export('pdf'), excel: () => this.export('excel'), csv: () => this.export('csv') },
     });

@@ -133,9 +133,11 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
           </div>
         }
 
-        <!-- Search box (live filter — list pages only) -->
-        @if (cfg().search) {
+        <!-- Search box (live filter — list pages only) + Find panel (filters) -->
+        @if (cfg().search || cfg().filters) {
           <p-divider layout="vertical" />
+        }
+        @if (cfg().search) {
           <div class="search-group">
             <p-iconfield>
               <p-inputicon class="pi pi-search" />
@@ -149,6 +151,14 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
                 (onClick)="clearSearch()" />
             }
           </div>
+        }
+        @if (cfg().filters; as f) {
+          <span class="filter-btn">
+            <p-button icon="pi pi-filter" pTooltip="Find — filters" tooltipPosition="bottom"
+              [text]="true" [styleClass]="(f.active?.() ?? 0) > 0 ? 'view-on' : ''"
+              [disabled]="f.disabled ? f.disabled() : false" (onClick)="f.onClick()" />
+            @if ((f.active?.() ?? 0) > 0) { <span class="badge">{{ f.active!() }}</span> }
+          </span>
         }
 
         <!-- IO actions -->
@@ -254,6 +264,13 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
       gap: 0.25rem;
     }
 
+    .filter-btn { position: relative; display: inline-flex; }
+    .filter-btn .badge {
+      position: absolute; top: 1px; right: 0; min-width: 14px; height: 14px; padding: 0 3px;
+      border-radius: 7px; background: #800000; color: #fff; font-size: 0.6rem; line-height: 14px;
+      text-align: center; pointer-events: none;
+    }
+
     .search-input {
       height: 26px;
       font-size: 0.78rem;
@@ -307,8 +324,8 @@ export class PageToolbarComponent {
 
   constructor() {
     effect(() => {
-      const initial = this.toolbar.config().initialSearch;
-      this.searchTerm = initial ?? '';
+      const c = this.toolbar.config();
+      this.searchTerm = (c.searchValue ? c.searchValue() : c.initialSearch) ?? '';
     });
   }
 
@@ -316,7 +333,7 @@ export class PageToolbarComponent {
 
   protected hasAnyAction() {
     const c = this.cfg();
-    return c.save || c.submit || c.approve || c.return || c.reject || c.revert || c.cancelDoc || c.cancel || c.clearForm || c.add || c.edit || c.history || c.delete || c.refresh || c.find || c.search || c.print || c.export || c.import || c.importByName || c.design || c.views;
+    return c.save || c.submit || c.approve || c.return || c.reject || c.revert || c.cancelDoc || c.cancel || c.clearForm || c.add || c.edit || c.history || c.delete || c.refresh || c.find || c.search || c.filters || c.print || c.export || c.import || c.importByName || c.design || c.views;
   }
 
   protected exportMenuItems(): MenuItem[] {

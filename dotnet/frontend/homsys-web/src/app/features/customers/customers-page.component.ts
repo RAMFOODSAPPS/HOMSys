@@ -9,11 +9,14 @@ import { DrawerModule } from 'primeng/drawer';
 import { MessageModule } from 'primeng/message';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
+import { InputTextModule } from 'primeng/inputtext';
+import { DatePickerModule } from 'primeng/datepicker';
 import { GlobalToolbarService } from '../../core/services/global-toolbar.service';
 import { ExportColumn, ExportService } from '../../core/services/export.service';
 import {
-  CustomerBranchCount, CustomerMaster, CustomerMasterService, CustomerQuery
+  CustomerBranchCount, CustomerFilterOptions, CustomerMaster, CustomerMasterService, CustomerQuery
 } from '../../core/services/customer-master.service';
+import { FindPanelComponent } from '../../shared/find-panel/find-panel.component';
 import { utc } from '../../core/utils/utc-date';
 
 type StatusView = 'active' | 'inactive' | 'all';
@@ -21,6 +24,9 @@ const PAGE_SIZE = 25;
 const EXPORT_MAX = 20000;
 
 const yesNo = (v: unknown) => v ? 'Yes' : '';
+/** Local date → 'yyyy-MM-dd' (null stays null). */
+const ymd = (d: Date | null) => d
+  ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : null;
 const EXPORT_COLS: ExportColumn[] = [
   { header: 'Branch',      field: 'branch' },
   { header: 'Cust Key',    field: 'custKey' },
@@ -48,9 +54,69 @@ const EXPORT_COLS: ExportColumn[] = [
   standalone: true,
   providers: [MessageService],
   imports: [FormsModule, DatePipe, DecimalPipe, TableModule, TagModule, SelectModule, SelectButtonModule,
-    DrawerModule, MessageModule, ToastModule],
+    DrawerModule, MessageModule, ToastModule, InputTextModule, DatePickerModule, FindPanelComponent],
   template: `
     <p-toast position="top-right" />
+
+    <app-find-panel [(visible)]="findVisible" [active]="activeFilters()" (clear)="clearFilters()">
+      <div class="ff">
+        <label>Search <span class="hint">(key, name, address, zone, TIN…)</span></label>
+        <input pInputText [ngModel]="term()" (ngModelChange)="onSearch($event)" />
+      </div>
+      <div class="ff">
+        <label>Status</label>
+        <p-select [options]="statusViews" optionLabel="label" optionValue="value" [ngModel]="status()"
+          (ngModelChange)="status.set($event); reload()" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Branch folder</label>
+        <p-select [options]="branchOptions()" optionLabel="label" optionValue="value" [ngModel]="branch()"
+          (ngModelChange)="branch.set($event); reload()" placeholder="All" [showClear]="true" [filter]="true" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Region</label>
+        <p-select [options]="opts().regions" [ngModel]="region()" (ngModelChange)="region.set($event); reload()"
+          placeholder="All" [showClear]="true" [filter]="true" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Sales Group</label>
+        <p-select [options]="opts().salesGroups" [ngModel]="salesGroup()" (ngModelChange)="salesGroup.set($event); reload()"
+          placeholder="All" [showClear]="true" [filter]="true" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Customer/Chain/Group</label>
+        <p-select [options]="opts().chainGroups" [ngModel]="chainGroup()" (ngModelChange)="chainGroup.set($event); reload()"
+          placeholder="All" [showClear]="true" [filter]="true" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Servicing Branch</label>
+        <p-select [options]="opts().servicingBranches" [ngModel]="servicingBranch()" (ngModelChange)="servicingBranch.set($event); reload()"
+          placeholder="All" [showClear]="true" [filter]="true" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Zone <span class="hint">(starts with)</span></label>
+        <input pInputText [ngModel]="zone()" (ngModelChange)="zone.set($event); debouncedReload()" />
+      </div>
+      <div class="ff">
+        <label>Terms</label>
+        <p-select [options]="termOptions" optionLabel="label" optionValue="value" [ngModel]="terms()"
+          (ngModelChange)="terms.set($event); reload()" placeholder="All" [showClear]="true" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Invoice Blocked</label>
+        <p-select [options]="yesNoOptions" optionLabel="label" optionValue="value" [ngModel]="invBlocked()"
+          (ngModelChange)="invBlocked.set($event); reload()" placeholder="All" [showClear]="true" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>First Order</label>
+        <div class="pair">
+          <p-datepicker [ngModel]="foFrom()" (ngModelChange)="foFrom.set($event); reload()" dateFormat="mm/dd/yy"
+            [showButtonBar]="true" appendTo="body" placeholder="From" />
+          <p-datepicker [ngModel]="foTo()" (ngModelChange)="foTo.set($event); reload()" dateFormat="mm/dd/yy"
+            [showButtonBar]="true" appendTo="body" placeholder="To" />
+        </div>
+      </div>
+    </app-find-panel>
 
     <div class="filters">
       <p-select [options]="branchOptions()" optionLabel="label" optionValue="value" [ngModel]="branch()"
@@ -178,8 +244,28 @@ export class CustomersPageComponent implements OnInit, OnDestroy {
   protected status    = signal<StatusView>('active');
   protected current   = signal<CustomerMaster | null>(null);
   protected drawerVisible = false;
+  protected findVisible = signal(false);
 
-  private term = '';
+  // Find panel filters.
+  protected readonly termOptions  = [{ label: 'Cash', value: 'cash' }, { label: 'Credit', value: 'credit' }];
+  protected readonly yesNoOptions = [{ label: 'Yes', value: true }, { label: 'No', value: false }];
+  protected opts            = signal<CustomerFilterOptions>({ regions: [], salesGroups: [], servicingBranches: [], chainGroups: [] });
+  protected term            = signal('');
+  protected region          = signal<string | null>(null);
+  protected salesGroup      = signal<string | null>(null);
+  protected servicingBranch = signal<string | null>(null);
+  protected chainGroup      = signal<string | null>(null);
+  protected zone            = signal('');
+  protected terms           = signal<'cash' | 'credit' | null>(null);
+  protected invBlocked      = signal<boolean | null>(null);
+  protected foFrom          = signal<Date | null>(null);
+  protected foTo            = signal<Date | null>(null);
+
+  protected activeFilters = computed(() =>
+    [this.term().trim(), this.status() !== 'active', this.branch(), this.region(), this.salesGroup(), this.servicingBranch(),
+     this.chainGroup(), this.zone().trim(), this.terms(), this.invBlocked() != null, this.foFrom(), this.foTo()]
+      .filter(Boolean).length);
+
   private searchTimer?: ReturnType<typeof setTimeout>;
   private last: CustomerQuery = { page: 1, pageSize: PAGE_SIZE, sortField: 'custKey', sortDesc: false };
 
@@ -188,10 +274,13 @@ export class CustomersPageComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.api.getBranches().subscribe(res => this.branches.set(res.data ?? []));
+    this.api.getFilterOptions().subscribe(res => res.data && this.opts.set(res.data));
     this.toolbar.set({
       title:   'Customers',
       refresh: { onClick: () => this.fetch(), loading: this.loading },
       search:  term => this.onSearch(term),
+      searchValue: this.term,
+      filters: { onClick: () => this.findVisible.set(true), active: this.activeFilters },
       print:   { onClick: () => window.print() },
       export:  { pdf: () => this.export('pdf'), excel: () => this.export('excel'), csv: () => this.export('csv') },
     });
@@ -216,9 +305,22 @@ export class CustomersPageComponent implements OnInit, OnDestroy {
     this.fetch();
   }
 
-  private onSearch(term: string) {
+  protected onSearch(term: string) {
+    this.term.set(term);
+    this.debouncedReload();
+  }
+
+  protected debouncedReload() {
     clearTimeout(this.searchTimer);
-    this.searchTimer = setTimeout(() => { this.term = term.trim(); this.reload(); }, 400);
+    this.searchTimer = setTimeout(() => this.reload(), 400);
+  }
+
+  protected clearFilters() {
+    clearTimeout(this.searchTimer);
+    this.term.set(''); this.status.set('active'); this.branch.set(null); this.region.set(null);
+    this.salesGroup.set(null); this.servicingBranch.set(null); this.chainGroup.set(null); this.zone.set('');
+    this.terms.set(null); this.invBlocked.set(null); this.foFrom.set(null); this.foTo.set(null);
+    this.reload();
   }
 
   /** Filters changed — back to page 1. */
@@ -229,7 +331,12 @@ export class CustomersPageComponent implements OnInit, OnDestroy {
   }
 
   private query(): CustomerQuery {
-    return { ...this.last, term: this.term, branch: this.branch(), status: this.status() };
+    return {
+      ...this.last, term: this.term().trim(), branch: this.branch(), status: this.status(),
+      region: this.region(), salesGroup: this.salesGroup(), servicingBranch: this.servicingBranch(),
+      chainGroup: this.chainGroup(), zone: this.zone().trim(), terms: this.terms(), invBlocked: this.invBlocked(),
+      firstOrderFrom: ymd(this.foFrom()), firstOrderTo: ymd(this.foTo()),
+    };
   }
 
   private fetch() {

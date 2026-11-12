@@ -8,4 +8,5 @@ public interface ICustomerMasterRepository
     /// <summary>query is already normalised (page ≥ 1, page size capped, sort field whitelisted).</summary>
     Task<CustomerPageDto> GetPageAsync(CustomerQuery query);
     Task<List<CustomerBranchCountDto>> GetBranchCountsAsync();
+    Task<CustomerFilterOptionsDto> GetFilterOptionsAsync();
 }

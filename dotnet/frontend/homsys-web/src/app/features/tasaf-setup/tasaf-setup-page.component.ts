@@ -23,6 +23,7 @@ import {
 } from '../../core/models/tasaf-master.model';
 import { utc } from '../../core/utils/utc-date';
 import { ActivatedRoute } from '@angular/router';
+import { FindPanelComponent } from '../../shared/find-panel/find-panel.component';
 
 const LAST_MASTER_KEY = 'homsys_tasaf_setup_master';
 /**
@@ -44,11 +45,37 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
   imports: [
     ReactiveFormsModule, FormsModule, DatePipe, DecimalPipe, TableModule, ButtonModule, TagModule, DialogModule,
     InputTextModule, InputNumberModule, SelectModule, MultiSelectModule, ToggleSwitchModule, TextareaModule,
-    MessageModule, ToastModule, ConfirmDialogModule
+    MessageModule, ToastModule, ConfirmDialogModule, FindPanelComponent
   ],
   template: `
     <p-toast position="top-right" />
     <p-confirmDialog />
+
+    <app-find-panel [(visible)]="findVisible" [active]="activeFilters()" (clear)="clearFilters()">
+      <div class="ff">
+        <label>Search <span class="hint">(code, name, description…)</span></label>
+        <input pInputText [ngModel]="searchTerm()" (ngModelChange)="searchTerm.set($event)" />
+      </div>
+      <div class="ff">
+        <label>Status</label>
+        <p-select [options]="statusOptions" optionLabel="label" optionValue="value" [ngModel]="statusFilter()"
+          (ngModelChange)="statusFilter.set($event)" appendTo="body" />
+      </div>
+      @if (current()?.parentLabel; as pl) {
+        <div class="ff">
+          <label>{{ pl }}</label>
+          <p-multiselect [options]="parentNames()" [ngModel]="fParents()" (ngModelChange)="fParents.set($event)"
+            placeholder="All" [showClear]="true" [filter]="true" display="chip" appendTo="body" />
+        </div>
+      }
+      @if (current()?.segmentsLabel) {
+        <div class="ff">
+          <label>Excluded segments</label>
+          <p-select [options]="hasOptions" optionLabel="label" optionValue="value" [ngModel]="fExcluded()"
+            (ngModelChange)="fExcluded.set($event)" placeholder="Any" [showClear]="true" appendTo="body" />
+        </div>
+      }
+    </app-find-panel>
 
     <div class="setup">
       <nav class="masters">
@@ -195,7 +222,7 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
               text="One approval matrix per type. Link each Program Type to its Approval Type, then set the roles in Approval Rules." />
           }
           <div class="inactive-toggle">
-            <p-toggleswitch inputId="showInactive" [ngModel]="showInactive()" (ngModelChange)="showInactive.set($event)" />
+            <p-toggleswitch inputId="showInactive" [ngModel]="statusFilter() !== 'active'" (ngModelChange)="statusFilter.set($event ? 'all' : 'active')" />
             <label for="showInactive">Show inactive</label>
           </div>
           <p-table [value]="filteredRows()" [loading]="loading()" [paginator]="true" [rows]="15"
@@ -454,12 +481,35 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     { label: 'Over amount',  value: 'over' },
   ];
 
-  /** Off = active rows only (the default). */
-  protected showInactive = signal(false);
+  /** Active rows only by default ("Show inactive" toggle = all). */
+  protected statusFilter = signal<'active' | 'inactive' | 'all'>('active');
+
+  // Find panel.
+  protected findVisible = signal(false);
+  protected readonly statusOptions = [
+    { label: 'Active', value: 'active' }, { label: 'Inactive', value: 'inactive' }, { label: 'All', value: 'all' },
+  ];
+  protected readonly hasOptions = [{ label: 'With excluded segments', value: true }, { label: 'None excluded', value: false }];
+  protected fParents  = signal<string[]>([]);
+  protected fExcluded = signal<boolean | null>(null);
+  protected parentNames = computed(() =>
+    [...new Set(this.rows().map(r => (r.parentName ?? '').trim()).filter(v => v))].sort());
+  protected activeFilters = computed(() =>
+    [this.searchTerm().trim(), this.statusFilter() !== 'active', this.fParents().length, this.fExcluded() != null].filter(Boolean).length);
+
+  clearFilters() {
+    this.searchTerm.set(''); this.statusFilter.set('active'); this.fParents.set([]); this.fExcluded.set(null);
+  }
 
   protected filteredRows = computed(() => {
     const term = this.searchTerm().toLowerCase().trim();
-    const rows = this.showInactive() ? this.rows() : this.rows().filter(r => r.isActive);
+    const s = this.statusFilter();
+    const parents = new Set(this.fParents());
+    const ex = this.fExcluded();
+    const rows = this.rows().filter(r =>
+      (s === 'all' || r.isActive === (s === 'active')) &&
+      (!parents.size || parents.has((r.parentName ?? '').trim())) &&
+      (ex == null || !!(r.excludedSegments ?? '').trim() === ex));
     if (!term) return rows;
     return rows.filter(r =>
       r.name.toLowerCase().includes(term) ||
@@ -541,6 +591,8 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
       refresh: { onClick: () => this.matrixMode() ? this.loadMatrix() : this.rulesMode() ? this.loadRules()
                                  : this.numberingMode() ? this.loadNumbering() : this.loadRows(), loading: this.loading },
       search:  term => this.searchTerm.set(term),
+      searchValue: this.searchTerm,
+      filters: { onClick: () => this.findVisible.set(true), active: this.activeFilters, disabled: this.notMaster },
       export:  { pdf: () => this.export('pdf'), excel: () => this.export('excel'), csv: () => this.export('csv') },
     });
   }
@@ -728,6 +780,8 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
 
   selectMaster(m: TasafMasterMeta) {
     this.setView('master', m.key);
+    // List-specific filters don't carry over to another list.
+    if (this.current()?.key !== m.key) { this.fParents.set([]); this.fExcluded.set(null); }
     this.current.set(m);
     this.loadRows();
   }

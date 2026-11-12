@@ -12,11 +12,20 @@ import { TasafService } from '../../../core/services/tasaf.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { FormsModule } from '@angular/forms';
 import { SelectButtonModule } from 'primeng/selectbutton';
+import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
+import { InputTextModule } from 'primeng/inputtext';
+import { InputNumberModule } from 'primeng/inputnumber';
+import { DatePickerModule } from 'primeng/datepicker';
+import { FindPanelComponent } from '../../../shared/find-panel/find-panel.component';
 import { formatPeriod, TASAF_STATUS_SEVERITY, TasafListItem } from '../../../core/models/tasaf.model';
 import { utc } from '../../../core/utils/utc-date';
 
 type View = 'action' | 'mine' | 'all';
 const VIEW_KEY = 'homsys_tasaf_list_view';
+/** Local date → 'yyyy-MM-dd' (null stays null). */
+const ymd = (d: Date | null) => d
+  ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : null;
 
 const EXPORT_COLS: ExportColumn[] = [
   { header: 'Document No',  field: 'refNo' },
@@ -40,10 +49,73 @@ const EXPORT_COLS: ExportColumn[] = [
   selector: 'app-tasaf-list-page',
   standalone: true,
   providers: [ConfirmationService, MessageService],
-  imports: [TableModule, TagModule, ToastModule, ConfirmDialogModule, DatePipe, DecimalPipe, FormsModule, SelectButtonModule],
+  imports: [TableModule, TagModule, ToastModule, ConfirmDialogModule, DatePipe, DecimalPipe, FormsModule, SelectButtonModule,
+    SelectModule, MultiSelectModule, InputTextModule, InputNumberModule, DatePickerModule, FindPanelComponent],
   template: `
     <p-toast position="top-right" />
     <p-confirmDialog />
+
+    <app-find-panel [(visible)]="findVisible" [active]="activeFilters()" (clear)="clearFilters()">
+      <div class="ff">
+        <label>Search <span class="hint">(document no., TPAR, title, customer…)</span></label>
+        <input pInputText [ngModel]="searchTerm()" (ngModelChange)="searchTerm.set($event)" />
+      </div>
+      <div class="ff">
+        <label>Show</label>
+        <p-select [options]="views()" optionLabel="label" optionValue="value" [ngModel]="view()"
+          (ngModelChange)="setView($event)" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Status</label>
+        <p-multiselect [options]="optsOf('status')" [ngModel]="fStatus()" (ngModelChange)="fStatus.set($event)"
+          placeholder="All" [showClear]="true" display="chip" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Sales Group</label>
+        <p-multiselect [options]="optsOf('salesGroupName')" [ngModel]="fGroups()" (ngModelChange)="fGroups.set($event)"
+          placeholder="All" [showClear]="true" [filter]="true" display="chip" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Program Type</label>
+        <p-multiselect [options]="optsOf('programTypeName')" [ngModel]="fTypes()" (ngModelChange)="fTypes.set($event)"
+          placeholder="All" [showClear]="true" [filter]="true" display="chip" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Customer / Chain <span class="hint">(contains)</span></label>
+        <input pInputText [ngModel]="fCustomer()" (ngModelChange)="fCustomer.set($event)" />
+      </div>
+      <div class="ff">
+        <label>Proponent</label>
+        <p-multiselect [options]="optsOf('proponentName')" [ngModel]="fProponents()" (ngModelChange)="fProponents.set($event)"
+          placeholder="All" [showClear]="true" [filter]="true" display="chip" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Waiting On</label>
+        <p-multiselect [options]="optsOf('currentApproverName')" [ngModel]="fApprovers()" (ngModelChange)="fApprovers.set($event)"
+          placeholder="Anyone" [showClear]="true" [filter]="true" display="chip" appendTo="body" />
+      </div>
+      <div class="ff">
+        <label>Total Cost</label>
+        <div class="pair">
+          <p-inputnumber [ngModel]="costMin()" (ngModelChange)="costMin.set($event)" mode="decimal" [maxFractionDigits]="2" placeholder="Min" />
+          <p-inputnumber [ngModel]="costMax()" (ngModelChange)="costMax.set($event)" mode="decimal" [maxFractionDigits]="2" placeholder="Max" />
+        </div>
+      </div>
+      <div class="ff">
+        <label>Program Duration <span class="hint">(runs within / overlaps)</span></label>
+        <div class="pair">
+          <p-datepicker [ngModel]="progFrom()" (ngModelChange)="progFrom.set($event)" dateFormat="mm/dd/yy" [showButtonBar]="true" appendTo="body" placeholder="From" />
+          <p-datepicker [ngModel]="progTo()" (ngModelChange)="progTo.set($event)" dateFormat="mm/dd/yy" [showButtonBar]="true" appendTo="body" placeholder="To" />
+        </div>
+      </div>
+      <div class="ff">
+        <label>Created</label>
+        <div class="pair">
+          <p-datepicker [ngModel]="createdFrom()" (ngModelChange)="createdFrom.set($event)" dateFormat="mm/dd/yy" [showButtonBar]="true" appendTo="body" placeholder="From" />
+          <p-datepicker [ngModel]="createdTo()" (ngModelChange)="createdTo.set($event)" dateFormat="mm/dd/yy" [showButtonBar]="true" appendTo="body" placeholder="To" />
+        </div>
+      </div>
+    </app-find-panel>
 
     <div class="views">
       <p-selectButton [options]="views()" [ngModel]="view()" (ngModelChange)="setView($event)"
@@ -91,7 +163,7 @@ const EXPORT_COLS: ExportColumn[] = [
         </tr>
       </ng-template>
       <ng-template pTemplate="emptymessage">
-        <tr><td colspan="13" class="text-center">{{ view() === 'action' ? 'Nothing is waiting for your action.' : 'No TASAFs yet.' }}</td></tr>
+        <tr><td colspan="13" class="text-center">{{ view() === 'action' ? 'Nothing is waiting for your action.' : all().length ? 'No TASAFs match.' : 'No TASAFs yet.' }}</td></tr>
       </ng-template>
     </p-table>
   `,
@@ -136,10 +208,65 @@ export class TasafListPageComponent implements OnInit, OnDestroy {
     ];
   });
 
+  // Find panel filters (blank / empty = any).
+  protected findVisible = signal(false);
+  protected fStatus     = signal<string[]>([]);
+  protected fGroups     = signal<string[]>([]);
+  protected fTypes      = signal<string[]>([]);
+  protected fCustomer   = signal('');
+  protected fProponents = signal<string[]>([]);
+  protected fApprovers  = signal<string[]>([]);
+  protected costMin     = signal<number | null>(null);
+  protected costMax     = signal<number | null>(null);
+  protected progFrom    = signal<Date | null>(null);
+  protected progTo      = signal<Date | null>(null);
+  protected createdFrom = signal<Date | null>(null);
+  protected createdTo   = signal<Date | null>(null);
+
+  protected activeFilters = computed(() =>
+    [this.searchTerm().trim(), this.view() !== 'all', this.fStatus().length, this.fGroups().length, this.fTypes().length,
+     this.fCustomer().trim(), this.fProponents().length, this.fApprovers().length, this.costMin() != null,
+     this.costMax() != null, this.progFrom(), this.progTo(), this.createdFrom(), this.createdTo()].filter(Boolean).length);
+
+  private optCache = computed(() => {
+    const keys = ['status', 'salesGroupName', 'programTypeName', 'proponentName', 'currentApproverName'] as const;
+    return Object.fromEntries(keys.map(k => [k,
+      [...new Set(this.all().map(t => (t[k] ?? '').trim()).filter(v => v))].sort()])) as Record<string, string[]>;
+  });
+  optsOf(key: 'status' | 'salesGroupName' | 'programTypeName' | 'proponentName' | 'currentApproverName') { return this.optCache()[key]; }
+
+  clearFilters() {
+    this.searchTerm.set(''); this.setView('all');
+    this.fStatus.set([]); this.fGroups.set([]); this.fTypes.set([]); this.fCustomer.set('');
+    this.fProponents.set([]); this.fApprovers.set([]); this.costMin.set(null); this.costMax.set(null);
+    this.progFrom.set(null); this.progTo.set(null); this.createdFrom.set(null); this.createdTo.set(null);
+  }
+
   protected filtered = computed(() => {
     const term = this.searchTerm().toLowerCase().trim();
     const v = this.view();
-    const rows = this.all().filter(t => v === 'all' || (v === 'mine' ? t.isMine : t.awaitingMe));
+    const st = new Set(this.fStatus()), sg = new Set(this.fGroups()), pt = new Set(this.fTypes());
+    const pr = new Set(this.fProponents()), ap = new Set(this.fApprovers());
+    const cust = this.fCustomer().toLowerCase().trim();
+    const min = this.costMin(), max = this.costMax();
+    const pFrom = ymd(this.progFrom()), pTo = ymd(this.progTo());
+    const cFrom = ymd(this.createdFrom()), cTo = ymd(this.createdTo());
+    const localDay = (s: string | null) => s ? ymd(new Date(utc(s)!)) : null;
+    const rows = this.all().filter(t =>
+      (v === 'all' || (v === 'mine' ? t.isMine : t.awaitingMe)) &&
+      (!st.size || st.has(t.status)) &&
+      (!sg.size || sg.has((t.salesGroupName ?? '').trim())) &&
+      (!pt.size || pt.has((t.programTypeName ?? '').trim())) &&
+      (!pr.size || pr.has(t.proponentName.trim())) &&
+      (!ap.size || ap.has((t.currentApproverName ?? '').trim())) &&
+      (!cust || `${t.chainName ?? ''} ${t.customerName ?? ''}`.toLowerCase().includes(cust)) &&
+      (min == null || t.totalCost >= min) &&
+      (max == null || t.totalCost <= max) &&
+      // Program overlaps [from, to]: ends on/after From and starts on/before To.
+      (!pFrom || (!!(t.endDate ?? t.startDate) && (t.endDate ?? t.startDate)!.slice(0, 10) >= pFrom)) &&
+      (!pTo || (!!(t.startDate ?? t.endDate) && (t.startDate ?? t.endDate)!.slice(0, 10) <= pTo)) &&
+      (!cFrom || localDay(t.createdAt)! >= cFrom) &&
+      (!cTo || localDay(t.createdAt)! <= cTo));
     if (!term) return rows;
     return rows.filter(t =>
       [t.refNo, t.tparNo, t.status, t.title, t.salesGroupName, t.chainName, t.customerName, t.programTypeName, t.proponentName]
@@ -157,6 +284,8 @@ export class TasafListPageComponent implements OnInit, OnDestroy {
       refresh:       { onClick: () => this.load(), loading: this.loading },
       search:        term => this.searchTerm.set(term),
       initialSearch: this.initialSearch,
+      searchValue:   this.searchTerm,
+      filters:       { onClick: () => this.findVisible.set(true), active: this.activeFilters },
       print:         { onClick: () => window.print() },
       export:        { pdf: () => this.export('pdf'), excel: () => this.export('excel'), csv: () => this.export('csv') },
     });

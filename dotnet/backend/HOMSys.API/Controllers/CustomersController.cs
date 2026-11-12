@@ -18,4 +18,8 @@ public class CustomersController(CustomerMasterService service) : ControllerBase
     [HttpGet("branches")]
     public async Task<IActionResult> Branches() =>
         Ok(new { success = true, data = await service.GetBranchesAsync() });
+
+    [HttpGet("filter-options")]
+    public async Task<IActionResult> FilterOptions() =>
+        Ok(new { success = true, data = await service.GetFilterOptionsAsync() });
 }

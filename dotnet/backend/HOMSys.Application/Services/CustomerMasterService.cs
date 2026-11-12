@@ -18,6 +18,12 @@ public class CustomerMasterService(ICustomerMasterRepository repo)
         query.Term      = query.Term?.Trim();
         query.Branch    = string.IsNullOrWhiteSpace(query.Branch) ? null : query.Branch.Trim();
         query.Status    = query.Status?.Trim().ToLowerInvariant() is "inactive" or "all" ? query.Status.Trim().ToLowerInvariant() : "active";
+        query.Region          = Blank(query.Region);
+        query.SalesGroup      = Blank(query.SalesGroup);
+        query.ServicingBranch = Blank(query.ServicingBranch);
+        query.ChainGroup      = Blank(query.ChainGroup);
+        query.Zone            = Blank(query.Zone);
+        query.Terms           = query.Terms?.Trim().ToLowerInvariant() is "cash" or "credit" ? query.Terms.Trim().ToLowerInvariant() : null;
         query.Page      = Math.Max(1, query.Page);
         query.PageSize  = Math.Clamp(query.PageSize, 1, MaxPageSize);
         query.SortField = SortFields.Contains(query.SortField) ? query.SortField : "custKey";
@@ -38,4 +44,8 @@ public class CustomerMasterService(ICustomerMasterRepository repo)
     }
 
     public Task<List<CustomerBranchCountDto>> GetBranchesAsync() => repo.GetBranchCountsAsync();
+
+    public Task<CustomerFilterOptionsDto> GetFilterOptionsAsync() => repo.GetFilterOptionsAsync();
+
+    private static string? Blank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 }
