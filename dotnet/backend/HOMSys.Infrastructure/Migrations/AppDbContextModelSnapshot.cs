@@ -7321,6 +7321,11 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("ExcludedSegments")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -7358,6 +7363,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludedSegments = "",
                             IsActive = true,
                             Name = "Tom Sauce/Paste",
                             SortOrder = 1
@@ -7369,6 +7375,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludedSegments = "",
                             IsActive = true,
                             Name = "Peas & Beans",
                             SortOrder = 2
@@ -7380,6 +7387,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludedSegments = "",
                             IsActive = true,
                             Name = "Pasta & Sauces",
                             SortOrder = 3
@@ -7391,6 +7399,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludedSegments = "",
                             IsActive = true,
                             Name = "Mitra",
                             SortOrder = 4
@@ -7402,6 +7411,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludedSegments = "",
                             IsActive = true,
                             Name = "Raisins",
                             SortOrder = 5
@@ -7413,6 +7423,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludedSegments = "",
                             IsActive = true,
                             Name = "Pickles",
                             SortOrder = 6
@@ -7424,6 +7435,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludedSegments = "",
                             IsActive = true,
                             Name = "Fruits & Vegetables",
                             SortOrder = 7
@@ -7435,6 +7447,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludedSegments = "",
                             IsActive = true,
                             Name = "Baking & Dry Goods",
                             SortOrder = 8
@@ -7446,6 +7459,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludedSegments = "",
                             IsActive = true,
                             Name = "Condiments",
                             SortOrder = 9
@@ -7457,6 +7471,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludedSegments = "",
                             IsActive = false,
                             Name = "TOTAL RAM / CORPORATE PROGRAM",
                             SortOrder = 10
@@ -7468,6 +7483,7 @@ namespace HOMSys.Infrastructure.Migrations
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
                             Description = "",
+                            ExcludedSegments = "",
                             IsActive = true,
                             Name = "Non Food & Toll Pack",
                             SortOrder = 11

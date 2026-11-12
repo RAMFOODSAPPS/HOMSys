@@ -11,6 +11,16 @@ export interface TasafMasterMeta {
   textLabel?: string | null;
   /** Areas multi-select (sales groups / chains: the TASAF form offers them only for these areas). */
   areasLabel?: string | null;
+  /** Excluded-segments multi-select (product categories: segments the TASAF form does not offer). */
+  segmentsLabel?: string | null;
+}
+
+/** A product master segment (Products page category, e.g. "2a" Peas / Green Peas). */
+export interface TasafSegmentOption {
+  code: string;
+  name: string;
+  segment: string;
+  groupNo: number;
 }
 
 /** Approval rules: approval types × roles → not required / always (overAmount null) / over amount. */
@@ -60,6 +70,8 @@ export interface TasafLookupDto {
   text?: string | null;
   /** Sales groups / chains: comma-separated area names (blank = all areas). */
   areaNames?: string | null;
+  /** Product categories: comma-separated segment codes the TASAF form does not offer. */
+  excludedSegments?: string | null;
   createdAt: string;
   createdBy: string;
   updatedAt?: string;
@@ -79,6 +91,8 @@ export interface SaveTasafLookupDto {
   text?: string | null;
   /** Sales groups / chains: area names; null = leave unchanged. */
   areaNames?: string[] | null;
+  /** Product categories: excluded segment codes; null = leave unchanged. */
+  excludedSegments?: string[] | null;
 }
 
 export interface TasafUserOption {

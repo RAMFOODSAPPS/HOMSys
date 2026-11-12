@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import {
   SaveTasafLookupDto, TasafApprovalMatrix, TasafApprovalRuleCell, TasafApprovalRules, TasafApproverCell, TasafLookupDto, TasafMasterMeta,
-  TasafNumbering, TasafUserOption
+  TasafNumbering, TasafSegmentOption, TasafUserOption
 } from '../models/tasaf-master.model';
 import { ApiResponse } from '../models/auth.model';
 
@@ -15,6 +15,7 @@ export class TasafMasterService {
 
   getMeta()  { return this.http.get<ApiResponse<TasafMasterMeta[]>>(`${this.base}/meta`); }
   getUsers() { return this.http.get<ApiResponse<TasafUserOption[]>>(`${this.base}/users`); }
+  getSegments() { return this.http.get<ApiResponse<TasafSegmentOption[]>>(`${this.base}/segments`); }
   getRules() { return this.http.get<ApiResponse<TasafApprovalRules>>(`${this.base}/approval-rules`); }
   saveRules(cells: TasafApprovalRuleCell[]) {
     return this.http.put<ApiResponse<TasafApprovalRules>>(`${this.base}/approval-rules`, cells);

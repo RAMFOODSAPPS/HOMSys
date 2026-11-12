@@ -118,7 +118,16 @@ public class TasafApprovalType : TasafLookup { }
 public class TasafObjective : TasafLookup { }
 public class TasafTargetMarket : TasafLookup { }
 public class TasafChannel : TasafLookup { }
-public class TasafProductGroup : TasafLookup { }
+/// <summary>Product Category (Book2; code "02" = product master GroupNo 2) — Master Data › Product Categories.</summary>
+public class TasafProductGroup : TasafLookup
+{
+    /// <summary>
+    /// Product master segment codes (ProductCategories.CategoryCode, e.g. "2a"), comma-separated, that TASAF must not
+    /// offer: hidden from the Segment picker and their SKUs left out when the whole category is picked. Empty = none.
+    /// A TASAF that already lists one keeps it.
+    /// </summary>
+    public string ExcludedSegments { get; set; } = string.Empty;
+}
 
 /// <summary>Cost Details description, e.g. "Promotions - Free Goods".</summary>
 public class TasafCostType : TasafLookup { }

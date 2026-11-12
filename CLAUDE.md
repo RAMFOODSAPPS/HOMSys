@@ -516,6 +516,10 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   labels the Sub-Category picker **"Segment"** (options "2a — Green Peas"; layout key still `subCategory`) and
   the separate automatic Segment field is gone; print / PDF / email show one "Segment" row. None
   picked for a category = the whole category. SKU list: a Sub-Category = its code, a bare category = its GroupNo.
+  **Excluded segments** (`TasafProductGroup.ExcludedSegments`, CSV of segment codes, migration
+  `TasafProductGroupExcludedSegments`; picker on Product Categories, `GET tasaf-masters/segments`): not offered in the
+  Segment picker and their SKUs left out of a whole-category / no-scope SKU list. A TASAF that already names one keeps it
+  (and its SKUs).
   **LSP / Case** = the picked Cust Keys' price **with VAT** as of StartDate (today if blank): base price + ZONE + ZONE2 add-ons,
   the Sales Order rule, bulk-priced by `TasafPriceService` (`POST tasafs/product-prices`, grouped by price; `IncludesVat`
   const). Blank until Cust Keys are picked. All picked stores must share ONE price per SKU — Submit is refused otherwise

@@ -19,7 +19,7 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
 import { ExportColumn, ExportService } from '../../core/services/export.service';
 import { TasafMasterService } from '../../core/services/tasaf-master.service';
 import {
-  TasafApprovalMatrix, TasafApprovalRules, TasafLookupDto, TasafMasterMeta, TasafNumbering, TasafUserOption
+  TasafApprovalMatrix, TasafApprovalRules, TasafLookupDto, TasafMasterMeta, TasafNumbering, TasafSegmentOption, TasafUserOption
 } from '../../core/models/tasaf-master.model';
 import { utc } from '../../core/utils/utc-date';
 import { ActivatedRoute } from '@angular/router';
@@ -212,6 +212,7 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
                 @if (m.amountLabel) { <th pSortableColumn="amount" class="num">{{ shortLabel(m.amountLabel) }} <p-sortIcon field="amount" /></th> }
                 @if (m.textLabel) { <th>{{ shortLabel(m.textLabel) }}</th> }
                 @if (m.areasLabel) { <th>{{ shortLabel(m.areasLabel) }}</th> }
+                @if (m.segmentsLabel) { <th>{{ shortLabel(m.segmentsLabel) }}</th> }
                 <th>Description</th>
                 <th pSortableColumn="isActive" style="width:6rem">Status <p-sortIcon field="isActive" /></th>
               </tr>
@@ -241,6 +242,7 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
                 }
                 @if (m.textLabel) { <td class="kw">{{ r.text || textHelp(m.key).blank }}</td> }
                 @if (m.areasLabel) { <td class="kw">{{ r.areaNames || '— all areas —' }}</td> }
+                @if (m.segmentsLabel) { <td class="kw">{{ excludedLabel(r.excludedSegments) || '— none —' }}</td> }
                 <td>{{ r.description || '—' }}</td>
                 <td><p-tag [value]="r.isActive ? 'Active' : 'Inactive'" [severity]="r.isActive ? 'success' : 'danger'" /></td>
               </tr>
@@ -295,6 +297,17 @@ interface RuleCell { mode: 'none' | 'always' | 'over'; amount: number | null; }
             <label>{{ arl }}</label>
             <p-multiSelect formControlName="areaNames" [options]="areaOptions()" [filter]="true" display="chip"
               placeholder="— all areas —" styleClass="w-full" appendTo="body" />
+          </div>
+        }
+        @if (current()?.segmentsLabel; as sgl) {
+          <div class="field">
+            <label>{{ sgl }}</label>
+            <p-multiSelect formControlName="excludedSegments" [options]="dialogSegments()" optionLabel="label" optionValue="code"
+              [filter]="true" filterBy="label" display="chip" placeholder="— none excluded —"
+              [emptyMessage]="'No segments for code ' + (segCode() || '—') + ' in the product master.'"
+              styleClass="w-full" appendTo="body" />
+            <small class="optional-label">Ticked segments are hidden from the TASAF Segment picker, and their SKUs are not
+              offered when the whole category is picked. TASAFs that already list one keep it.</small>
           </div>
         }
         @if (current()?.userLabel; as ul) {
@@ -468,8 +481,29 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     userIds:     [[] as number[]],
     amount:      [null as number | null],
     text:        [""],
-    areaNames:   [[] as string[]]
+    areaNames:   [[] as string[]],
+    excludedSegments: [[] as string[]]
   });
+
+  /** Product master segments (Product Categories › Excluded segments). */
+  private segments = signal<TasafSegmentOption[]>([]);
+  /** The dialog's Code (= product master GroupNo) — picks which segments it offers. */
+  protected segCode = signal('');
+  /** Segments of the edited category, plus any it still excludes that are no longer in that group. */
+  protected dialogSegments = computed(() => {
+    const no = parseInt(this.segCode().trim(), 10);
+    const kept = new Set(this.editing()?.excludedSegments?.split(',').map(c => c.trim().toLowerCase()).filter(c => c) ?? []);
+    return this.segments()
+      .filter(s => s.groupNo === no || kept.has(s.code.toLowerCase()))
+      .map(s => ({ code: s.code, label: `${s.code} — ${s.name}${s.segment ? ' / ' + s.segment : ''}` }));
+  });
+
+  /** "2a Peas, 2c Corn" for the list column. */
+  excludedLabel(csv: string | null | undefined) {
+    const byCode = new Map(this.segments().map(s => [s.code.toLowerCase(), s.name]));
+    return (csv ?? '').split(',').map(c => c.trim()).filter(c => c)
+      .map(c => byCode.has(c.toLowerCase()) ? `${c} ${byCode.get(c.toLowerCase())}` : c).join(', ');
+  }
 
   /** Area names for the Areas multi-select (active areas, plus any the edited row still lists). */
   protected areaOptions = signal<string[]>([]);
@@ -491,6 +525,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
       if (first) this.selectMaster(first);
     });
     this.api.getUsers().subscribe(res => this.users.set(res.data ?? []));
+    this.form.controls.code.valueChanges.subscribe(c => this.segCode.set(c ?? ''));
   }
 
   ngOnDestroy() {
@@ -713,6 +748,9 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     if (m.areasLabel) {
       this.api.getAll('areas').subscribe(res => this.areaOptions.set((res.data ?? []).filter(a => a.isActive).map(a => a.name)));
     }
+    if (m.segmentsLabel && !this.segments().length) {
+      this.api.getSegments().subscribe(res => this.segments.set(res.data ?? []));
+    }
   }
 
   openNew() {
@@ -720,7 +758,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     this.editing.set(null);
     this.apiError.set(null);
     const nextOrder = Math.max(0, ...this.rows().map(r => r.sortOrder)) + 1;
-    this.form.reset({ name: '', code: '', sortOrder: nextOrder, description: '', isActive: true, parentId: null, userId: null, userIds: [], amount: null, text: '', areaNames: [] });
+    this.form.reset({ name: '', code: '', sortOrder: nextOrder, description: '', isActive: true, parentId: null, userId: null, userIds: [], amount: null, text: '', areaNames: [], excludedSegments: [] });
     this.dialogVisible = true;
   }
 
@@ -737,7 +775,8 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
     this.form.reset({
       name: r.name, code: r.code, sortOrder: r.sortOrder, description: r.description,
       isActive: r.isActive, parentId: r.parentId ?? null, userId: r.userId ?? null, userIds: r.userIds ?? [], amount: r.amount ?? null,
-      text: r.text ?? '', areaNames: areas
+      text: r.text ?? '', areaNames: areas,
+      excludedSegments: (r.excludedSegments ?? '').split(',').map(c => c.trim()).filter(c => c)
     });
     this.dialogVisible = true;
   }
@@ -755,7 +794,8 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
       sortOrder: v.sortOrder ?? 0, isActive: v.isActive ?? true,
       parentId: v.parentId, userId: v.userId, amount: v.amount, text: v.text ?? '',
       userIds: m.usersLabel ? (v.userIds ?? []) : null,
-      areaNames: m.areasLabel ? (v.areaNames ?? []) : null
+      areaNames: m.areasLabel ? (v.areaNames ?? []) : null,
+      excludedSegments: m.segmentsLabel ? (v.excludedSegments ?? []) : null
     };
     const editing = this.editing();
     this.saving.set(true);
@@ -812,6 +852,7 @@ export class TasafSetupPageComponent implements OnInit, OnDestroy {
       ...(m.usersLabel  ? [{ header: this.shortLabel(m.usersLabel), field: 'userNames' }] : []),
       ...(m.userLabel   ? [{ header: m.userLabel,   field: 'userName' }] : []),
       ...(m.amountLabel ? [{ header: this.shortLabel(m.amountLabel), field: 'amount', formatter: (v: unknown) => v == null ? '' : String(v) }] : []),
+      ...(m.segmentsLabel ? [{ header: this.shortLabel(m.segmentsLabel), field: 'excludedSegments', formatter: (v: unknown) => this.excludedLabel(v as string) }] : []),
       { header: 'Description', field: 'description' },
       { header: 'Status', field: 'isActive', formatter: v => v ? 'Active' : 'Inactive' },
     ];

@@ -18,6 +18,11 @@ public class TasafMastersController(TasafMasterService service) : ControllerBase
     public async Task<IActionResult> GetUsers() =>
         Ok(new { success = true, data = await service.GetUsersAsync() });
 
+    /// <summary>Product master segments, for Product Categories › Excluded segments.</summary>
+    [HttpGet("segments")]
+    public async Task<IActionResult> GetSegments() =>
+        Ok(new { success = true, data = await service.GetSegmentsAsync() });
+
     [HttpGet("approval-matrix")]
     public async Task<IActionResult> GetMatrix() =>
         Ok(new { success = true, data = await service.GetMatrixAsync() });

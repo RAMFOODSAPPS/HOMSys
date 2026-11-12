@@ -286,8 +286,10 @@ public class TasafService(
             }
         }
 
+        // A segment named on the TASAF keeps its SKUs even if excluded since; a whole category leaves excluded ones out.
+        var excluded = TasafMasterService.ExcludedSegmentCodes(await lookups.GetAllAsync(typeof(TasafProductGroup)));
         var covered = new HashSet<int>();
-        var subs = (await SubCategoryOptionsAsync()).ToDictionary(o => o.Code, StringComparer.OrdinalIgnoreCase);
+        var subs = (await SubCategoryOptionsAsync(includeExcluded: true)).ToDictionary(o => o.Code, StringComparer.OrdinalIgnoreCase);
         foreach (var code in subCategoryCodes.Select(c => c.Trim()).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (!subs.TryGetValue(code, out var sub)) continue;
@@ -297,9 +299,10 @@ public class TasafService(
         foreach (var id in productCategoryIds.Distinct().Where(id => !covered.Contains(id)))
             await WholeCategory(id);
 
-        IEnumerable<HOMSys.Application.DTOs.Products.ProductCatalogDto> picked = catalog;
+        IEnumerable<HOMSys.Application.DTOs.Products.ProductCatalogDto> picked =
+            catalog.Where(p => codes.Contains(p.Category.Trim()) || !excluded.Contains(p.Category.Trim()));
         if (!everything && (codes.Count > 0 || groupNos.Count > 0))
-            picked = catalog.Where(p => codes.Contains(p.Category.Trim()) || groupNos.Contains(p.GroupNo));
+            picked = picked.Where(p => codes.Contains(p.Category.Trim()) || groupNos.Contains(p.GroupNo));
 
         return picked
             .OrderBy(p => p.GroupNo).ThenBy(p => p.SeqNo).ThenBy(p => p.CProdNo)
@@ -882,16 +885,20 @@ public class TasafService(
     /// <summary>
     /// TASAF Sub-Category options = product master categories (ProductCategories, the Products page) whose
     /// GroupNo has a Product Category (Master Data › Product Categories, code "02" = GroupNo 2): code,
-    /// SubCat as the name, GroupDesc as the Segment. Groups with no Product Category (Dummy, Delisted) are left out.
+    /// SubCat as the name, GroupDesc as the Segment. Groups with no Product Category (Dummy, Delisted) are left out,
+    /// and so are segments a Product Category excludes (Master Data › Product Categories) unless includeExcluded.
     /// </summary>
-    private async Task<List<TasafSubCategoryOptionDto>> SubCategoryOptionsAsync()
+    private async Task<List<TasafSubCategoryOptionDto>> SubCategoryOptionsAsync(bool includeExcluded = false)
     {
-        var categories = (await lookups.GetAllAsync(typeof(TasafProductGroup)))
+        var groups = await lookups.GetAllAsync(typeof(TasafProductGroup));
+        HashSet<string> excluded = includeExcluded ? [] : TasafMasterService.ExcludedSegmentCodes(groups);
+        var categories = groups
             .Where(c => int.TryParse(c.Code.Trim(), out _))
             .GroupBy(c => int.Parse(c.Code.Trim()))
             .ToDictionary(g => g.Key, g => g.OrderByDescending(c => c.IsActive).First().Id);
         return (await products.GetCategoriesAsync())
-            .Where(c => categories.ContainsKey(c.GroupNo) && c.CategoryCode.Trim().Length > 0)
+            .Where(c => categories.ContainsKey(c.GroupNo) && c.CategoryCode.Trim().Length > 0
+                        && !excluded.Contains(c.CategoryCode.Trim()))
             .Select(c => new TasafSubCategoryOptionDto
             {
                 Code = c.CategoryCode.Trim(), Name = c.SubCat.Trim(), Segment = c.GroupDesc.Trim(),

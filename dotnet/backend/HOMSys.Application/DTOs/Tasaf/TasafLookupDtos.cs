@@ -19,6 +19,8 @@ public class TasafLookupDto
     public string? Text { get; set; }
     /// <summary>Sales groups / chains: comma-separated area names (blank = all areas).</summary>
     public string? AreaNames { get; set; }
+    /// <summary>Product Categories: segment codes TASAF must not offer, comma-separated.</summary>
+    public string? ExcludedSegments { get; set; }
     public DateTime CreatedAt { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime? UpdatedAt { get; set; }
@@ -40,6 +42,8 @@ public class SaveTasafLookupDto
     public string? Text { get; set; }
     /// <summary>Sales groups / chains: area names; null = leave unchanged.</summary>
     public List<string>? AreaNames { get; set; }
+    /// <summary>Product Categories: excluded segment codes; null = leave unchanged.</summary>
+    public List<string>? ExcludedSegments { get; set; }
 }
 
 /// <summary>Describes one master list to the setup page (which optional fields it shows).</summary>
@@ -57,6 +61,19 @@ public class TasafMasterMetaDto
     public string? TextLabel { get; set; }
     /// <summary>Label of the optional areas multi-select (sales groups / chains).</summary>
     public string? AreasLabel { get; set; }
+    /// <summary>Label of the optional excluded-segments multi-select (product categories).</summary>
+    public string? SegmentsLabel { get; set; }
+}
+
+/// <summary>A product master segment (ProductCategories row) for the Product Categories exclusion picker.</summary>
+public class TasafSegmentOptionDto
+{
+    public string Code { get; set; } = string.Empty;
+    /// <summary>SubCat, e.g. "Peas".</summary>
+    public string Name { get; set; } = string.Empty;
+    /// <summary>GroupDesc, e.g. "Green Peas".</summary>
+    public string Segment { get; set; } = string.Empty;
+    public int GroupNo { get; set; }
 }
 
 /// <summary>Approval rules: approval types × roles → not required / always / over amount.</summary>

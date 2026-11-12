@@ -11,9 +11,9 @@ public record TasafMasterDef(
     string Key, string Label, Type EntityType,
     string? ParentKey = null, string? ParentLabel = null,
     string? UserLabel = null, string? AmountLabel = null, string? TextLabel = null, string? UsersLabel = null,
-    string? AreasLabel = null);
+    string? AreasLabel = null, string? SegmentsLabel = null);
 
-public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccessor http)
+public class TasafMasterService(ITasafLookupRepository repo, IProductRepository products, IHttpContextAccessor http)
 {
     public const string NotFound = "Record not found.";
     public const string UnknownMaster = "Unknown master list.";
@@ -37,7 +37,8 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         new("channels",        "Channels",         typeof(TasafChannel)),
         // Product Categories (Book2): edited on Master Data › Product Categories ("product-groups" key kept).
         // Sub-Categories / Segments come from the product master (ProductCategories), not a list here.
-        new("product-groups",  "Product Categories", typeof(TasafProductGroup)),
+        new("product-groups",  "Product Categories", typeof(TasafProductGroup),
+            SegmentsLabel: "Excluded segments (not offered on the TASAF form; none = all segments)"),
         new("cost-types",      "Cost Descriptions", typeof(TasafCostType)),
         new("approval-types",  "Approval Types",   typeof(TasafApprovalType)),
         new("approval-roles",  "Approval Roles",   typeof(TasafApprovalRole)),
@@ -59,8 +60,26 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         UsersLabel  = m.UsersLabel,
         AmountLabel = m.AmountLabel,
         TextLabel   = m.TextLabel,
-        AreasLabel  = m.AreasLabel
+        AreasLabel  = m.AreasLabel,
+        SegmentsLabel = m.SegmentsLabel
     });
+
+    /// <summary>Product master segments (ProductCategories, the Products page) for the exclusion picker.</summary>
+    public async Task<List<TasafSegmentOptionDto>> GetSegmentsAsync() =>
+        (await products.GetCategoriesAsync())
+            .Where(c => c.CategoryCode.Trim().Length > 0)
+            .OrderBy(c => c.GroupNo).ThenBy(c => c.SeqNo).ThenBy(c => c.CategoryCode)
+            .Select(c => new TasafSegmentOptionDto
+            {
+                Code = c.CategoryCode.Trim(), Name = c.SubCat.Trim(), Segment = c.GroupDesc.Trim(), GroupNo = c.GroupNo
+            })
+            .ToList();
+
+    /// <summary>Segment codes excluded by any Product Category (case-insensitive).</summary>
+    public static HashSet<string> ExcludedSegmentCodes(IEnumerable<TasafLookup> productGroups) =>
+        productGroups.OfType<TasafProductGroup>()
+            .SelectMany(g => g.ExcludedSegments.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     // ── Approval rules (approval type × role → always / over amount / not required) ──
     public async Task<TasafApprovalRulesDto> GetRulesAsync()
@@ -236,6 +255,7 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         if (dto.Amount is < 0) return "Amount cannot be negative.";
         if ((dto.Text ?? "").Length > 500) return "Text must be 500 characters or fewer.";
         if (dto.AreaNames is not null && string.Join(", ", dto.AreaNames).Length > 500) return "Too many areas.";
+        if (dto.ExcludedSegments is not null && string.Join(", ", dto.ExcludedSegments).Length > 1000) return "Too many excluded segments.";
         if (def.EntityType == typeof(TasafProgramType) && dto.Amount is > 100) return "Max CTS % cannot be over 100.";
 
         if (await repo.ExistsAsync(def.EntityType, dto.Name, dto.Code, excludeId))
@@ -274,6 +294,8 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
         if (e is ITasafTextLookup t)   t.Text     = (dto.Text ?? "").Trim();
         if (e is ITasafAreasLookup ar && dto.AreaNames is not null)
             ar.AreaNames = string.Join(", ", dto.AreaNames.Select(n => n.Trim()).Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
+        if (e is TasafProductGroup pg && dto.ExcludedSegments is not null)
+            pg.ExcludedSegments = string.Join(", ", dto.ExcludedSegments.Select(c => c.Trim()).Where(c => c.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
         if (e is TasafSalesGroup g && dto.UserIds is not null)
         {
             var want = dto.UserIds.ToHashSet();
@@ -318,6 +340,7 @@ public class TasafMasterService(ITasafLookupRepository repo, IHttpContextAccesso
                 Amount      = (e as ITasafAmountLookup)?.Amount,
                 Text        = (e as ITasafTextLookup)?.Text,
                 AreaNames   = (e as ITasafAreasLookup)?.AreaNames,
+                ExcludedSegments = (e as TasafProductGroup)?.ExcludedSegments,
                 CreatedAt   = e.CreatedAt,
                 CreatedBy   = e.CreatedBy,
                 UpdatedAt   = e.UpdatedAt,
