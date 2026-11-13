@@ -740,6 +740,9 @@ namespace HOMSys.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("AcctNo")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -758,6 +761,9 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool>("With2307")
+                        .HasColumnType("bit");
 
                     b.HasKey("Id");
 
@@ -1367,6 +1373,384 @@ namespace HOMSys.Infrastructure.Migrations
                     b.ToTable("FormLayouts");
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.HomsArofBlock", b =>
+                {
+                    b.Property<int>("BlockNo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FirstRecNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<int>("RecordCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SyncedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("BlockNo");
+
+                    b.ToTable("HomsArofBlocks");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.HomsArofFile", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BlockSize")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FieldList")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4000)");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("FileWrittenAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FullScanAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("HeaderLength")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<int>("RecordCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RecordLength")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("HomsArofFiles");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.HomsArofRow", b =>
+                {
+                    b.Property<int>("RecNo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AcctNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("AdjId")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(12)");
+
+                    b.Property<string>("ArofId")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(12)");
+
+                    b.Property<string>("BCode")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)");
+
+                    b.Property<bool>("BadChq")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("BadCqf")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Bank")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)");
+
+                    b.Property<long>("BatchNo")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("CKey")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(5)");
+
+                    b.Property<string>("CSman")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)");
+
+                    b.Property<DateOnly?>("CheckDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("CheckNo")
+                        .IsRequired()
+                        .HasMaxLength(15)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(15)");
+
+                    b.Property<bool>("ChkRcvd")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("CrAmt")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateOnly?>("CrsrDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("CrsrNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CustKey")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(7)");
+
+                    b.Property<string>("CustName")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("DCusName")
+                        .IsRequired()
+                        .HasMaxLength(35)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(35)");
+
+                    b.Property<DateOnly?>("DcrDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DcrNo")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Deleted")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("DocBal")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateOnly?>("DocDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DocId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DocNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DocType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)");
+
+                    b.Property<decimal>("DrAmt")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("DssNo")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(8)");
+
+                    b.Property<string>("DusCKey")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(5)");
+
+                    b.Property<int>("EmpNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Expln1")
+                        .IsRequired()
+                        .HasMaxLength(75)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(75)");
+
+                    b.Property<string>("Expln2")
+                        .IsRequired()
+                        .HasMaxLength(75)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(75)");
+
+                    b.Property<string>("Expln3")
+                        .IsRequired()
+                        .HasMaxLength(75)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(75)");
+
+                    b.Property<DateOnly?>("HoPosted")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Location")
+                        .IsRequired()
+                        .HasMaxLength(15)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(15)");
+
+                    b.Property<decimal>("OrigAmt")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("PayGroup1")
+                        .IsRequired()
+                        .HasMaxLength(22)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(22)");
+
+                    b.Property<string>("PayGroup2")
+                        .IsRequired()
+                        .HasMaxLength(22)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(22)");
+
+                    b.Property<string>("PaymentId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<DateOnly?>("PoDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("PoNum")
+                        .IsRequired()
+                        .HasMaxLength(15)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(15)");
+
+                    b.Property<bool>("Process")
+                        .HasColumnType("bit");
+
+                    b.Property<DateOnly?>("PurgDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("RefDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("RefDate2")
+                        .HasColumnType("date");
+
+                    b.Property<int>("RefId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RefId2")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RefNo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RefNo2")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RefType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)");
+
+                    b.Property<string>("RefType2")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<string>("Remarks")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)");
+
+                    b.Property<DateOnly?>("RsrDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("RsrNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SName")
+                        .IsRequired()
+                        .HasMaxLength(35)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(35)");
+
+                    b.Property<int>("Salesman")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Sman4Soa")
+                        .IsRequired()
+                        .HasMaxLength(6)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(6)");
+
+                    b.Property<int>("SplitNo")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("SysDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("TCode")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Term")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("TrDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("TrType")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Transfer")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int>("WhseNo")
+                        .HasColumnType("int");
+
+                    b.HasKey("RecNo");
+
+                    b.HasIndex("ArofId");
+
+                    b.HasIndex("DocNo", "DocId");
+
+                    b.HasIndex("RefNo", "RefId");
+
+                    b.ToTable("HomsArofRows");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.HomsPosting", b =>
                 {
                     b.Property<int>("Id")
@@ -1948,6 +2332,10 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<int>("EmpNo")
                         .HasColumnType("int");
 
+                    b.Property<decimal?>("HomsBalance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("PoNum")
                         .HasMaxLength(15)
                         .HasColumnType("nvarchar(15)");
@@ -1981,6 +2369,8 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DocNo");
 
                     b.HasIndex("SiteId", "CustKey");
 
@@ -2023,6 +2413,8 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("InvoiceNo");
 
                     b.HasIndex("WhseNo", "InvoiceNo");
 

@@ -7,9 +7,11 @@ namespace HOMSys.Infrastructure.Collections;
 /// <summary>
 /// Builds the HOMS documents a verified collection is written as — field for field the way HOMS itself fills
 /// F:\HOMS\RAM\ARCHIVES (checked on OH03/OD03 and GH03/GD03 Aug–Sep 2026):
-///   OR    (CR)  OH03/OD03, DOCID 2:  DR cash in bank (bank line first, BCODE "03") / CR 10301 per invoice / DR 10507 CEWT
+///   OR    (CR)  OH03/OD03, DOCID 2:  DR cash in bank (bank line first, BCODE "03") / CR 10301 per invoice / DR CEWT
 ///   RPDC  (PDC) GH03/GD03, DOCID 33: DR 10552 / CR 10301 per invoice (applied + CEWT)
-///   JV    (PDC matured) GH03/GD03, DOCID 52: DR cash in bank (check amount) + DR 10507 CEWT / CR 10552 per invoice
+///   JV    (PDC matured) GH03/GD03, DOCID 52: DR cash in bank (check amount) + DR CEWT / CR 10552 per invoice
+/// The CEWT is debited to each EWT deduction's own ACCTNO (since 2026-11-12): 10507 with its 2307 attached, 10508 without,
+/// or whatever account the custodian typed. HOMS's own ORs only ever used 10507.
 /// Values are field name → value (null = left blank, as HOMS leaves unused columns); dates as yyyy-MM-dd.
 /// Returns an error instead of a document when the collection can't be posted as-is (the posting is then Held).
 /// </summary>
@@ -114,7 +116,7 @@ public static class HomsPostingBuilder
         foreach (var (inv, applied, ewt) in invs)
         {
             lines.Add(With(Line(inv), new() { ["ACCTNO"] = ArTrade, ["CRAMT"] = applied + ewt, ["BADCQF"] = false }));
-            if (ewt > 0) lines.Add(With(Line(inv), new() { ["ACCTNO"] = Cewt, ["DRAMT"] = ewt }));
+            foreach (var (ewtGl, amt) in EwtLines(c, inv.Id)) lines.Add(With(Line(inv), new() { ["ACCTNO"] = ewtGl, ["DRAMT"] = amt }));
         }
         return new Doc("OH03", 2, docNo, header, lines);
     }
@@ -173,8 +175,9 @@ public static class HomsPostingBuilder
                 ["REFDATE"] = D(first.DocDate), ["REFID"] = 33, ["TRTYPE"] = 0,   // HOMS: REFDATE = the invoice date
             }),
         };
-        foreach (var (inv, _, ewt) in invs.Where(i => i.Ewt > 0))   // HOMS leaves TERM / REFDATE / EMPNO / TRTYPE blank here
-            lines.Add(With(Line(inv), new() { ["ACCTNO"] = Cewt, ["DRAMT"] = ewt, ["REFTYPE"] = "INVOICE", ["REFNO"] = inv.DocNo, ["REFID"] = 1, ["TERM"] = null }));
+        foreach (var (inv, _, _) in invs)   // HOMS leaves TERM / REFDATE / EMPNO / TRTYPE blank here
+            foreach (var (ewtGl, amt) in EwtLines(c, inv.Id))
+                lines.Add(With(Line(inv), new() { ["ACCTNO"] = ewtGl, ["DRAMT"] = amt, ["REFTYPE"] = "INVOICE", ["REFNO"] = inv.DocNo, ["REFID"] = 1, ["TERM"] = null }));
         foreach (var (inv, applied, ewt) in invs)
             lines.Add(With(Line(inv), new()
             {
@@ -184,6 +187,12 @@ public static class HomsPostingBuilder
             }));
         return new Doc("GH03", 52, null, header, lines);
     }
+
+    /// <summary>An invoice's CEWT debits, one per HOMS GL (a deduction saved before ACCTNO existed is a 10507).</summary>
+    private static List<(int Acct, decimal Amount)> EwtLines(Collection c, int postedInvoiceId) =>
+        c.Deductions.Where(d => d.PostedInvoiceId == postedInvoiceId && d.Type == DeductionType.Ewt2307)
+            .GroupBy(d => d.AcctNo ?? Cewt).OrderBy(g => g.Key)
+            .Select(g => (g.Key, g.Sum(d => d.Amount))).Where(x => x.Item2 > 0).ToList();
 
     public static string Json(object o) => JsonSerializer.Serialize(o);
 }

@@ -1,8 +1,8 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { NavigationEnd, Router } from '@angular/router';
-import { from, interval, Subscription } from 'rxjs';
-import { concatMap, filter, switchMap, take } from 'rxjs/operators';
+import { from, Subscription } from 'rxjs';
+import { concatMap, filter } from 'rxjs/operators';
 import { FormBuilder, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputNumberModule } from 'primeng/inputnumber';
@@ -23,7 +23,7 @@ import { CollectionService } from '../../../core/services/collection.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { BankStatementService } from '../../../core/services/bank-statement.service';
 import {
-  BankAccountOptionDto, CollectionDto, CollectionSiteDto, DEDUCTION_TYPES, DeductionType, InvoiceSyncRequestStatusDto, OpenInvoiceDto,
+  BankAccountOptionDto, CollectionDto, CollectionSiteDto, DEDUCTION_TYPES, DeductionType, ewtAccount, OpenInvoiceDto,
   PAYMENT_MODES, PaymentMode, RECEIPT_TYPES, ReceiptType, SaveCollectionDto, statusLabel, statusSeverity
 } from '../../../core/models/collection.model';
 import { CollectionStep as Step, collectionSteps } from '../collection-steps';
@@ -35,8 +35,9 @@ interface Line {
   applied: number | null; deds: Ded[];
 }
 
-/** One deduction (EWT, discount…) on an invoice line; an invoice may carry several. */
-interface Ded { type: DeductionType | null; amount: number | null; ref: string; }
+/** One deduction (EWT, discount…) on an invoice line; an invoice may carry several.
+ *  EWT only: with2307 = "2307 att.", acctNo = HOMS GL of its CEWT line (10507 with the 2307, 10508 without; editable). */
+interface Ded { type: DeductionType | null; amount: number | null; ref: string; with2307: boolean; acctNo: number | null; }
 
 
 
@@ -212,9 +213,15 @@ const NEW_KEY = '/collections';
                   <p-select formControlName="siteId" [options]="sites()" optionLabel="name" optionValue="id" placeholder="Select branch" styleClass="w-full" />
                 </div>
                 <div class="field">
+                  <span>DCR no.</span>
+                  <p-inputnumber formControlName="dcrNo" [useGrouping]="false" [min]="1" [max]="99999999" placeholder="Required"
+                    styleClass="w-full" inputStyleClass="mono" />
+                </div>
+                <div class="field">
                   <span>Customer</span>
                   <div class="inline nowrap">
-                    <input pInputText formControlName="custKey" maxlength="7" placeholder="Filled from the invoices" class="mono grow" />
+                    <!-- Read-only: the customer follows the invoices added below (user 2026-11-12). -->
+                    <input pInputText formControlName="custKey" readonly tabindex="-1" placeholder="Filled from the invoices" class="mono grow cust-ro" />
                     @if (!readOnly()) {
                       <p-button icon="pi pi-search" [text]="true" pTooltip="Show this customer's synced open invoices"
                         [disabled]="!raw().custKey" (onClick)="loadCustomerInvoices()" />
@@ -284,19 +291,23 @@ const NEW_KEY = '/collections';
                 <div class="fetch-bar">
                   <p-inputnumber [(ngModel)]="fetchNo" [useGrouping]="false" placeholder="Invoice no." [disabled]="fetching() || !!fetched()"
                     (onBlur)="autoFetch()" (keydown.enter)="autoFetch()" />
-                  <p-datepicker [(ngModel)]="fetchDate" dateFormat="mm/dd/yy" appendTo="body" placeholder="Invoice date" [showIcon]="true" [disabled]="fetching() || !!fetched()"
-                    (onSelect)="autoFetch()" (onBlur)="autoFetch()" />
+                  <p-datepicker [ngModel]="fetchDate()" dateFormat="mm/dd/yy" placeholder="Invoice date" [showIcon]="true" [disabled]="true"
+                    pTooltip="Filled in from the invoice once its no. is found" />
                   @if (fetched(); as fi) {
                     <p-button label="Add" icon="pi pi-plus" [disabled]="hasLine(fi.id) || otherCustomer(fi)" (onClick)="addFetched()" />
                   } @else {
-                    <p-button label="Fetch" icon="pi pi-cloud-download" [loading]="fetching()" [disabled]="!raw().siteId || !fetchNo || !fetchDate" (onClick)="fetch()" pTooltip="Runs by itself once the invoice no. and date are in" />
+                    <p-button label="Fetch" icon="pi pi-search" [loading]="fetching()" [disabled]="!raw().siteId || !fetchNo" (onClick)="fetch()" pTooltip="Runs by itself once the invoice no. is in" />
                   }
                   <p-button label="Clear" [text]="true" severity="secondary" (onClick)="clearFetch()" />
                   <span class="muted fetch-note">
                     @if (fetched(); as fi) {
-                      {{ fi.docNo }} · {{ fi.custName || fi.custKey }} · open balance <b class="mono">{{ fi.balance | number:'1.2-2' }}</b>@if (hasLine(fi.id)) { · already added }
+                      {{ fi.docNo }} · {{ fi.docDate | date:'MM/dd/yyyy' }} · {{ fi.custName || fi.custKey }} · open balance <b class="mono">{{ fi.balance | number:'1.2-2' }}</b>
+                      @if (fi.homsBalance !== null && fi.homsBalance !== undefined && fi.homsBalance !== fi.balance) {
+                        <span [class.bad]="fi.homsBalance <= 0" pTooltip="HOMS's own balance (A/R file AROF4HO): it also counts ORs posted in HOMS outside HOMSys"> · HOMS balance <b class="mono">{{ fi.homsBalance | number:'1.2-2' }}</b></span>
+                      }
+                      @if (hasLine(fi.id)) { · already added }
                       @else if (otherCustomer(fi)) { · <span class="bad">different customer — one receipt covers one customer only</span> }
-                    } @else if (fetching()) { Waiting for HO… (about a minute) }
+                    }
                   </span>
                 </div>
                 @if (custInvoices().length) {
@@ -322,7 +333,14 @@ const NEW_KEY = '/collections';
                   <thead>
                     <tr>
                       <th>Invoice</th><th>Date</th><th>Customer</th><th class="num">Total</th><th class="num">RFC</th>
-                      <th class="num">Open<br>balance</th><th class="num">Applied</th><th class="num">Deduction</th><th class="num">Amount</th><th>Ref.</th>
+                      <th class="num">Open<br>balance</th><th class="num">Applied</th><th class="num">Deduction</th>
+                      @if (hasEwt()) {
+                        <th class="c2307"><span class="chk-all">
+                          @if (!readOnly()) { <p-checkbox [ngModel]="all2307()" (ngModelChange)="setAll2307($event)" [binary]="true" pTooltip="Tick / untick 2307 att. on every EWT" tooltipPosition="top" /> }
+                          2307 att.</span></th>
+                        <th>ACCTNO</th>
+                      }
+                      <th class="num">Amount</th><th>Ref.</th>
                       <th class="num" [pTooltip]="balanceHint()" tooltipPosition="top">{{ balanceLabel() }}</th>
                       @if (!readOnly()) { <th></th> }
                     </tr>
@@ -343,9 +361,9 @@ const NEW_KEY = '/collections';
                         @if (l.deds[0]; as d) {
                           <ng-container *ngTemplateOutlet="dedCells; context: { $implicit: d, l: l }" />
                         } @else if (readOnly()) {
-                          <td class="num nil">—</td><td class="num nil">—</td><td class="nil">—</td>
+                          <td class="num nil">—</td>@if (hasEwt()) { <td></td><td></td> }<td class="num nil">—</td><td class="nil">—</td>
                         } @else {
-                          <td colspan="3" class="sans"><p-button label="Add deduction" icon="pi pi-plus" [text]="true" size="small" (onClick)="addDed(l)" /></td>
+                          <td [attr.colspan]="3 + ewtCols()" class="sans"><p-button label="Add deduction" icon="pi pi-plus" [text]="true" size="small" (onClick)="addDed(l)" /></td>
                         }
                         <td class="num strong">{{ balanceAfter(l) | number:'1.2-2' }}</td>
                         @if (!readOnly()) { <td><p-button icon="pi pi-trash" [text]="true" severity="danger" pTooltip="Remove invoice" (onClick)="removeLine(l)" /></td> }
@@ -354,10 +372,10 @@ const NEW_KEY = '/collections';
                         <tr class="ded-sub"><td colspan="7"></td><ng-container *ngTemplateOutlet="dedCells; context: { $implicit: d, l: l }" /><td></td>@if (!readOnly()) { <td></td> }</tr>
                       }
                       @if (l.deds.length && !readOnly()) {
-                        <tr class="ded-sub"><td colspan="7"></td><td colspan="5" class="sans"><p-button label="Add deduction" icon="pi pi-plus" [text]="true" size="small" (onClick)="addDed(l)" /></td></tr>
+                        <tr class="ded-sub"><td colspan="7"></td><td [attr.colspan]="5 + ewtCols()" class="sans"><p-button label="Add deduction" icon="pi pi-plus" [text]="true" size="small" (onClick)="addDed(l)" /></td></tr>
                       }
                     } @empty {
-                      <tr><td colspan="12" class="sans muted">No invoices yet — fetch them above. A collection with no invoice is kept as on-account.</td></tr>
+                      <tr><td colspan="12" class="sans muted">No invoices yet — fetch them above. The customer is filled from them, and at least one is needed to submit.</td></tr>
                     }
                   </tbody>
                 </table>
@@ -365,10 +383,23 @@ const NEW_KEY = '/collections';
               <ng-template #dedCells let-d let-l="l">
                 @if (readOnly()) {
                   <td class="sans num">{{ dedLabel(d.type) }}</td>
+                  @if (hasEwt()) {
+                    @if (d.type === 'Ewt2307') {
+                      <td class="c2307">@if (d.with2307) { <i class="pi pi-check" pTooltip="2307 attached"></i> } @else { <span class="nil">—</span> }</td>
+                      <td>{{ d.acctNo ?? '—' }}</td>
+                    } @else { <td></td><td></td> }
+                  }
                   <td class="num">{{ (d.amount ?? 0) | number:'1.2-2' }}</td>
                   <td>{{ d.ref || '—' }}</td>
                 } @else {
-                  <td class="sans num"><p-select [(ngModel)]="d.type" (ngModelChange)="touchLines()" [options]="deductionTypes" optionLabel="label" optionValue="value" placeholder="Type" appendTo="body" /></td>
+                  <td class="sans num"><p-select [ngModel]="d.type" (ngModelChange)="onDedType(d, $event)" [options]="deductionTypes" optionLabel="label" optionValue="value" placeholder="Type" appendTo="body" /></td>
+                  @if (hasEwt()) {
+                    @if (d.type === 'Ewt2307') {
+                      <td class="c2307"><p-checkbox [ngModel]="d.with2307" (ngModelChange)="set2307(d, $event)" [binary]="true" /></td>
+                      <td><p-inputnumber [(ngModel)]="d.acctNo" (ngModelChange)="touchLines()" [useGrouping]="false" [min]="1" [max]="99999"
+                        pTooltip="HOMS GL: 10507 with the 2307, 10508 without" tooltipPosition="top" inputStyleClass="col-acct mono" /></td>
+                    } @else { <td></td><td></td> }
+                  }
                   <td class="num"><p-inputnumber [(ngModel)]="d.amount" (ngModelChange)="touchLines()" mode="decimal" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="col-num mono" /></td>
                   <td class="ded-ref"><input pInputText [(ngModel)]="d.ref" maxlength="50" class="col-ref" />
                     <p-button icon="pi pi-times" [text]="true" size="small" severity="secondary" pTooltip="Remove deduction" (onClick)="removeDed(l, d)" /></td>
@@ -510,6 +541,7 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
     siteId: [null as number | null],
     receiptType: ['CR' as ReceiptType],
     receiptNo: [''],
+    dcrNo: [null as number | null],
     receiptDate: [new Date() as Date | null],
     paymentMode: ['BankTransfer' as PaymentMode],
     amount: [null as number | null],
@@ -528,13 +560,13 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
   lines = signal<Line[]>([]);
   /** Fetch bar above the invoice table: one invoice at a time; once HO has synced it, Add replaces Fetch. */
   fetchNo: number | null = null;
-  fetchDate: Date | null = null;
   fetched = signal<OpenInvoiceDto | null>(null);
+  /** Invoice date shown beside the no. (user 2026-11-13): read-only, auto-filled from the invoice once it's found. */
+  fetchDate = computed(() => this.toDate(this.fetched()?.docDate));
   /** Soft copies picked before the first Save; uploaded right after it. */
   pendingFiles = signal<File[]>([]);
   /** Chain account paying several customers on this receipt: invoices of different customers allowed. */
   multiCustomer = signal(false);
-  fetchStatus = signal<InvoiceSyncRequestStatusDto | null>(null);
   custInvoices = signal<OpenInvoiceDto[]>([]);
   apiError = signal<string | null>(null);
   saving = signal(false);
@@ -581,6 +613,13 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
       : 'Invoice balance once this receipt goes through — not yet deposited';
   }
 
+  /** The 2307 att. / ACCTNO columns show while any deduction on the receipt is an EWT. */
+  protected hasEwt = computed(() => { this.formTick(); return this.lines().some(l => l.deds.some(d => d.type === 'Ewt2307')); });
+  protected ewtCols = computed(() => this.hasEwt() ? 2 : 0);
+  private ewtDeds() { return this.lines().flatMap(l => l.deds.filter(d => d.type === 'Ewt2307')); }
+  /** Header "check all": ticked when every EWT on the receipt has its 2307. */
+  protected all2307 = computed(() => { this.formTick(); const e = this.ewtDeds(); return e.length > 0 && e.every(d => d.with2307); });
+
   protected deductionTotal = computed(() => { this.formTick(); return this.round(this.lines().reduce((s, l) => s + l.deds.reduce((t, d) => t + (d.type ? d.amount ?? 0 : 0), 0), 0)); });
   protected unapplied = computed(() => { this.formTick(); return this.round((this.form.controls.amount.value ?? 0) - this.appliedTotal()); });
 
@@ -600,7 +639,6 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
   private currentTabKey = NEW_KEY;
   private navSub?: Subscription;
   private formSub?: Subscription;
-  private pollSub?: Subscription;
 
   ngOnInit() {
     this.api.mySites().subscribe(res => {
@@ -627,7 +665,6 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
     this.toolbar.clear();
     this.navSub?.unsubscribe();
     this.formSub?.unsubscribe();
-    this.pollSub?.unsubscribe();
   }
 
   private isNewDirty() {
@@ -666,7 +703,7 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
     this.apiError.set(null);
     this.custInvoices.set([]);
     this.form.patchValue({
-      siteId: c.siteId, receiptType: c.receiptType, receiptNo: c.receiptNo, receiptDate: this.toDate(c.receiptDate),
+      siteId: c.siteId, receiptType: c.receiptType, receiptNo: c.receiptNo, dcrNo: c.dcrNo, receiptDate: this.toDate(c.receiptDate),
       paymentMode: c.paymentMode, amount: c.amount, custKey: c.custKey,
       bank: c.bank ?? '', checkNo: c.checkNo ?? '', checkDate: this.toDate(c.checkDate),
       depAccountId: c.deposit?.bankAccountId ?? null, depSlip: c.deposit?.slipRefNo ?? '', depDate: this.toDate(c.deposit?.depositDate ?? null),
@@ -678,7 +715,7 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
       return {
         postedInvoiceId: i.postedInvoiceId, docNo: i.docNo, docDate: i.docDate, custKey: i.custKey, custName: i.custName,
         total: i.total, rfcTotal: i.rfcTotal, available: i.availableBalance, applied: i.amountApplied,
-        deds: ded.map(d => ({ type: d.type, amount: d.amount, ref: d.reference ?? '' })),
+        deds: ded.map(d => ({ type: d.type, amount: d.amount, ref: d.reference ?? '', with2307: d.with2307, acctNo: d.acctNo })),
       };
     }));
     // Branch and type are fixed once saved; everything is fixed once submitted.
@@ -705,7 +742,6 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
     this.pendingFiles.set([]);
     this.multiCustomer.set(false);
     this.custInvoices.set([]);
-    this.pollSub?.unsubscribe();
     this.currentTabKey = NEW_KEY;
     this.tabBar.registerDirtyChecker(NEW_KEY, () => this.isNewDirty());
     this.syncToolbar();
@@ -746,16 +782,13 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
     this.form.patchValue({ paymentMode: rt === 'CR' ? 'BankTransfer' : 'PostDatedCheck' });
   }
 
-  // ── fetch invoices (queued for HO) ─────────────────────────────────────
+  // ── fetch invoices (HOMSys holds every invoice in HOMS's A/R file, AROF4HO) ──
 
-  /** Clear: empty the fetch bar, drop a fetched-but-not-added invoice and stop waiting for HO. */
+  /** Clear: empty the fetch bar and drop a fetched-but-not-added invoice. */
   clearFetch() {
-    this.pollSub?.unsubscribe();
     this.fetching.set(false);
-    this.fetchStatus.set(null);
     this.fetched.set(null);
     this.fetchNo = null;
-    this.fetchDate = null;
   }
 
   /** Add: put the fetched invoice on the table, then the bar is ready for the next one. */
@@ -765,67 +798,35 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
     this.clearFetch();
   }
 
-  /** Runs by itself once both invoice no. and date are in (and on Fetch): HOMSys first, else HO. */
+  /** Runs by itself once the invoice no. is in (and on Fetch). */
   autoFetch() {
-    if (this.fetchNo && this.fetchDate && !this.fetching() && !this.fetched() && this.form.getRawValue().siteId) this.fetch();
+    if (this.fetchNo && !this.fetching() && !this.fetched() && this.form.getRawValue().siteId) this.fetch();
   }
 
   /**
-   * An invoice HOMSys already holds shows at once. Otherwise HO is asked: its watcher reads the SL file and saves the
-   * invoice (and its RFCs) into HOMSys, so the next lookup of it is instant.
+   * By invoice no. alone (user 2026-11-12): LegacyMasterWatcher copies every invoice and RFC from HOMS's A/R open file
+   * (F:\HOMS\RAM\AROF4HO.DBF) into HOMSys, so there is nothing to ask HO for. An invoice shows up once HO has posted
+   * the branch's sales to A/R, usually a few days after its end of day.
    */
   fetch() {
     const siteId = this.form.getRawValue().siteId;
-    const items = this.fetchNo && this.fetchDate ? [{ invoiceNo: this.fetchNo, invoiceDate: this.iso(this.fetchDate)! }] : [];
-    if (!siteId || !items.length) {
-      this.toast.add({ severity: 'warn', summary: 'Fetch', detail: 'Choose the branch and enter the invoice no. with its date.' });
+    const no = this.fetchNo;
+    if (!siteId || !no) {
+      this.toast.add({ severity: 'warn', summary: 'Fetch', detail: 'Choose the branch and enter the invoice no.' });
       return;
     }
     this.fetched.set(null);
     this.fetching.set(true);
-    this.api.invoices(siteId, { docNos: [items[0].invoiceNo] }).subscribe({
+    this.api.invoices(siteId, { docNos: [no] }).subscribe({
       next: res => {
-        const known = res.data?.[0];
-        if (known) { this.fetching.set(false); this.fetched.set(known); }
-        else this.askHo(siteId, items);
+        this.fetching.set(false);
+        const found = res.data?.[0];
+        if (found) this.fetched.set(found);
+        else this.toast.add({ severity: 'warn', summary: 'Fetch', life: 8000,
+          detail: `Invoice ${no} isn't in HOMS's A/R for this branch yet. Check the no.; a new invoice appears once HO has posted the branch's sales to A/R.` });
       },
-      error: () => this.askHo(siteId, items)
+      error: err => { this.fetching.set(false); this.toast.add({ severity: 'error', summary: 'Fetch', detail: err?.error?.message ?? 'Lookup failed.' }); }
     });
-  }
-
-  private askHo(siteId: number, items: { invoiceNo: number; invoiceDate: string }[]) {
-    this.api.requestInvoices(siteId, items).subscribe({
-      next: res => { this.fetchStatus.set(res.data ?? null); this.poll(siteId, res.data!.id); },
-      error: err => { this.fetching.set(false); this.toast.add({ severity: 'error', summary: 'Fetch', detail: err?.error?.message ?? 'Request failed.' }); }
-    });
-  }
-
-  /** Polls every 5 s (max ~5 min) until HO's watcher has answered, then offers the invoice for Add. */
-  private poll(siteId: number, requestId: number) {
-    this.pollSub?.unsubscribe();
-    this.pollSub = interval(5000).pipe(take(60), switchMap(() => this.api.invoiceRequest(requestId))).subscribe({
-      next: res => {
-        const s = res.data!;
-        this.fetchStatus.set(s);
-        if (s.status === 'Done' || s.status === 'Failed') {
-          this.pollSub?.unsubscribe();
-          this.fetching.set(false);
-          const found = s.items.filter(i => i.found).map(i => i.invoiceNo);
-          if (found.length) this.offerFetched(siteId, found[0]);
-          else this.toast.add({ severity: 'warn', summary: 'Fetch', detail: s.message || `Invoice ${s.items[0]?.invoiceNo ?? ''} wasn't found in BMS for that date — check the no. and date.` });
-        }
-      },
-      complete: () => {
-        if (this.fetching()) {
-          this.fetching.set(false);
-          this.toast.add({ severity: 'warn', summary: 'Fetch', detail: 'HO has not answered yet — try Fetch again in a few minutes.' });
-        }
-      }
-    });
-  }
-
-  private offerFetched(siteId: number, docNo: number) {
-    this.api.invoices(siteId, { docNos: [docNo] }).subscribe(res => this.fetched.set(res.data?.[0] ?? null));
   }
 
   loadCustomerInvoices() {
@@ -880,24 +881,45 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
     this.form.markAsDirty();
   }
 
-  addDed(l: Line) { l.deds = [...l.deds, { type: null, amount: null, ref: '' }]; this.lines.update(ls => [...ls]); this.touchLines(); }
+  addDed(l: Line) { l.deds = [...l.deds, { type: null, amount: null, ref: '', with2307: false, acctNo: null }]; this.lines.update(ls => [...ls]); this.touchLines(); }
   removeDed(l: Line, d: Ded) { l.deds = l.deds.filter(x => x !== d); this.lines.update(ls => [...ls]); this.touchLines(); }
 
-  removeLine(l: Line) { this.lines.update(ls => ls.filter(x => x !== l)); this.form.markAsDirty(); }
+  /** A new EWT starts with 2307 att. unticked, so ACCTNO 10508 (user 2026-11-12). */
+  onDedType(d: Ded, t: DeductionType | null) {
+    d.type = t;
+    if (t === 'Ewt2307' && d.acctNo == null) d.acctNo = ewtAccount(!!d.with2307);
+    this.touchLines();
+  }
+  /** Ticking / unticking 2307 att. puts ACCTNO back to its default (10507 / 10508); it stays editable. */
+  set2307(d: Ded, on: boolean) { d.with2307 = on; d.acctNo = ewtAccount(on); this.touchLines(); }
+  setAll2307(on: boolean) { for (const d of this.ewtDeds()) { d.with2307 = on; d.acctNo = ewtAccount(on); } this.touchLines(); }
+
+  removeLine(l: Line) {
+    this.lines.update(ls => ls.filter(x => x !== l));
+    // The customer follows the invoices: the first one left, or none.
+    const key = this.form.controls.custKey.value;
+    if (!this.lines().some(x => x.custKey === key)) this.form.patchValue({ custKey: this.lines()[0]?.custKey ?? '' });
+    this.form.markAsDirty();
+  }
   touchLines() { this.formTick.update(n => n + 1); this.form.markAsDirty(); }
 
   // ── save / workflow ─────────────────────────────────────────────────────
 
   save() {
     const v = this.form.getRawValue();
-    if (!v.siteId || !v.receiptNo?.trim() || !v.receiptDate || !v.amount || !v.custKey?.trim()) {
-      this.toast.add({ severity: 'warn', summary: 'Validation', detail: 'Branch, receipt no., date, amount and customer key are required.' });
+    if (!v.siteId || !v.receiptNo?.trim() || !v.dcrNo || !v.receiptDate || !v.amount) {
+      this.toast.add({ severity: 'warn', summary: 'Validation', detail: 'Branch, receipt no., DCR no., date and amount are required.' });
+      return;
+    }
+    const noAcct = this.lines().find(l => l.deds.some(d => d.type === 'Ewt2307' && d.amount && !d.acctNo));
+    if (noAcct) {
+      this.toast.add({ severity: 'warn', summary: 'Validation', detail: `Invoice ${noAcct.docNo}: enter the ACCTNO of its EWT (10507 with the 2307, 10508 without).` });
       return;
     }
     const hasDeposit = !!(v.depAccountId || v.depSlip?.trim());
     const dto: SaveCollectionDto = {
       siteId: v.siteId, receiptType: v.receiptType!, receiptNo: v.receiptNo.trim(), receiptDate: this.iso(v.receiptDate)!,
-      custKey: v.custKey.trim(), paymentMode: v.paymentMode!, amount: v.amount,
+      custKey: v.custKey?.trim() ?? '', dcrNo: v.dcrNo, paymentMode: v.paymentMode!, amount: v.amount,
       bank: this.isCheck() ? v.bank?.trim() || null : null,
       checkNo: this.isCheck() ? v.checkNo?.trim() || null : null,
       checkDate: this.isCheck() ? this.iso(v.checkDate) : null,
@@ -908,7 +930,8 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
       remarks: v.remarks?.trim() || null,
       invoices: this.lines().map(l => ({ postedInvoiceId: l.postedInvoiceId, amountApplied: l.applied ?? 0 })),
       deductions: this.lines().flatMap(l => l.deds.filter(d => d.type && d.amount)
-        .map(d => ({ postedInvoiceId: l.postedInvoiceId, type: d.type!, amount: d.amount!, reference: d.ref?.trim() || null }))),
+        .map(d => ({ postedInvoiceId: l.postedInvoiceId, type: d.type!, amount: d.amount!, reference: d.ref?.trim() || null,
+          with2307: d.type === 'Ewt2307' && !!d.with2307, acctNo: d.type === 'Ewt2307' ? d.acctNo : null }))),
       multiCustomer: this.multiCustomer(),
     };
     if (dto.deposit && (!dto.deposit.bankAccountId || !dto.deposit.depositDate)) {

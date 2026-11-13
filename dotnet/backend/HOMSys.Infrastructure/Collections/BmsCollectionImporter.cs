@@ -58,8 +58,8 @@ public class BmsCollectionImporter(AppDbContext db)
             b.Cancelled = b.StatDesc.Equals("Cancelled", StringComparison.OrdinalIgnoreCase);
             b.CustKey = lines.Select(l => l.CustKey).FirstOrDefault(k => k.Length > 0) ?? "";
             b.ArApplied = lines.Where(l => l.AcctNo == BmsPostedCollection.ArAccount).Sum(l => l.CrAmt - l.DrAmt);
-            b.Ewt = lines.Where(l => l.AcctNo == BmsPostedCollection.EwtAccount).Sum(l => l.DrAmt - l.CrAmt);
-            b.Received = lines.Where(l => l.AcctNo is not (BmsPostedCollection.ArAccount or BmsPostedCollection.EwtAccount)).Sum(l => l.DrAmt - l.CrAmt);
+            b.Ewt = lines.Where(l => BmsPostedCollection.IsEwt(l.AcctNo)).Sum(l => l.DrAmt - l.CrAmt);
+            b.Received = lines.Where(l => l.AcctNo != BmsPostedCollection.ArAccount && !BmsPostedCollection.IsEwt(l.AcctNo)).Sum(l => l.DrAmt - l.CrAmt);
             b.CheckNo = first?.CheckNo is { Length: > 0 } c && c.Trim('0').Length > 0 ? c : null;
             b.CheckDate = first?.CheckDate;
             b.DraweeBank = first?.DraweeBank is { Length: > 0 } db_ ? db_ : null;

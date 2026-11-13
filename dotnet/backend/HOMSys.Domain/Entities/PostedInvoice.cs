@@ -1,9 +1,11 @@
 namespace HOMSys.Domain.Entities;
 
 /// <summary>
-/// A posted BMS invoice, mirrored from the branch EOD SL{WH}{MMYY}.DBF (DOCID=1).
-/// Total = SUM(AMT + STAX) per (WhseNo, DocNo); RfcTotal = SUM(AMT + STAX) of DOCID=6 rows with
-/// REFID=1 and REFNO = DocNo (already negative in BMS). Never derived from arof4win.
+/// A posted BMS invoice. Since 2026-11-12 every invoice comes from HOMS's A/R open file F:\HOMS\RAM\AROF4HO.DBF
+/// (SourceFile "AROF4HO", ArofInvoiceSyncImporter): DOCID 1, Total = DRAMT − CRAMT, RfcTotal = its DOCID 6 / REFID 1
+/// rows. Before that (and still for a Remittance Advice's "Fetching" invoices not in AROF4HO yet) it came from the
+/// branch EOD SL{WH}{MMYY}.DBF: Total = SUM(AMT + STAX), RfcTotal = SUM(AMT + STAX) of DOCID=6 rows with REFID=1 and
+/// REFNO = DocNo. Once AROF4HO holds an invoice, its SL copy is never applied again (AROF4HO wins).
 /// </summary>
 public class PostedInvoice
 {
@@ -35,6 +37,11 @@ public class PostedInvoice
 
     /// <summary>Signed sum of posted RFCs against this invoice (zero or negative).</summary>
     public decimal RfcTotal { get; set; }
+
+    /// <summary>HOMS's own open balance (AROF4HO DOCBAL): after every OR, RFC and memo posted in HOMS, including ones
+    /// never encoded in HOMSys. Null = not from AROF4HO. Used to leave invoices HOMS has closed out of the
+    /// customer's open-invoice list; HOMSys's own balance (Total + RfcTotal − its collections) is unchanged.</summary>
+    public decimal? HomsBalance { get; set; }
 
     public string SourceFile { get; set; } = string.Empty;
     public DateTime SyncedAt { get; set; } = DateTime.UtcNow;

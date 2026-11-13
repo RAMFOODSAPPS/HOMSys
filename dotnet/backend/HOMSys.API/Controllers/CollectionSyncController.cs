@@ -12,6 +12,7 @@ namespace HOMSys.API.Controllers;
 [AllowAnonymous]
 public class CollectionSyncController(
     PostedInvoiceSyncImporter importer,
+    ArofInvoiceSyncImporter arof,
     InvoiceSyncRequestService requests,
     BmsCollectionImporter bms,
     HomsPostingService postings,
@@ -54,6 +55,18 @@ public class CollectionSyncController(
 
         var result = await importer.ApplyAsync(request);
         logger.LogInformation("Posted-invoice sync {File} (WH {Wh}): {Result}", request.SourceFile, request.Wh, result);
+        return Ok(new { success = true, data = result.ToString() });
+    }
+
+    /// <summary>New / changed invoices + RFCs from HOMS's A/R open file (AROF4HO.DBF); safe to re-send (idempotent).</summary>
+    [HttpPost("arof-invoices")]
+    [DisableRequestSizeLimit]
+    public async Task<IActionResult> ArofInvoices([FromHeader(Name = "X-Api-Key")] string? apiKey, [FromBody] ArofSyncRequest? request)
+    {
+        if (!KeyOk(apiKey)) return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+        if (request is null) return BadRequest(new { success = false, message = "groups / removed are required." });
+        var result = await arof.ApplyAsync(request);
+        logger.LogInformation("AROF4HO invoice sync: {Result}", result);
         return Ok(new { success = true, data = result.ToString() });
     }
 

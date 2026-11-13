@@ -12,6 +12,8 @@ export interface CollectionSiteDto { id: number; code: string; name: string; }
 export interface OpenInvoiceDto {
   id: number; docNo: number; docDate: string; custKey: string; custName: string; term: number; poNum: string | null;
   total: number; rfcTotal: number; paid: number; balance: number;
+  /** HOMS's own balance (AROF4HO DOCBAL): also counts ORs posted in HOMS outside HOMSys; null = unknown. */
+  homsBalance?: number | null;
 }
 
 /** bankAccountId = company account deposited into; bank is its label (set by the server). */
@@ -71,9 +73,12 @@ export interface SaveCollectionDto {
   deposit: DepositInfoDto | null;
   remarks: string | null;
   invoices: { postedInvoiceId: number; amountApplied: number }[];
-  deductions: { postedInvoiceId: number; type: DeductionType; amount: number; reference: string | null }[];
+  /** with2307 / acctNo: EWT only — "2307 att." and the HOMS GL of its CEWT line (10507 with the 2307, else 10508). */
+  deductions: { postedInvoiceId: number; type: DeductionType; amount: number; reference: string | null; with2307: boolean; acctNo: number | null }[];
   /** Chain account paying several customers' invoices on this one receipt (e.g. SM). */
   multiCustomer?: boolean;
+  /** HOMS DCRNO; required. */
+  dcrNo: number | null;
 }
 
 export interface CollectionListItemDto {
@@ -111,7 +116,8 @@ export interface CollectionDto {
   createdBy: string; createdAt: string; submittedAt: string | null; verifiedAt: string | null; verifiedBy: string | null;
   canEdit: boolean; canSubmit: boolean; canVoid: boolean; canRecordDeposit: boolean; canVerify: boolean;
   invoices: CollectionInvoiceDto[];
-  deductions: { id: number; postedInvoiceId: number; docNo: number; type: DeductionType; amount: number; reference: string | null }[];
+  deductions: { id: number; postedInvoiceId: number; docNo: number; type: DeductionType; amount: number; reference: string | null;
+    with2307: boolean; acctNo: number | null }[];
   attachments: { id: number; fileName: string; contentType: string; size: number; uploadedAt: string; uploadedBy: string }[];
   history: CollectionHistoryDto[];
   bms: BmsPostingDto | null;
@@ -124,7 +130,7 @@ export interface CollectionDto {
   /** Documents written (or queued) into the HOMS ARCHIVES files: OR (CR), RPDC (PDC), JV (matured PDC). */
   homsPostings: HomsPostingDto[];
   canRetryHoms: boolean;
-  /** RA CR: its Remittance Advice, HOMS desk (32 Luzon / 31 VisMin) and typed DCR no. */
+  /** RA CR: its Remittance Advice and HOMS desk (32 Luzon / 31 VisMin). DCR no.: typed on every receipt (HOMS DCRNO). */
   remittanceId: number | null; homsDeptCode: number | null; dcrNo: number | null;
   /** PDC pulled out / replaced before deposit: its RPDC is cancelled in HOMS, then the PDC is voided. */
   canPulloutPdc: boolean;
@@ -270,6 +276,11 @@ export const PAYMENT_MODES: { label: string; value: PaymentMode }[] = [
   { label: 'Cheque', value: 'Check' },
   { label: 'Post-dated check', value: 'PostDatedCheck' },
 ];
+
+/** HOMS GL of an EWT's CEWT line: 10507 PREPAID CEWIT - WITH CERTIFICATE, 10508 RECEIVABLE DUE TO TAX WITHHELD W/O. */
+export const EWT_ACCT_WITH_2307 = 10507;
+export const EWT_ACCT_WITHOUT_2307 = 10508;
+export const ewtAccount = (with2307: boolean) => with2307 ? EWT_ACCT_WITH_2307 : EWT_ACCT_WITHOUT_2307;
 
 export const DEDUCTION_TYPES: { label: string; value: DeductionType }[] = [
   { label: 'EWT (2307)', value: 'Ewt2307' },

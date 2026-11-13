@@ -121,11 +121,14 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         var q = db.PostedInvoices.Where(i => i.SiteId == siteId);
         if (!string.IsNullOrWhiteSpace(custKey)) q = q.Where(i => i.CustKey == custKey.Trim());
         if (docNos is { Count: > 0 }) q = q.Where(i => docNos.Contains(i.DocNo));
+        // HOMSys holds every invoice in HOMS's A/R file (since 2026-11-12), years of them already paid in HOMS:
+        // a customer's open list leaves out what HOMS has closed (null = not from AROF4HO, kept as before).
+        if (openOnly) q = q.Where(i => i.HomsBalance == null || i.HomsBalance > 0);
         var invoices = await q.OrderBy(i => i.DocDate).ThenBy(i => i.DocNo).Take(500).ToListAsync();
 
         var paid = await PaidAsync(invoices.Select(i => i.Id).ToList());
         var rows = invoices.Select(i => new OpenInvoiceDto(i.Id, i.DocNo, i.DocDate, i.CustKey, i.CustName, i.Term, i.PoNum,
-            i.Total, i.RfcTotal, paid.GetValueOrDefault(i.Id), Balance(i, paid.GetValueOrDefault(i.Id))));
+            i.Total, i.RfcTotal, paid.GetValueOrDefault(i.Id), Balance(i, paid.GetValueOrDefault(i.Id)), i.HomsBalance));
         return ((openOnly ? rows.Where(r => r.Balance != 0) : rows).ToList(), null);
     }
 
@@ -233,7 +236,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             CanVerify: CanVerifyThis(u, c),
             invoices,
             c.Deductions.OrderBy(d => d.Id).Select(d => new CollectionDeductionDto(d.Id, d.PostedInvoiceId, d.PostedInvoice.DocNo,
-                d.Type.ToString(), d.Amount, d.Reference)).ToList(),
+                d.Type.ToString(), d.Amount, d.Reference, d.With2307, d.AcctNo)).ToList(),
             c.Attachments.OrderBy(a => a.Id).Select(a => new CollectionAttachmentDto(a.Id, a.FileName, a.ContentType, a.Size,
                 Utc(a.UploadedAt), a.UploadedBy)).ToList(),
             c.History.OrderBy(h => h.Id).Select(h => new CollectionHistoryDto(h.Action, h.FromStatus, h.ToStatus, h.Reason,
@@ -314,8 +317,19 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (await db.Collections.AnyAsync(x => x.SiteId == c.SiteId && x.ReceiptType == rt && x.ReceiptNo == receiptNo && x.Id != c.Id))
             return $"{rt} {receiptNo} is already encoded for this branch.";
 
+        // DCR no. (HOMS OR header DCRNO, N(8)): required on every receipt (user 2026-11-12). An RA's CR gets it from the RA.
+        var dcrNo = c.DcrNo;
+        if (!InRemittance(c))
+        {
+            if (dto.DcrNo is not { } dcr || dcr <= 0) return "Enter the DCR no.";
+            if (dcr > 99_999_999) return "The DCR no. is too long (8 digits at most).";
+            dcrNo = dcr;
+        }
+
+        // The customer follows the invoices (the page no longer lets it be typed, user 2026-11-12); a receipt with no
+        // invoice yet has none, and can't be submitted until one is added (see Missing).
         var custKey = (dto.CustKey ?? "").Trim();
-        if (custKey.Length is 0 or > 7) return "Enter the customer key.";
+        if (custKey.Length > 7) return "The customer key is too long.";
 
         var amount = Math.Round(dto.Amount, 2);
         if (amount <= 0) return "The amount received must be more than zero.";
@@ -343,6 +357,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         // An RA's CR (Head Office) applies a chain's invoices from every branch.
         if (invoices.Count != ids.Count || (!InRemittance(c) && invoices.Values.Any(i => i.SiteId != c.SiteId)))
             return "An invoice doesn't belong to this branch — fetch it again.";
+        if (custKey.Length == 0 && allocs.Count > 0) custKey = invoices[allocs[0].PostedInvoiceId].CustKey.Trim();
         // One receipt (CR / PR / AR) is for one customer only, unless it's a chain account paying several (user 2026-10-07).
         if (!dto.MultiCustomer && invoices.Values.FirstOrDefault(i => !string.Equals(i.CustKey?.Trim(), custKey, StringComparison.OrdinalIgnoreCase)) is { } other)
             return $"Invoice {other.DocNo} is for customer {other.CustKey}, not {custKey} — one receipt covers one customer only.";
@@ -354,10 +369,16 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             if (!Enum.TryParse<DeductionType>(d.Type, true, out var dt)) return "Choose the deduction type.";
             var amt = Math.Round(d.Amount, 2);
             if (amt <= 0) return "A deduction amount must be more than zero.";
+            // EWT: "2307 att." picks the HOMS GL of its CEWT line — 10507 with the 2307, 10508 without — unless one is typed.
+            var ewt = dt == DeductionType.Ewt2307;
+            var acctNo = ewt ? d.AcctNo ?? CollectionDeduction.DefaultEwtAccount(d.With2307) : (int?)null;
+            if (acctNo is <= 0 or > 99_999)
+                return $"Invoice {invoices[d.PostedInvoiceId].DocNo}: the EWT ACCTNO must be a HOMS GL account (5 digits at most).";
             newDeds.Add(new CollectionDeduction
             {
                 PostedInvoiceId = d.PostedInvoiceId, Type = dt, Amount = amt,
                 Reference = d.Reference?.Trim() is { Length: > 0 } r ? r[..Math.Min(r.Length, 100)] : null,
+                With2307 = ewt && d.With2307, AcctNo = acctNo,
             });
         }
 
@@ -385,9 +406,11 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         c.ReceiptType = rt;
         c.ReceiptNo = receiptNo;
         c.ReceiptDate = dto.ReceiptDate;
+        c.DcrNo = dcrNo;
         c.CustKey = custKey;
         c.MultiCustomer = dto.MultiCustomer && invoices.Values.Select(i => i.CustKey).Distinct().Count() > 1;
-        c.CustName = invoices.Values.FirstOrDefault(i => i.CustKey == custKey)?.CustName
+        c.CustName = custKey.Length == 0 ? ""
+                     : invoices.Values.FirstOrDefault(i => i.CustKey == custKey)?.CustName
                      ?? await db.PostedInvoices.Where(i => i.CustKey == custKey).Select(i => i.CustName).FirstOrDefaultAsync()
                      ?? await db.Customers.Where(x => x.CustKey == custKey).Select(x => x.CusName).FirstOrDefaultAsync()
                      ?? "";
@@ -500,6 +523,9 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
     {
         if (c.RemittanceId is not null) return MissingInRa(c);
         var m = new List<string>();
+        if (c.DcrNo is null) m.Add("Enter the DCR no.");
+        // The customer comes from the invoices only (user 2026-11-12), so a receipt needs one before it's submitted.
+        if (c.Invoices.Count == 0) m.Add("Add the invoice(s) this payment is for.");
         if (c.Attachments.Count == 0) m.Add("Attach the soft copy of the receipt.");
         if (c.ReceiptType == ReceiptType.CR && c.DepositBatch is null) m.Add("Enter the deposit (bank account and date; the reference no. is optional).");
         return m;

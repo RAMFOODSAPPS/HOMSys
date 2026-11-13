@@ -68,6 +68,7 @@ public static class DependencyInjection
         services.AddScoped<PricingDataImporter>();
         services.AddScoped<PricingDeltaImporter>();
         services.AddScoped<PostedInvoiceSyncImporter>();
+        services.AddScoped<ArofInvoiceSyncImporter>();
         services.AddScoped<InvoiceSyncRequestService>();
         services.AddScoped<HomsPostingService>();
         services.AddScoped<BankMatchService>();
