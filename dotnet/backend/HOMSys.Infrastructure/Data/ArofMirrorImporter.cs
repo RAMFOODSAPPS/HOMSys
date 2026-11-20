@@ -60,10 +60,12 @@ public class ArofMirrorImporter(AppDbContext db, ArofInvoiceSyncImporter invoice
         var blocks = req.Blocks ?? [];
         foreach (var b in blocks)
         {
-            if (b.FirstRecNo != b.BlockNo * bs + 1 || b.Rows.Count == 0 || b.Rows.Count > bs || string.IsNullOrEmpty(b.Hash))
+            if (b.Rows is null || b.FirstRecNo != b.BlockNo * bs + 1 || b.Rows.Count == 0 || b.Rows.Count > bs
+                || string.IsNullOrEmpty(b.Hash))
                 return (null, $"Block {b.BlockNo} is malformed.");
             for (var i = 0; i < b.Rows.Count; i++)
-                if (b.Rows[i].Length != Columns.Length || b.Rows[i][0].GetInt32() != b.FirstRecNo + i)
+                if (b.Rows[i] is not { } row || row.Length != Columns.Length || row[0].ValueKind != JsonValueKind.Number
+                    || !row[0].TryGetInt32(out var recNo) || recNo != b.FirstRecNo + i)
                     return (null, $"Block {b.BlockNo} row {i} is malformed.");
         }
         if (req.Final && req.File.RecordCount <= 0) return (null, "Refusing an empty AROF4HO (record count 0).");
@@ -158,14 +160,25 @@ public class ArofMirrorImporter(AppDbContext db, ArofInvoiceSyncImporter invoice
         if (req.Final && req.FullScan)
         {
             // Every AROF invoice whose DOCID 1 row is gone, and every number still holding AROF RFCs with no RFC row
-            // left: rebuilt as RFCs-only, or removed (the importer keeps one a collection uses).
+            // left: rebuilt as RFCs-only, or removed. An invoice a collection / remittance uses is kept by the importer
+            // (with its RFCs) even when HOMS dropped it, so those are left out here: otherwise they would come back on
+            // every full compare, and after a purge could push every compare into the paged rebuild.
+            var keptNos = db.PostedInvoices
+                .Where(p => p.SourceFile == ArofInvoiceSyncImporter.Source
+                            && !db.HomsArofRows.Any(r => r.DocId == 1 && !r.Deleted && r.DocNo == p.DocNo)
+                            && (db.CollectionInvoices.Any(c => c.PostedInvoiceId == p.Id)
+                                || db.CollectionDeductions.Any(c => c.PostedInvoiceId == p.Id)
+                                || db.RemittanceLines.Any(l => l.PostedInvoiceId == p.Id)))
+                .Select(p => p.DocNo);
             var noInvoiceRow = await db.PostedInvoices.AsNoTracking()
                 .Where(p => p.SourceFile == ArofInvoiceSyncImporter.Source
-                            && !db.HomsArofRows.Any(r => r.DocId == 1 && !r.Deleted && r.DocNo == p.DocNo))
+                            && !db.HomsArofRows.Any(r => r.DocId == 1 && !r.Deleted && r.DocNo == p.DocNo)
+                            && !keptNos.Contains(p.DocNo))
                 .Select(p => p.DocNo).Distinct().ToListAsync();
             var orphanRfcs = await db.PostedRfcs.AsNoTracking()
                 .Where(x => x.SourceFile == ArofInvoiceSyncImporter.Source
-                            && !db.HomsArofRows.Any(r => r.DocId == 6 && r.RefId == 1 && !r.Deleted && r.RefNo == x.InvoiceNo && r.DocNo == x.RfcNo))
+                            && !db.HomsArofRows.Any(r => r.DocId == 6 && r.RefId == 1 && !r.Deleted && r.RefNo == x.InvoiceNo && r.DocNo == x.RfcNo)
+                            && !keptNos.Contains(x.InvoiceNo))
                 .Select(x => x.InvoiceNo).Distinct().ToListAsync();
             HashSet<int> gone = [.. noInvoiceRow, .. orphanRfcs];
             if (gone.Count > SettleInlineMax) rebuildNeeded = true;   // too many for one request: the paged rebuild does it
