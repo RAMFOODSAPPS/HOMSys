@@ -125,6 +125,8 @@ export interface TasafDto extends SaveTasafDto {
   canSetTparNo: boolean;
   /** 'approve' when the current step is the caller's. */
   myAction: 'approve' | null;
+  /** Admin: may Approve / Return / Reject the current step on behalf of its approver. */
+  canAdminDecide: boolean;
   submittedAt: string | null;
   decidedAt: string | null;
   currentStepSeq: number | null;

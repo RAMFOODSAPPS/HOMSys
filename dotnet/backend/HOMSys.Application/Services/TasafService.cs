@@ -399,6 +399,10 @@ public class TasafService(
     private string? MyAction(Tasaf t) =>
         t.Status == TasafStatus.ForApproval && t.CurrentApproverUserId == CurrentUserId ? "approve" : null;
 
+    /// <summary>Admin may sign the current step on behalf of its approver (not when it is the Admin's own step).</summary>
+    private bool CanAdminDecide(Tasaf t) =>
+        IsAdmin && t.Status == TasafStatus.ForApproval && CurrentStep(t) is not null && MyAction(t) is null;
+
     private static TasafApprovalStep? CurrentStep(Tasaf t) =>
         t.CurrentStepSeq is int seq ? t.Steps.FirstOrDefault(s => s.Seq == seq) : null;
 
@@ -574,7 +578,7 @@ public class TasafService(
         if (why is not null) return (null, why);
         if (dto.Decision.Trim().ToLowerInvariant() is not ("approve" or "return" or "reject")) return (null, "Choose Approve, Return or Reject.");
 
-        var error = await DecideCoreAsync(t, step, dto, step.UserName.Length > 0 ? step.UserName : "(email)", viaEmail: true);
+        var error = await DecideCoreAsync(t, step, dto, step.UserName.Length > 0 ? step.UserName : "(email)", how: " via email");
         if (error is not null) return (null, error);
         // The hash is kept, so the page now shows "You already approved …".
         var (after, _) = await GetEmailDecisionAsync(token);
@@ -587,9 +591,24 @@ public class TasafService(
         if (t is null) return (null, NotFound);
 
         var step = CurrentStep(t);
-        if (MyAction(t) is null || step is null) return (null, "This TASAF is not waiting for your action.");
+        if (step is null || (MyAction(t) is null && !CanAdminDecide(t)))
+            return (null, "This TASAF is not waiting for your action.");
 
-        var error = await DecideCoreAsync(t, step, dto, step.UserName.Length > 0 ? step.UserName : CurrentUser, viaEmail: false);
+        string? error;
+        if (MyAction(t) is not null)
+            error = await DecideCoreAsync(t, step, dto, step.UserName.Length > 0 ? step.UserName : CurrentUser, how: "");
+        else
+        {
+            // Admin signs the current step on behalf of its approver (user decision 2026-11-20).
+            var admin = await MyNameAsync();
+            var behalf = step.UserName.Length > 0 ? step.UserName : step.RoleCode;
+            var approverId = step.UserId;
+            error = await DecideCoreAsync(t, step, dto, $"{admin} (Admin, for {behalf})", how: " by Admin");
+            if (error is null && approverId is int uid && uid != CurrentUserId)
+                await notifications.SendAsync([uid], "TASAF signed by Admin",
+                    $"{t.RefNo} — {t.Title}: your {step.RoleCode} step was {step.Status.ToString().ToLowerInvariant()} by {admin} (Admin) on your behalf: \"{dto.Comment.Trim()}\".",
+                    "/tasafs", "tasaf", t.Id, emailRef: t.RefNo);
+        }
         return error is not null ? (null, error) : (Map((await repo.GetByIdAsync(id))!), null);
     }
 
@@ -597,7 +616,7 @@ public class TasafService(
     /// Approve / return / reject the current step — from the app (DecideAsync) or an email link
     /// (EmailDecideAsync). A comment is always required. Returns an error, or null when saved.
     /// </summary>
-    private async Task<string?> DecideCoreAsync(Tasaf t, TasafApprovalStep step, TasafDecisionDto dto, string myName, bool viaEmail)
+    private async Task<string?> DecideCoreAsync(Tasaf t, TasafApprovalStep step, TasafDecisionDto dto, string myName, string how)
     {
         var decision = dto.Decision.Trim().ToLowerInvariant();
         var comment = dto.Comment.Trim();
@@ -607,7 +626,6 @@ public class TasafService(
 
         var from = t.Status;
         var head = $"{t.RefNo} — {t.Title}";
-        var how = viaEmail ? " via email" : "";
         // Everyone who already signed, for return/reject/final notices.
         var signed = t.Steps.Where(s => s.Status == TasafStepStatus.Approved).Select(s => s.UserId).ToList();
 
@@ -1256,6 +1274,7 @@ public class TasafService(
             CanCancel         = CanCancel(t),
             CanSetTparNo      = CanSetTparNo(t),
             MyAction          = MyAction(t),
+            CanAdminDecide    = CanAdminDecide(t),
             SubmittedAt       = t.SubmittedAt,
             DecidedAt         = t.DecidedAt,
             CurrentStepSeq    = t.CurrentStepSeq,

@@ -548,7 +548,9 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   `TasafNsmBeforeTmm`, user decision 2026-11-20). The person per role is per sales group in `TasafApprover`
   (setup › Approval Matrix); a vacant cell = step `Skipped`.
   Any approver can Return (→ Returned, editable; resubmit rebuilds the chain) or
-  Reject; both need a comment. Mode of Payment = ONE payment type per TASAF (dropdown), carrying the whole
+  Reject; both need a comment. **Admin can sign the current step on the approver's behalf** (Approve / Return /
+  Reject, `TasafDto.CanAdminDecide`, user decision 2026-11-20): logged as "Approved by Admin" with ByName
+  "<admin> (Admin, for <approver>)", and the bypassed approver is notified. The chain then moves on as usual. Mode of Payment = ONE payment type per TASAF (dropdown), carrying the whole
   TotalCost (saved into that type's `PayXxxAp` field; the Salesman fields are no longer used → 0). Submit
   requires exactly one payment type, payment total = TotalCost and
   CTS ≤ the program type's `MaxCtsPercent` (8% on PROMO- types) — or, when over it, a `CtsJustification`

@@ -124,6 +124,14 @@ function blankProduct(): TasafProduct {
             use <i class="pi pi-check"></i> Approve, <i class="pi pi-undo"></i> Return or <i class="pi pi-ban"></i> Reject on the toolbar.
           </span>
         </div>
+      } @else if (current()?.canAdminDecide) {
+        <div class="actbar mine">
+          <span><i class="pi pi-shield"></i>
+            Waiting for {{ currentApproverName() || current()!.currentRoleCode }} ({{ current()!.currentRoleCode }}).
+            As Admin you can sign this step on their behalf —
+            <i class="pi pi-check"></i> Approve, <i class="pi pi-undo"></i> Return or <i class="pi pi-ban"></i> Reject on the toolbar.
+          </span>
+        </div>
       } @else if (readonly()) {
         <p-message severity="info" styleClass="w-full mb-3"
           [text]="'Read only — ' + readonlyReason()" />
@@ -838,6 +846,9 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     });
   }
   protected cannotDelete = computed(() => !this.current()?.canDelete);
+  /** Who the current step is waiting on (for the Admin sign-on-behalf banner / button). */
+  protected currentApproverName = computed(() => { const c = this.current();
+    return c?.steps.find(s => s.seq === c.currentStepSeq)?.userName ?? ''; });
   protected severity     = computed(() => this.sev(this.current()?.status ?? 'Draft'));
   /** While Returned by an Admin revert (no step shows Returned): the history row that returned it. */
   protected returnedBy   = computed(() => { const c = this.current();
@@ -1051,8 +1062,9 @@ export class TasafPageComponent implements OnInit, OnDestroy {
         label: !t ? 'Save the TASAF first, then submit' : t.status === 'Returned' ? 'Resubmit for approval' : 'Submit for approval',
         onClick: () => this.confirmSubmit(), loading: this.submitting, disabled: this.submitBlocked
       } } : {}),
-      ...(t?.myAction ? {
-        approve: { label: `Approve as ${t.currentRoleCode ?? ''}`.trim(), onClick: () => this.openDecision('approve'), disabled: this.designing },
+      ...(t?.myAction || t?.canAdminDecide ? {
+        approve: { label: t.myAction ? `Approve as ${t.currentRoleCode ?? ''}`.trim()
+                                     : `Approve for ${this.currentApproverName() || t.currentRoleCode || ''} (Admin)`, onClick: () => this.openDecision('approve'), disabled: this.designing },
         return:  { onClick: () => this.openDecision('return'), disabled: this.designing },
         reject:  { onClick: () => this.openDecision('reject'), disabled: this.designing },
       } : {}),

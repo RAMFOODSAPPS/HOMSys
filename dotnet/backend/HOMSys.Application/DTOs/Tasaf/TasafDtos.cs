@@ -164,6 +164,8 @@ public class TasafDto : SaveTasafDto
     public bool CanSetTparNo { get; set; }
     /// <summary>"approve" when the current step is waiting on the caller, else null.</summary>
     public string? MyAction { get; set; }
+    /// <summary>Admin: may Approve / Return / Reject the current step on behalf of its approver.</summary>
+    public bool CanAdminDecide { get; set; }
 
     public DateTime? SubmittedAt { get; set; }
     public DateTime? DecidedAt { get; set; }
