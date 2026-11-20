@@ -21,7 +21,8 @@ public static class TasafEmailRenderer
 
     /// <param name="logoDataUri">Company logo (data: URI) for print; null = the text "HOMSys" header.</param>
     /// <param name="email">False for the print document and the decision page: no "do not reply" footer.</param>
-    public static string Render(TasafDto d, string intro, string? decisionToken, string? logoDataUri = null, bool email = true)
+    public static string Render(TasafDto d, string intro, string? decisionToken, string? logoDataUri = null, bool email = true,
+        string? worksheetToken = null, string worksheetBase = Web)
     {
         var support = TasafService.IsSupportProgram(d.ProgramTypeName ?? "");
         var sb = new StringBuilder();
@@ -129,42 +130,28 @@ public static class TasafEmailRenderer
         sb.Append(Table(["Payment Type", "Amount (₱)"], [false, true],
             pay.Select(x => new[] { x.Label, Num(x.Amount) }).ToList(), null));
 
-        // Attached worksheets (LF Breakdown / Near Ex), same columns as the workbook sheets
+        // Attached worksheets (LF Breakdown / Near Ex), same columns as the workbook sheets. In the approval
+        // email / decision page the wide product table doesn't fit, so it's a summary + a no-login
+        // "View worksheet" link (same token as Review & Decide); print / PDF keep the full table.
         foreach (var w in d.Worksheets)
         {
             sb.Append(Section($"Attached Worksheet — {w.TypeLabel}{(w.Title != w.TypeLabel ? ": " + w.Title : "")}"));
-            // Header (whole sheet), then the product rows.
-            static string V(string s) => s.Length > 0 ? s : "—";
+            if (worksheetToken is null) { WorksheetTables(sb, w); continue; }
             var nearEx = w.Type == "NearEx";
-            sb.Append(Table(
-                nearEx ? ["Sales Group", "Account / Store", "Category"] : ["Sales Group", "Channel", "Account / Store", "Category"],
-                nearEx ? [false, false, false] : [false, false, false, false],
-                [nearEx ? [V(w.SalesGroup), V(w.Account), V(w.Category)] : [V(w.SalesGroup), V(w.Channel), V(w.Account), V(w.Category)]],
-                null));
-            if (nearEx)
-                sb.Append(Table(
-                    ["Prod No.", "SKU", "LSP / Case", "LSP / Pc", "Pcs/Cs", "Expiry",
-                     "Invty Cases", "Invty Pcs", "Total Pcs", "Total Value", "Moveout Scheme", "Discount / Rebate", "Moveout Cost"],
-                    [false, false, true, true, true, false, true, true, true, true, false, true, true],
-                    w.NearExLines.Select(l => new[]
-                    {
-                        l.ProdNo, l.Sku, Num(l.LspPerCase), Num(l.LspPerPc), Int(l.PcsPerCase),
-                        l.Expiry?.ToString("MMM-yy", En) ?? "—", Int(l.InvCases), Int(l.InvPieces), l.TotalPcs.ToString("N0", En),
-                        Num(l.TotalValue), l.MoveoutScheme, l.Discount is decimal dc ? dc.ToString("P0", En) : "—", Num(l.MoveoutCost)
-                    }).ToList(),
-                    ["Total", "", "", "", "", "", "", "", w.NearExLines.Sum(l => l.TotalPcs).ToString("N0", En),
-                     Num(w.NearExLines.Sum(l => l.TotalValue)), "", "", Num(w.Total)]));
-            else
-                sb.Append(Table(
-                    ["Prod No.", "SKU", "LF / SKU", "# of SKUs", "# of Doors", "Total", "Projected Annual Sales", "CTS", "Remarks"],
-                    [false, false, true, true, true, true, true, true, false],
-                    w.ListingFeeLines.Select(l => new[]
-                    {
-                        l.ProdNo, l.Sku, Num(l.LfPerSku), Int(l.SkuCount), Int(l.DoorCount),
-                        Num(l.Total) + (l.Basis == "AllDoors" ? "\n(LF × SKUs)" : "\n(LF × Doors)"),
-                        Num(l.ProjectedAnnualSales), l.Cts is decimal ct ? ct.ToString("P0", En) : "—", l.Remarks
-                    }).ToList(),
-                    ["Total", "", "", "", "", Num(w.Total), Num(w.ListingFeeLines.Sum(l => l.ProjectedAnnualSales ?? 0)), "", ""]));
+            var lines = nearEx ? w.NearExLines.Count : w.ListingFeeLines.Count;
+            sb.Append(Rows([
+                ("Sales Group", w.SalesGroup),
+                .. nearEx ? Array.Empty<(string, string?)>() : [("Channel", w.Channel)],
+                ("Account / Store", w.Account),
+                ("Category", w.Category),
+                ("Products", $"{lines:N0} line{(lines == 1 ? "" : "s")}"),
+                (nearEx ? "Moveout Cost" : "Listing Fee Total", Num(w.Total)),
+            ]));
+            var link = $"{worksheetBase}/tasaf-decision/worksheet?t={Uri.EscapeDataString(worksheetToken)}&w={w.Id}";
+            sb.Append($"""
+                <div style="margin:8px 0 2px"><a href="{E(link)}" target="_blank" style="color:{Brand};font-weight:600">View worksheet ›</a>
+                  <span style="color:#888;font-size:12px">— opens the full worksheet (no login)</span></div>
+                """);
         }
 
         // Approval chain
@@ -201,6 +188,54 @@ public static class TasafEmailRenderer
             sb.Append("""<p style="color:#888;font-size:11px;margin-top:18px">Automatic message from HOMSys — please do not reply.</p>""");
         sb.Append("</div>");
         return sb.ToString();
+    }
+
+    /// <summary>One worksheet on its own page (the email link `tasaf-decision/worksheet`): TASAF ref + the full tables.</summary>
+    public static string RenderWorksheet(TasafDto d, TasafWorksheetDto w)
+    {
+        var sb = new StringBuilder();
+        sb.Append("""<div style="font-family:Segoe UI,Arial,sans-serif;font-size:13px;color:#1f1f1f">""");
+        sb.Append(Grid(3, [("Document No.", d.RefNo ?? "—"), ("Title", d.Title), ("Proponent", d.ProponentName)]));
+        sb.Append(Section($"Worksheet — {w.TypeLabel}{(w.Title != w.TypeLabel ? ": " + w.Title : "")}"));
+        WorksheetTables(sb, w);
+        return sb.Append("</div>").ToString();
+    }
+
+    /// <summary>A worksheet header (whole sheet), then its product rows — same columns as the workbook sheet.</summary>
+    private static void WorksheetTables(StringBuilder sb, TasafWorksheetDto w)
+    {
+        // Header (whole sheet), then the product rows.
+        static string V(string s) => s.Length > 0 ? s : "—";
+        var nearEx = w.Type == "NearEx";
+        sb.Append(Table(
+            nearEx ? ["Sales Group", "Account / Store", "Category"] : ["Sales Group", "Channel", "Account / Store", "Category"],
+            nearEx ? [false, false, false] : [false, false, false, false],
+            [nearEx ? [V(w.SalesGroup), V(w.Account), V(w.Category)] : [V(w.SalesGroup), V(w.Channel), V(w.Account), V(w.Category)]],
+            null));
+        if (nearEx)
+            sb.Append(Table(
+                ["Prod No.", "SKU", "LSP / Case", "LSP / Pc", "Pcs/Cs", "Expiry",
+                 "Invty Cases", "Invty Pcs", "Total Pcs", "Total Value", "Moveout Scheme", "Discount / Rebate", "Moveout Cost"],
+                [false, false, true, true, true, false, true, true, true, true, false, true, true],
+                w.NearExLines.Select(l => new[]
+                {
+                    l.ProdNo, l.Sku, Num(l.LspPerCase), Num(l.LspPerPc), Int(l.PcsPerCase),
+                    l.Expiry?.ToString("MMM-yy", En) ?? "—", Int(l.InvCases), Int(l.InvPieces), l.TotalPcs.ToString("N0", En),
+                    Num(l.TotalValue), l.MoveoutScheme, l.Discount is decimal dc ? dc.ToString("P0", En) : "—", Num(l.MoveoutCost)
+                }).ToList(),
+                ["Total", "", "", "", "", "", "", "", w.NearExLines.Sum(l => l.TotalPcs).ToString("N0", En),
+                 Num(w.NearExLines.Sum(l => l.TotalValue)), "", "", Num(w.Total)]));
+        else
+            sb.Append(Table(
+                ["Prod No.", "SKU", "LF / SKU", "# of SKUs", "# of Doors", "Total", "Projected Annual Sales", "CTS", "Remarks"],
+                [false, false, true, true, true, true, true, true, false],
+                w.ListingFeeLines.Select(l => new[]
+                {
+                    l.ProdNo, l.Sku, Num(l.LfPerSku), Int(l.SkuCount), Int(l.DoorCount),
+                    Num(l.Total) + (l.Basis == "AllDoors" ? "\n(LF × SKUs)" : "\n(LF × Doors)"),
+                    Num(l.ProjectedAnnualSales), l.Cts is decimal ct ? ct.ToString("P0", En) : "—", l.Remarks
+                }).ToList(),
+                ["Total", "", "", "", "", Num(w.Total), Num(w.ListingFeeLines.Sum(l => l.ProjectedAnnualSales ?? 0)), "", ""]));
     }
 
     private static string E(string? s) => WebUtility.HtmlEncode(s ?? "");

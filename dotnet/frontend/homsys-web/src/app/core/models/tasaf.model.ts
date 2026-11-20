@@ -127,6 +127,8 @@ export interface TasafDto extends SaveTasafDto {
   myAction: 'approve' | null;
   /** Admin: may Approve / Return / Reject the current step on behalf of its approver. */
   canAdminDecide: boolean;
+  /** Proponent, or an Admin on their behalf, while Draft / Returned. */
+  canSubmit: boolean;
   submittedAt: string | null;
   decidedAt: string | null;
   currentStepSeq: number | null;
@@ -199,6 +201,7 @@ export const TASAF_STATUS_SEVERITY: Record<string, 'secondary' | 'info' | 'warn'
   'Approved':     'success',
   'Rejected':     'danger',
   'Cancelled':    'secondary',
+  'Closed':       'info',
 };
 
 export interface TasafOption {

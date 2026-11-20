@@ -372,7 +372,7 @@ public class TasafService(
     {
         var t = await repo.GetByIdAsync(id);
         if (t is null) return NotFound;
-        if (!CanDelete(t)) return t.Status is TasafStatus.Approved or TasafStatus.Cancelled
+        if (!CanDelete(t)) return t.Status is TasafStatus.Approved or TasafStatus.Cancelled or TasafStatus.Closed
             ? $"{t.Status} TASAFs are kept for the record and cannot be deleted."
             : "Only an Admin can delete a TASAF.";
 
@@ -384,16 +384,25 @@ public class TasafService(
         CanViewAll || t.ProponentUserId == CurrentUserId || t.Steps.Any(s => s.UserId == CurrentUserId);
     private bool CanEdit(Tasaf t) =>
         t.Status is TasafStatus.Draft or TasafStatus.Returned && t.ProponentUserId == CurrentUserId;
+    /// <summary>Proponent, or an Admin on their behalf, while Draft / Returned.</summary>
+    private bool CanSubmit(Tasaf t) =>
+        CanEdit(t) || (IsAdmin && t.Status is TasafStatus.Draft or TasafStatus.Returned);
     private bool CanDelete(Tasaf t) =>
-        IsAdmin && t.Status is not (TasafStatus.Approved or TasafStatus.Cancelled); // kept for the record
+        IsAdmin && t.Status is not (TasafStatus.Approved or TasafStatus.Cancelled or TasafStatus.Closed); // kept for the record
+    /// <summary>Back to the proponent as Returned. Admin: For Approval / Approved / Closed / Rejected. The proponent, on
+    /// their own TASAF: For Approval / Approved / Closed — e.g. changes needed after approval (user decision 2026-11-20);
+    /// not Rejected (that is the approver's final word).</summary>
     private bool CanRevert(Tasaf t) =>
-        IsAdmin && t.Status is (TasafStatus.Approved or TasafStatus.Rejected or TasafStatus.ForApproval);
+        (IsAdmin && t.Status is (TasafStatus.Approved or TasafStatus.Closed or TasafStatus.Rejected or TasafStatus.ForApproval))
+        || (t.ProponentUserId == CurrentUserId && t.Status is (TasafStatus.Approved or TasafStatus.Closed or TasafStatus.ForApproval));
     private bool CanCancel(Tasaf t) =>
         (IsAdmin || t.ProponentUserId == CurrentUserId)
-        && t.Status is not (TasafStatus.Approved or TasafStatus.Cancelled);
-    /// <summary>TPAR No.: the proponent or an Admin, only once Approved (the TPAR is made after approval; user decision 2026-11-09).</summary>
+        && t.Status is not (TasafStatus.Approved or TasafStatus.Cancelled or TasafStatus.Closed);
+    /// <summary>TPAR No.: the proponent or an Admin, only once Approved (the TPAR is made after approval; user decision 2026-11-09).
+    /// Entering it closes the TASAF, and a Closed TASAF's TPAR No. is locked for everyone — only an Admin Revert
+    /// (which clears it) opens it again (user decision 2026-11-20).</summary>
     private bool CanSetTparNo(Tasaf t) =>
-        (IsAdmin || t.ProponentUserId == CurrentUserId) && t.Status == TasafStatus.Approved;
+        t.Status == TasafStatus.Approved && (IsAdmin || t.ProponentUserId == CurrentUserId);
 
     /// <summary>"approve" when the TASAF's current step is waiting on the caller, else null.</summary>
     private string? MyAction(Tasaf t) =>
@@ -411,7 +420,8 @@ public class TasafService(
     {
         var t = await repo.GetByIdAsync(id);
         if (t is null) return (null, NotFound);
-        if (!CanEdit(t)) return (null, "Only the proponent can submit this TASAF, and only while it is a Draft or Returned.");
+        if (!CanSubmit(t)) return (null, "Only the proponent (or an Admin) can submit this TASAF, and only while it is a Draft or Returned.");
+        var byAdmin = !CanEdit(t); // Admin submitting on the proponent's behalf (user decision 2026-11-20)
 
         var missing = MissingForSubmit(t);
         if (missing.Count > 0) return (null, "Complete these before submitting: " + string.Join(", ", missing) + ".");
@@ -496,7 +506,10 @@ public class TasafService(
         t.CurrentStepSeq        = first.Seq;
         t.CurrentApproverUserId = first.UserId;
         t.DecidedAt             = null;
-        t.Actions.Add(NewAction(resubmit ? "Resubmitted" : "Submitted", from, t.Status, "KAM", "", t.ProponentName));
+        var adminName = byAdmin ? await MyNameAsync() : "";
+        t.Actions.Add(byAdmin
+            ? NewAction(resubmit ? "Resubmitted by Admin" : "Submitted by Admin", from, t.Status, "Admin", "", $"{adminName} (Admin, for {t.ProponentName})")
+            : NewAction(resubmit ? "Resubmitted" : "Submitted", from, t.Status, "KAM", "", t.ProponentName));
 
         // One-time secret for the first approver's email Approve / Reject links.
         var token = NewEmailToken(first);
@@ -507,6 +520,10 @@ public class TasafService(
 
         await NotifyApproverAsync(id, first.UserId, token,
             $"{t.RefNo} — {t.Title} ({t.TotalCost:N2}) from {t.ProponentName}{(resubmit ? ", resubmitted" : "")}. You sign as {first.RoleCode}.");
+        if (byAdmin)
+            await notifications.SendAsync([t.ProponentUserId], "TASAF submitted by Admin",
+                $"{t.RefNo} — {t.Title} was {(resubmit ? "resubmitted" : "submitted")} for approval by {adminName} (Admin) on your behalf. Now with {first.UserName} ({first.RoleCode}).",
+                "/tasafs", "tasaf", t.Id, emailRef: t.RefNo);
 
         return (Map((await repo.GetByIdAsync(id))!), null);
     }
@@ -519,7 +536,7 @@ public class TasafService(
     {
         var dto = Map((await repo.GetByIdAsync(tasafId))!);
         await notifications.SendAsync([userId], "TASAF for your approval", message, "/tasafs", "tasaf", tasafId,
-            emailHtml: TasafEmailRenderer.Render(dto, message, token), emailRef: dto.RefNo);
+            emailHtml: TasafEmailRenderer.Render(dto, message, token, worksheetToken: token), emailRef: dto.RefNo);
     }
 
     // ── Email decisions (no login) ────────────────────────────
@@ -566,7 +583,28 @@ public class TasafService(
         {
             RefNo = t.RefNo, Title = t.Title, ApproverName = step.UserName, RoleCode = step.RoleCode,
             CanDecide = why is null, Message = why,
-            Html = TasafEmailRenderer.Render(Map(t), "", null, email: false)
+            Html = TasafEmailRenderer.Render(Map(t), "", null, email: false, worksheetToken: token.Trim(), worksheetBase: "")
+        }, null);
+    }
+
+    /// <summary>
+    /// GET tasaf-email/{token}/worksheet/{id}: one worksheet attached to the link's TASAF, full width — the
+    /// email / decision page only show a summary + this no-login link. Same token as Review &amp; Decide; works
+    /// until the link expires (also after deciding, like the decision page itself).
+    /// </summary>
+    public async Task<(TasafEmailWorksheetDto? dto, string? error)> GetEmailWorksheetAsync(string token, int worksheetId)
+    {
+        var (t, step, _) = await FromEmailTokenAsync(token);
+        if (t is null || step is null) return (null, "This link is not valid.");
+        if (step.EmailTokenExpires is DateTime exp && exp < DateTime.UtcNow)
+            return (null, "This link has expired. Please open the TASAF in HOMSys.");
+        var d = Map(t);
+        var w = d.Worksheets.FirstOrDefault(x => x.Id == worksheetId);
+        if (w is null) return (null, "This worksheet is no longer attached to the TASAF.");
+        return (new TasafEmailWorksheetDto
+        {
+            RefNo = d.RefNo, Title = d.Title, WorksheetTitle = w.Title.Length > 0 ? w.Title : w.TypeLabel,
+            Html = TasafEmailRenderer.RenderWorksheet(d, w)
         }, null);
     }
 
@@ -699,24 +737,48 @@ public class TasafService(
     {
         var t = await repo.GetByIdAsync(id);
         if (t is null) return (null, NotFound);
-        if (!CanRevert(t)) return (null, "Only an Admin can revert a TASAF, and only while it is For Approval, Approved or Rejected.");
+        if (!CanRevert(t)) return (null, t.ProponentUserId == CurrentUserId
+            ? "You can revert your TASAF only while it is For Approval, Approved or Closed."
+            : "Only an Admin or the proponent can revert a TASAF, and only while it is For Approval, Approved, Closed or Rejected.");
         var (comment, error) = Reason(dto, "reverting");
         if (error is not null) return (null, error);
 
+        // Proponent reverting their own TASAF (an Admin who is also the proponent counts as the proponent).
+        var byProponent = t.ProponentUserId == CurrentUserId;
+        var role = byProponent ? "Proponent" : "Admin";
+        var me = await MyNameAsync();
         var from = t.Status;
         var waiting = t.CurrentApproverUserId;
-        var signed = t.Steps.Where(s => s.Status == TasafStepStatus.Approved).Select(s => s.UserId);
+        var signed = t.Steps.Where(s => s.Status == TasafStepStatus.Approved).Select(s => s.UserId).ToList();
+
+        // Every change goes in the history: the revert itself, the cleared TPAR No., and the
+        // approval step that was still waiting (it will never be acted on now).
+        var current = CurrentStep(t);
+        if (current is { Status: TasafStepStatus.Pending })
+        {
+            current.Comment = $"Not reached — reverted by {role.ToLowerInvariant()}";
+            current.Status  = TasafStepStatus.Skipped;
+        }
         t.Status                = TasafStatus.Returned;
         t.CurrentStepSeq        = null;
         t.CurrentApproverUserId = null;
         t.DecidedAt             = null;
         t.UpdatedAt             = DateTime.UtcNow;
         t.UpdatedBy             = CurrentUser;
-        t.Actions.Add(NewAction("Reverted", from, t.Status, "Admin", comment, await MyNameAsync()));
+        t.Actions.Add(NewAction("Reverted", from, t.Status, role, comment, me));
+        // A reverted TASAF is approved again from scratch, so its TPAR No. no longer applies.
+        if (t.TparNo is not null)
+        {
+            t.Actions.Add(NewAction("TPAR No.", t.Status, t.Status, role, $"Cleared (was {t.TparNo}) — TASAF reverted", me));
+            t.TparNo = null;
+        }
         await repo.UpdateAsync(t);
 
-        await notifications.SendAsync([t.ProponentUserId, waiting, .. signed], "TASAF reverted",
-            $"{t.RefNo} — {t.Title} ({from}) was reverted by an Admin and returned to {t.ProponentName}: {comment}",
+        var who = byProponent ? $"{t.ProponentName} (proponent)" : "an Admin";
+        var notify = byProponent ? new List<int?> { waiting } : [t.ProponentUserId, waiting];
+        notify.AddRange(signed);
+        await notifications.SendAsync(notify.Distinct().ToList(), "TASAF reverted",
+            $"{t.RefNo} — {t.Title} ({from}) was reverted by {who} and returned to {t.ProponentName} for changes: {comment}",
             "/tasafs", "tasaf", t.Id, emailRef: t.RefNo);
         return (Map((await repo.GetByIdAsync(id))!), null);
     }
@@ -726,18 +788,27 @@ public class TasafService(
     {
         var t = await repo.GetByIdAsync(id);
         if (t is null) return (null, NotFound);
-        if (!CanSetTparNo(t)) return (null, "The TPAR No. can be set only on an Approved TASAF, by its proponent or an Admin.");
+        if (!CanSetTparNo(t)) return (null, t.Status == TasafStatus.Closed
+            ? "This TASAF is Closed — its TPAR No. can't be changed. An Admin must revert it first."
+            : "The TPAR No. can be set only on an Approved TASAF, by its proponent or an Admin.");
         var tpar = (dto.TparNo ?? "").Trim();
         if (tpar.Length > 50) return (null, "TPAR No. is at most 50 characters.");
         var value = tpar.Length == 0 ? null : tpar;
         if (value == t.TparNo) return (Map(t), null);
 
+        // Entering the TPAR No. closes the TASAF; an Admin clearing it reopens it as Approved.
+        // (A future TPAR record linked to the TASAF should close it the same way.)
+        var fromStatus = t.Status;
+        var toStatus = value is null ? TasafStatus.Approved : TasafStatus.Closed;
         var from = t.TparNo;
         t.TparNo    = value;
+        t.Status    = toStatus;
         t.UpdatedAt = DateTime.UtcNow;
         t.UpdatedBy = CurrentUser;
-        t.Actions.Add(NewAction("TPAR No.", t.Status, t.Status, IsAdmin && t.ProponentUserId != CurrentUserId ? "Admin" : "Proponent",
-            value is null ? $"Cleared (was {from})" : from is null ? $"Set to {value}" : $"Changed from {from} to {value}", await MyNameAsync()));
+        var change = value is null ? $"Cleared (was {from})" : from is null ? $"Set to {value}" : $"Changed from {from} to {value}";
+        t.Actions.Add(NewAction(fromStatus == toStatus ? "TPAR No." : toStatus == TasafStatus.Closed ? "Closed" : "Reopened",
+            fromStatus, toStatus, IsAdmin && t.ProponentUserId != CurrentUserId ? "Admin" : "Proponent",
+            $"TPAR No. {change}", await MyNameAsync()));
         await repo.UpdateAsync(t);
         return (Map((await repo.GetByIdAsync(id))!), null);
     }
@@ -753,6 +824,7 @@ public class TasafService(
         if (!CanCancel(t))
             return (null, t.Status == TasafStatus.Approved
                 ? "An Approved TASAF must be reverted by an Admin before it can be cancelled."
+                : t.Status == TasafStatus.Closed ? "A Closed TASAF must be reverted by an Admin before it can be cancelled."
                 : t.Status == TasafStatus.Cancelled ? "This TASAF is already cancelled."
                 : "Only the proponent or an Admin can cancel this TASAF.");
         var (comment, error) = Reason(dto, "cancelling");
@@ -1275,6 +1347,7 @@ public class TasafService(
             CanSetTparNo      = CanSetTparNo(t),
             MyAction          = MyAction(t),
             CanAdminDecide    = CanAdminDecide(t),
+            CanSubmit         = CanSubmit(t),
             SubmittedAt       = t.SubmittedAt,
             DecidedAt         = t.DecidedAt,
             CurrentStepSeq    = t.CurrentStepSeq,

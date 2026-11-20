@@ -166,6 +166,8 @@ public class TasafDto : SaveTasafDto
     public string? MyAction { get; set; }
     /// <summary>Admin: may Approve / Return / Reject the current step on behalf of its approver.</summary>
     public bool CanAdminDecide { get; set; }
+    /// <summary>Proponent, or an Admin on their behalf, while Draft / Returned.</summary>
+    public bool CanSubmit { get; set; }
 
     public DateTime? SubmittedAt { get; set; }
     public DateTime? DecidedAt { get; set; }
@@ -320,6 +322,16 @@ public class TasafProductOptionDto
 }
 
 /// <summary>The no-login decision page opened from an approval email's Approve / Reject button.</summary>
+/// <summary>One attached worksheet for the no-login "View worksheet" page (tasaf-decision/worksheet).</summary>
+public class TasafEmailWorksheetDto
+{
+    public string? RefNo { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string WorksheetTitle { get; set; } = string.Empty;
+    /// <summary>Server-rendered, every value HTML-encoded (TasafEmailRenderer.RenderWorksheet).</summary>
+    public string Html { get; set; } = string.Empty;
+}
+
 public class TasafEmailDecisionDto
 {
     public string? RefNo { get; set; }

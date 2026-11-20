@@ -550,7 +550,9 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   Any approver can Return (→ Returned, editable; resubmit rebuilds the chain) or
   Reject; both need a comment. **Admin can sign the current step on the approver's behalf** (Approve / Return /
   Reject, `TasafDto.CanAdminDecide`, user decision 2026-11-20): logged as "Approved by Admin" with ByName
-  "<admin> (Admin, for <approver>)", and the bypassed approver is notified. The chain then moves on as usual. Mode of Payment = ONE payment type per TASAF (dropdown), carrying the whole
+  "<admin> (Admin, for <approver>)", and the bypassed approver is notified. The chain then moves on as usual.
+  **Admin can also Submit / Resubmit** a Draft / Returned TASAF for the proponent (`TasafDto.CanSubmit`; same submit
+  checks, the saved form as is — Admin can't edit it), logged "Submitted by Admin", proponent notified. Mode of Payment = ONE payment type per TASAF (dropdown), carrying the whole
   TotalCost (saved into that type's `PayXxxAp` field; the Salesman fields are no longer used → 0). Submit
   requires exactly one payment type, payment total = TotalCost and
   CTS ≤ the program type's `MaxCtsPercent` (8% on PROMO- types) — or, when over it, a `CtsJustification`
@@ -560,6 +562,10 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   **set only once Approved** (user decision 2026-11-09: the TPAR is made after approval; the form is locked by then): the
   header pencil lets the proponent or an Admin set it (`PUT tasafs/{id}/tpar-no`, logged in the history); never part of
   the form save (`TparNo` lives on `TasafDto`, not `SaveTasafDto`). Shown in the list, email / print and PDF.
+  **Entering it CLOSES the TASAF** (status `Closed`, user decision 2026-11-20; the pencil asks to confirm first): logged
+  "Closed"; no delete / cancel. Once Closed the TPAR No. is LOCKED for everyone, Admin included — the only way back is
+  an Admin **Revert** (Closed → Returned), which clears the TPAR No. (noted in the revert comment). Migration `TasafClosedByTparNo` closed the Approved TASAFs
+  that already had one. A future TPAR record linked to a TASAF should close it the same way (`SetTparNoAsync`).
   RefNo `YEAR-SG-INITIALS-NN` (workbook GUIDE sheet, e.g. `2025-RKA-ER-03`) assigned on the FIRST
   SAVE that has a Sales Group (user decision 2026-10-14; was first submit) and kept for good
   (`TasafService.PrepareRefNoAsync` → `TasafRepository.SaveWithRefNoAsync`, retries on the
@@ -594,12 +600,19 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   just the TASAFs they file or approve); `tasaf-masters` (16). GKAMs and approvers also need `tasaf` to open the page.
   **Delete is Admin-only** (`[Authorize(Roles = "Admin")]` + `TasafService.CanDelete`), and
   **Approved / Cancelled are never deleted** (kept for the record). Mistakes are fixed with:
-  - **Revert** (Admin, `POST {id}/revert`, reason required): For Approval / Approved / Rejected →
-    Returned to the proponent; signed steps stay as history, resubmit rebuilds the chain.
+  - **Revert** (`POST {id}/revert`, reason required) → Returned to the proponent; signed steps stay as history,
+    resubmit rebuilds the chain. Admin: For Approval / Approved / Closed / Rejected. **The proponent** on their own
+    TASAF: For Approval / Approved / Closed — changes needed after approval (user decision 2026-11-20; not Rejected).
+    History: "Reverted" (role Admin / Proponent, reason), a separate "TPAR No." row when it clears one, and the step
+    that was waiting becomes Skipped "Not reached — reverted by …". The waiting approver and everyone who signed are
+    notified. Toolbar icons: Revert = `pi-replay`, Return = `pi-reply`.
   - **Cancel** (proponent or Admin, `POST {id}/cancel`, reason required): any status except
     Approved (revert first) → **Cancelled**, terminal; unsigned steps become Skipped.
   Both log a `TasafAction` and notify the proponent, the waiting approver and everyone who signed.
 - **Email approval (no login)**: the "TASAF for your approval" email is the whole TASAF (`TasafEmailRenderer`, form  order) with ONE **Review & Decide** button → `/tasaf-decision?t=` (Approve / Return / Reject + comment there, nothing pre-selected; public route, `TasafEmailController`  `api/tasaf-email`, `[AllowAnonymous]`). The token is a one-time 256-bit secret per approval step; only its SHA-256  is stored (`TasafApprovalStep.EmailTokenHash`/`EmailTokenExpires`, 30 days, migration `TasafStepEmailToken`) and it  works only while that step is the current pending one. GET never decides (mail scanners open links); the POST  needs a comment. Logged as "Approved / Returned / Rejected via email". A comment is required for EVERY decision  (app and email, `DecideCoreAsync`); the approve comment is quoted in the proponent's progress / approved message.
+  Attached worksheets are too wide for the email, so the email and decision page show each as a summary (header,
+  line count, total) + **View worksheet ›** → `/tasaf-decision/worksheet?t=&w=` (no login, same token, `GET
+  api/tasaf-email/{token}/worksheet/{id}`, works until the token expires; user decision 2026-11-20). Print / PDF keep the full table.
 - **Notifications**: generic `Notification` table + `NotificationService.SendAsync` (also queues an email per active
   recipient with an Email — `IEmailQueue` → `HOMSys.API/Email/EmailSenderService` via Azure Communication Services;
   off until `Email:Enabled`/`ConnectionString`/`FromAddress` are set as App Service settings `Email__…`; the link is

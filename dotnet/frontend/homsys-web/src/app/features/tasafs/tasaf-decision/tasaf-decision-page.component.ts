@@ -45,7 +45,7 @@ interface EmailDecision {
             <label>Your decision <span class="req">*</span></label>
             <div class="td-choice">
               <p-button label="Approve" icon="pi pi-check" [outlined]="decision() !== 'approve'" severity="success" (onClick)="decision.set('approve')" />
-              <p-button label="Return" icon="pi pi-replay" [outlined]="decision() !== 'return'" severity="warn" (onClick)="decision.set('return')" />
+              <p-button label="Return" icon="pi pi-reply" [outlined]="decision() !== 'return'" severity="warn" (onClick)="decision.set('return')" />
               <p-button label="Reject" icon="pi pi-times" [outlined]="decision() !== 'reject'" severity="danger" (onClick)="decision.set('reject')" />
             </div>
             <label for="td-comment">Comment <span class="req">*</span></label>

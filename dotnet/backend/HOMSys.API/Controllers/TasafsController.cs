@@ -138,9 +138,8 @@ public class TasafsController(TasafService service, SalesOrderService salesOrder
         return Ok(new { success = true, data = tasaf });
     }
 
-    /// <summary>Admin: undo an approval mistake — back to the proponent as Returned.</summary>
+    /// <summary>Admin, or the proponent on their own TASAF: back to the proponent as Returned (rules in TasafService.CanRevert).</summary>
     [HttpPost("{id:int}/revert")]
-    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Revert(int id, [FromBody] TasafCommentDto dto) =>
         Envelope(await service.RevertAsync(id, dto));
 

@@ -23,6 +23,14 @@ public class TasafEmailController(TasafService service) : ControllerBase
         return dto is null ? NotFound(new { success = false, message = error }) : Ok(new { success = true, data = dto });
     }
 
+    /// <summary>One attached worksheet, full width (the email shows only a summary + this link).</summary>
+    [HttpGet("{token}/worksheet/{id:int}")]
+    public async Task<IActionResult> Worksheet(string token, int id)
+    {
+        var (dto, error) = await service.GetEmailWorksheetAsync(token, id);
+        return dto is null ? NotFound(new { success = false, message = error }) : Ok(new { success = true, data = dto });
+    }
+
     [HttpPost("{token}/decide")]
     public async Task<IActionResult> Decide(string token, [FromBody] TasafDecisionDto body)
     {

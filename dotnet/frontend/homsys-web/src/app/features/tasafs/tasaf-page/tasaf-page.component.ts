@@ -121,7 +121,7 @@ function blankProduct(): TasafProduct {
         <div class="actbar mine">
           <span><i class="pi pi-bell"></i>
             This TASAF is waiting for your approval as {{ current()!.currentRoleCode }} —
-            use <i class="pi pi-check"></i> Approve, <i class="pi pi-undo"></i> Return or <i class="pi pi-ban"></i> Reject on the toolbar.
+            use <i class="pi pi-check"></i> Approve, <i class="pi pi-reply"></i> Return or <i class="pi pi-ban"></i> Reject on the toolbar.
           </span>
         </div>
       } @else if (current()?.canAdminDecide) {
@@ -129,7 +129,7 @@ function blankProduct(): TasafProduct {
           <span><i class="pi pi-shield"></i>
             Waiting for {{ currentApproverName() || current()!.currentRoleCode }} ({{ current()!.currentRoleCode }}).
             As Admin you can sign this step on their behalf —
-            <i class="pi pi-check"></i> Approve, <i class="pi pi-undo"></i> Return or <i class="pi pi-ban"></i> Reject on the toolbar.
+            <i class="pi pi-check"></i> Approve, <i class="pi pi-reply"></i> Return or <i class="pi pi-ban"></i> Reject on the toolbar.
           </span>
         </div>
       } @else if (readonly()) {
@@ -846,6 +846,9 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     });
   }
   protected cannotDelete = computed(() => !this.current()?.canDelete);
+  /** The signed-in user is this TASAF's proponent. */
+  protected isProponent = computed(() => { const t = this.current(); const u = this.auth.user();
+    return !!t && !!u && t.proponentUserId === u.id; });
   /** Who the current step is waiting on (for the Admin sign-on-behalf banner / button). */
   protected currentApproverName = computed(() => { const c = this.current();
     return c?.steps.find(s => s.seq === c.currentStepSeq)?.userName ?? ''; });
@@ -874,7 +877,10 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   protected decisionHint = computed(() => {
     const t = this.current();
     switch (this.decision()) {
-      case 'revert': return `Sends this ${t?.status} TASAF back to ${t?.proponentName} as Returned. They can correct and resubmit it, or cancel it. The approval history is kept.`;
+      case 'revert': return (this.isProponent()
+          ? `Takes this ${t?.status} TASAF back to you as Returned so you can make changes and resubmit it (or cancel it). Its approvals must be signed again; the approvers are notified and everything is kept in the history.`
+          : `Sends this ${t?.status} TASAF back to ${t?.proponentName} as Returned. They can correct and resubmit it, or cancel it. The approval history is kept.`)
+        + (t?.tparNo ? ` The TPAR No. (${t.tparNo}) will be cleared.` : '');
       case 'cancel': return 'The TASAF is withdrawn and kept as Cancelled (not deleted). This cannot be undone.';
       default:       return '';
     }
@@ -1058,8 +1064,10 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       // Edit unlocks a saved Draft / Returned TASAF (it opens read-only).
       ...(t?.canEdit && !this.editing() ? { edit: { onClick: () => this.startEdit(), disabled: this.designing } } : {}),
       // Submit: the proponent's own Draft / Returned TASAF, read-only or being edited.
-      ...(!t || t.canEdit ? { submit: {
-        label: !t ? 'Save the TASAF first, then submit' : t.status === 'Returned' ? 'Resubmit for approval' : 'Submit for approval',
+      ...(!t || t.canEdit || t.canSubmit ? { submit: {
+        label: !t ? 'Save the TASAF first, then submit'
+             : (t.status === 'Returned' ? 'Resubmit for approval' : 'Submit for approval')
+               + (t.canEdit ? '' : ` for ${t.proponentName} (Admin)`),
         onClick: () => this.confirmSubmit(), loading: this.submitting, disabled: this.submitBlocked
       } } : {}),
       ...(t?.myAction || t?.canAdminDecide ? {
@@ -1068,8 +1076,10 @@ export class TasafPageComponent implements OnInit, OnDestroy {
         return:  { onClick: () => this.openDecision('return'), disabled: this.designing },
         reject:  { onClick: () => this.openDecision('reject'), disabled: this.designing },
       } : {}),
-      // Admin fixes an approval mistake; proponent/Admin withdraws (kept as Cancelled).
-      ...(t?.canRevert ? { revert: { onClick: () => this.openDecision('revert'), disabled: this.designing } } : {}),
+      // Revert → Returned: Admin fixes an approval mistake, or the proponent takes their own TASAF back for changes
+      // (For Approval / Approved / Closed). Proponent/Admin withdraws (kept as Cancelled).
+      ...(t?.canRevert ? { revert: { onClick: () => this.openDecision('revert'), disabled: this.designing,
+        label: this.isProponent() ? 'Revert for changes — back to you as Returned' : 'Revert (Admin) — back to the proponent' } } : {}),
       ...(t?.canCancel ? { cancelDoc: { label: 'Cancel TASAF', onClick: () => this.openDecision('cancel'), disabled: this.designing } } : {}),
       cancel: { onClick: () => this.cancel() },
       ...(!this.readonly() ? { clearForm: { onClick: () => this.confirmClear(), disabled: this.designing } } : {}),
@@ -1849,7 +1859,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       case 'Approved':     return 'approved.';
       case 'Rejected':     return 'rejected.';
       case 'Cancelled':    return 'cancelled.';
-      default:             return 'only the proponent can edit this TASAF.';
+      case 'Closed':       return `closed (TPAR No. ${t.tparNo ?? '—'} entered).`;
+      default:            return 'only the proponent can edit this TASAF.';
     }
   }
 
@@ -1893,6 +1904,18 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       return;
     }
     const resubmit = this.current()?.status === 'Returned';
+    const c = this.current();
+    // Admin on the proponent's behalf: the form is read-only for them, so submit as saved.
+    if (c && !c.canEdit && c.canSubmit) {
+      this.confirmSvc.confirm({
+        header: resubmit ? 'Resubmit TASAF (Admin)' : 'Submit TASAF (Admin)',
+        message: `${resubmit ? 'Resubmit' : 'Submit'} ${c.refNo ?? 'this TASAF'} for approval on behalf of ${c.proponentName}? `
+               + `${c.proponentName} will be notified and can no longer edit it unless it is returned.`,
+        icon: 'pi pi-send',
+        accept: () => this.submit(c.id)
+      });
+      return;
+    }
     this.confirmSvc.confirm({
       header: resubmit ? 'Resubmit TASAF' : 'Submit TASAF',
       message: `${resubmit ? 'Resubmit' : 'Submit'} this TASAF for approval? You can no longer edit it unless it is returned to you.`,
@@ -1932,16 +1955,42 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   saveTparNo() {
     const t = this.current();
     if (!t || this.tparSaving()) return;
+    const value = this.tparDraft.trim();
+    if (value === (t.tparNo ?? '')) { this.tparEditing.set(false); return; }
+    // Entering the TPAR No. on an Approved TASAF closes it — and locks the TPAR No. (only an Admin Revert reopens it).
+    if (t.status === 'Approved' && value) {
+      this.confirmSvc.confirm({
+        header: 'Close this TASAF?',
+        message: `Saving TPAR No. <strong>${this.escape(value)}</strong> will <strong>close</strong> ${this.escape(t.refNo ?? 'this TASAF')}. `
+          + `After that the TPAR No. can no longer be changed unless an Admin reverts the TASAF. Continue?`,
+        icon: 'pi pi-lock',
+        acceptLabel: 'Save and close',
+        rejectLabel: 'Cancel',
+        accept: () => this.doSaveTparNo(t.id, value)
+      });
+      return;
+    }
+    this.doSaveTparNo(t.id, value);
+  }
+
+  private escape(s: string) {
+    return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+  }
+
+  private doSaveTparNo(id: number, value: string) {
+    if (this.tparSaving()) return;
     this.tparSaving.set(true);
-    this.api.setTparNo(t.id, this.tparDraft.trim()).subscribe({
+    this.api.setTparNo(id, value).subscribe({
       next: res => {
         this.tparSaving.set(false);
         this.tparEditing.set(false);
         if (res.data) {
-          this.current.update(c => c && c.id === res.data!.id ? { ...c, tparNo: res.data!.tparNo, actions: res.data!.actions } : c);
+          this.current.update(c => c && c.id === res.data!.id ? { ...c, tparNo: res.data!.tparNo, actions: res.data!.actions, status: res.data!.status,
+            canSetTparNo: res.data!.canSetTparNo, canRevert: res.data!.canRevert, canCancel: res.data!.canCancel, canDelete: res.data!.canDelete } : c);
           this.snapshot = JSON.stringify(this.payload()); // already saved — not a pending change
+          this.syncToolbar(); // status may have changed (Closed / reopened)
         }
-        this.messageSvc.add({ severity: 'success', summary: 'TPAR No.', detail: res.data?.tparNo ? `Saved: ${res.data.tparNo}` : 'Cleared.' });
+        this.messageSvc.add({ severity: 'success', summary: 'TPAR No.', detail: res.data?.tparNo ? `Saved: ${res.data.tparNo}${res.data.status === 'Closed' ? ' — TASAF closed.' : ''}` : `Cleared${res.data?.status === 'Approved' ? ' — TASAF reopened as Approved.' : '.'}` });
       },
       error: err => {
         this.tparSaving.set(false);

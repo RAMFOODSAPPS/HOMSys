@@ -116,6 +116,9 @@ public static class TasafStatus
     public const string Rejected    = "Rejected";
     /// <summary>Withdrawn by the proponent (or an Admin). Kept for the record, never deleted.</summary>
     public const string Cancelled   = "Cancelled";
+    /// <summary>Approved + its TPAR No. entered (user decision 2026-11-20). Terminal; an Admin clearing the
+    /// TPAR No. reopens it as Approved.</summary>
+    public const string Closed      = "Closed";
 }
 
 public static class TasafStepStatus

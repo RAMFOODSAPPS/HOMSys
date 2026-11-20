@@ -107,7 +107,7 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
                 (onClick)="cfg().approve!.onClick()" />
             }
             @if (cfg().return) {
-              <p-button icon="pi pi-undo" pTooltip="Return to proponent" tooltipPosition="bottom"
+              <p-button icon="pi pi-reply" pTooltip="Return to proponent" tooltipPosition="bottom"
                 [text]="true" severity="secondary"
                 [disabled]="cfg().return!.disabled ? cfg().return!.disabled!() : false"
                 (onClick)="cfg().return!.onClick()" />
@@ -119,7 +119,7 @@ import { GlobalToolbarService } from '../../core/services/global-toolbar.service
                 (onClick)="cfg().reject!.onClick()" />
             }
             @if (cfg().revert) {
-              <p-button icon="pi pi-replay" pTooltip="Revert (Admin) — back to the proponent" tooltipPosition="bottom"
+              <p-button icon="pi pi-replay" [pTooltip]="cfg().revert!.label ?? 'Revert (Admin) — back to the proponent'" tooltipPosition="bottom"
                 [text]="true" severity="warn"
                 [disabled]="cfg().revert!.disabled ? cfg().revert!.disabled!() : false"
                 (onClick)="cfg().revert!.onClick()" />

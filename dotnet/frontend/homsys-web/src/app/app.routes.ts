@@ -14,6 +14,12 @@ export const routes: Routes = [
       import('./features/auth/change-password/change-password.component').then(m => m.ChangePasswordComponent)
   },
   {
+    // Approval email's "View worksheet" link — no login (same token as Review & Decide).
+    path: 'tasaf-decision/worksheet',
+    loadComponent: () =>
+      import('./features/tasafs/tasaf-decision/tasaf-decision-worksheet-page.component').then(m => m.TasafDecisionWorksheetPageComponent)
+  },
+  {
     // Approval email's Approve / Reject button — no login (the link's token is the approver's key).
     path: 'tasaf-decision',
     loadComponent: () =>
