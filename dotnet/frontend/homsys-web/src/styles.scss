@@ -466,6 +466,8 @@ body.rc-resizing { cursor: col-resize !important; user-select: none; }
     .sub-box { margin: 0 20px 20px; padding: 14px 16px; border: 1px dashed #cbd5e1; border-radius: 10px; display: flex; flex-direction: column; gap: 12px; }
     .sub-title { font-size: 12px; font-weight: 600; color: #334155; text-transform: uppercase; letter-spacing: .05em; }
     .sub-title .muted { text-transform: none; letter-spacing: 0; font-weight: 400; }
+    .sub-box .field > span, .sub-box .field > span .muted { font-size: 11px; }
+    .sub-box .field { justify-content: flex-end; }   /* a label that wraps (Slip / transfer ref. no.) doesn't push its input below the others */
     .muted { color: var(--muted); font-size: 12px; }
     .bad { color: #b91c1c; }
     .mono, .mono { font-family: var(--mono); }
@@ -490,6 +492,10 @@ body.rc-resizing { cursor: col-resize !important; user-select: none; }
     .col-num { width: 7.5rem; text-align: right; }
     .col-ref { width: 6.5rem; }
     .ded-ref { white-space: nowrap; }
+    .col-acct { width: 4.75rem; }
+    .tbl .c2307 { text-align: center; }
+    .chk-all { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .cust-ro { background: var(--fill); cursor: default; }
     .remarks { padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; }
     .remarks label { font-size: 14px; font-weight: 600; }
     .remarks label .muted { font-weight: 400; }

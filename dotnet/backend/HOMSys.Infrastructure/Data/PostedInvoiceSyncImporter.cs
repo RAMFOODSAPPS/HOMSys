@@ -34,8 +34,16 @@ public class PostedInvoiceSyncImporter(AppDbContext db)
             foreach (var p in batch) existing[p.DocNo] = p;
         }
 
+        // Invoices HOMS's A/R open file already holds are its (ArofInvoiceSyncImporter): an SL file never overwrites
+        // them or their RFCs, or an RFC would count twice. Only a Remittance Advice still asks for SL files.
+        var arofOwned = new HashSet<int>();
+        foreach (var docNos in invoices.Select(i => i.DocNo).Concat(rfcs.Select(r => r.InvoiceNo)).Distinct().Chunk(Chunk))
+            arofOwned.UnionWith(await db.PostedInvoices.Where(p => docNos.Contains(p.DocNo) && p.SourceFile == ArofInvoiceSyncImporter.Source)
+                .Select(p => p.DocNo).ToListAsync());
+
         foreach (var i in invoices)
         {
+            if (arofOwned.Contains(i.DocNo)) { unchanged++; continue; }
             if (existing.TryGetValue(i.DocNo, out var p))
             {
                 if (p.DocDate == i.DocDate && p.CustKey == i.CustKey && p.CKey == i.CKey && p.CustName == (i.CustName ?? "")
@@ -66,14 +74,14 @@ public class PostedInvoiceSyncImporter(AppDbContext db)
         }
 
         // ── RFC sums for this file: replace the file's rows, remember which invoices moved ──
-        var touched = new HashSet<int>(invoices.Select(i => i.DocNo));
+        var touched = new HashSet<int>(invoices.Select(i => i.DocNo).Where(n => !arofOwned.Contains(n)));
         // A targeted sync only scanned for its own invoices, so it must not delete other invoices' RFC rows.
         var scope = req.ScopeInvoiceNos?.ToHashSet();
         var oldRfc = await db.PostedRfcs.Where(r => r.WhseNo == req.Wh && r.SourceFile == req.SourceFile).ToListAsync();
-        if (scope is not null) oldRfc = oldRfc.Where(r => scope.Contains(r.InvoiceNo)).ToList();
+        oldRfc = oldRfc.Where(r => (scope is null || scope.Contains(r.InvoiceNo)) && !arofOwned.Contains(r.InvoiceNo)).ToList();
         // One row per (invoice, RFC no.); an older watcher's single sum per invoice comes as RfcNo 0 and is
         // replaced by the numbered rows the next time the invoice is fetched.
-        var newRfc = rfcs.Where(r => scope is null || scope.Contains(r.InvoiceNo))
+        var newRfc = rfcs.Where(r => (scope is null || scope.Contains(r.InvoiceNo)) && !arofOwned.Contains(r.InvoiceNo))
             .GroupBy(r => (r.InvoiceNo, r.RfcNo))
             .ToDictionary(g => g.Key, g => (Amt: g.Sum(x => x.Amt), Date: g.Select(x => x.RfcDate).FirstOrDefault(d => d is not null)));
 

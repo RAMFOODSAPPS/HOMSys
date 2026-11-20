@@ -29,6 +29,29 @@ public record PostedInvoiceSyncItem(
 /// RfcNo 0 = an older watcher that sent one sum per invoice.</summary>
 public record PostedRfcSyncItem(int InvoiceNo, decimal Amt, int RfcNo = 0, DateOnly? RfcDate = null);
 
+/// <summary>
+/// New / changed invoices from HOMS's A/R open file (AROF4HO.DBF), sent by LegacyMasterWatcher (arof_sync.py).
+/// One group per invoice no.: its invoice row (null = no DOCID 1 row any more) and its whole RFC set, which replaces
+/// what HOMSys holds for that invoice. Removed = invoice nos. no longer in the file at all.
+/// </summary>
+public record ArofSyncRequest(List<ArofInvoiceGroup>? Groups, List<int>? Removed);
+
+public record ArofInvoiceGroup(int InvoiceNo, ArofInvoice? Invoice, List<ArofRfc>? Rfcs);
+
+/// <summary>Total = DRAMT − CRAMT (VAT-inclusive, the same as SL's SUM(AMT + STAX)); HomsBalance = DOCBAL.</summary>
+public record ArofInvoice(
+    DateOnly DocDate, string CustKey, string CKey, string? CustName, int Term, string? PoNum, decimal Total,
+    int Salesman, int EmpNo, int CustWhseNo, decimal HomsBalance);
+
+/// <summary>One RFC (DOCID 6, REFID 1) against the invoice: its DOCNO, date and signed amount (negative).</summary>
+public record ArofRfc(int RfcNo, DateOnly? RfcDate, decimal Amt);
+
+public record ArofSyncResult(int Inserted, int Updated, int Unchanged, int Deleted, int KeptInUse, int RfcRows)
+{
+    public override string ToString() =>
+        $"invoices +{Inserted} ~{Updated} ={Unchanged} -{Deleted} (kept, in use: {KeptInUse}); rfc rows {RfcRows}";
+}
+
 public record PostedInvoiceSyncResult(int Inserted, int Updated, int Unchanged, int RfcRows, int RfcInvoicesRecomputed, bool SiteResolved)
 {
     public override string ToString() =>

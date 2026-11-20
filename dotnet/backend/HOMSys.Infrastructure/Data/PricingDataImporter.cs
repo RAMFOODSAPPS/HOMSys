@@ -35,6 +35,17 @@ public class PricingDataImporter(AppDbContext db)
         "ilo", "kid", "oza", "rox", "tac", "tgm", "zam", "pan"
     };
 
+    /// <summary>
+    /// CUSTOMER folders that belong to hon: their own CUST4WIN.DBF, priced off hon's ZONE/ZONE2
+    /// (CustomerBranchResolver). Accepted for customer rows only. LegacyMasterWatcher sends just
+    /// the custkeys that aren't in hon's CUST4WIN (customers created at the branch and never
+    /// added to hon). Spelled as CustomerBranchResolver and AnalyticsCatalog expect them.
+    /// </summary>
+    internal static readonly HashSet<string> HonCustomerFolders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "DAG", "ISA", "LEG", "LUC", "mxs", "NAG"
+    };
+
     private static string PmdmPath(string root) => Path.Combine(root, "PMDM");
     private static string AddonRoot(string root) => Path.Combine(root, "AUTOPROG", "ADDON");
     private static string CustomerRoot(string root) => Path.Combine(root, "AUTOPROG", "CUSTOMER");
@@ -196,7 +207,9 @@ public class PricingDataImporter(AppDbContext db)
             var staleZone = await db.ZoneAddOns.Where(z => !addonBranches.Contains(z.Branch)).ExecuteDeleteAsync();
             var staleZone2 = await db.Zone2AddOns.Where(z => !addonBranches.Contains(z.Branch)).ExecuteDeleteAsync();
             var staleZoneMast = await db.ZoneMasts.Where(z => !addonBranches.Contains(z.Branch)).ExecuteDeleteAsync();
-            var staleCustomerBranchZone = await db.Customers.Where(z => !customerBranches.Contains(z.Branch)).ExecuteDeleteAsync();
+            // The hon-served folders' rows come only from LegacyMasterWatcher; this importer doesn't read them.
+            var keepCustomerBranches = customerBranches.Concat(HonCustomerFolders).ToArray();
+            var staleCustomerBranchZone = await db.Customers.Where(z => !keepCustomerBranches.Contains(z.Branch)).ExecuteDeleteAsync();
             if (staleZone + staleZone2 + staleZoneMast + staleCustomerBranchZone > 0)
                 log($"Purged stale rows for branches no longer in the active list: ZoneAddOns={staleZone}, Zone2AddOns={staleZone2}, ZoneMasts={staleZoneMast}, CustomerBranchZones={staleCustomerBranchZone}");
         }

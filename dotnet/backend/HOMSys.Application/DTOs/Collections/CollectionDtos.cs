@@ -12,16 +12,18 @@ public record CollectionSiteDto(int Id, string Code, string Name);
 /// A posted invoice with its open balance: Total + RfcTotal (negative) − Paid, where Paid is the
 /// cash applied + deductions of every live collection (not voided, not a bounced PDC).
 /// </summary>
+/// HomsBalance = HOMS's own open balance (AROF4HO DOCBAL), which also counts ORs posted in HOMS outside HOMSys; null = unknown.
 public record OpenInvoiceDto(
     int Id, int DocNo, DateOnly DocDate, string CustKey, string CustName, int Term, string? PoNum,
-    decimal Total, decimal RfcTotal, decimal Paid, decimal Balance);
+    decimal Total, decimal RfcTotal, decimal Paid, decimal Balance, decimal? HomsBalance = null);
 
 /// <summary>Deposit slip. BankAccountId picks the company account; Bank is its label (read-only, filled by the server).</summary>
 public record DepositInfoDto(int? BankAccountId, string? Bank, string SlipRefNo, DateOnly DepositDate);
 
 public record SaveAllocationDto(int PostedInvoiceId, decimal AmountApplied);
 
-public record SaveDeductionDto(int PostedInvoiceId, string Type, decimal Amount, string? Reference);
+/// <summary>With2307 / AcctNo apply to an EWT only: "2307 att." and the HOMS GL of its CEWT line (null = 10507 with a 2307, else 10508).</summary>
+public record SaveDeductionDto(int PostedInvoiceId, string Type, decimal Amount, string? Reference, bool With2307 = false, int? AcctNo = null);
 
 /// <summary>Create / update a Draft (or Returned) collection. Enums travel as their names.</summary>
 public record SaveCollectionDto(
@@ -39,7 +41,8 @@ public record SaveCollectionDto(
     string? Remarks,
     List<SaveAllocationDto>? Invoices,
     List<SaveDeductionDto>? Deductions,
-    bool MultiCustomer = false);
+    bool MultiCustomer = false,
+    int? DcrNo = null);   // HOMS DCRNO, N(8); required on every receipt except an RA's CR (set by its RA)
 
 public record ReasonDto(string? Reason);
 
@@ -57,7 +60,8 @@ public record CollectionInvoiceDto(
     int PostedInvoiceId, int DocNo, DateOnly DocDate, string CustKey, string CustName,
     decimal Total, decimal RfcTotal, decimal AmountApplied, decimal Balance, decimal AvailableBalance);
 
-public record CollectionDeductionDto(int Id, int PostedInvoiceId, int DocNo, string Type, decimal Amount, string? Reference);
+public record CollectionDeductionDto(int Id, int PostedInvoiceId, int DocNo, string Type, decimal Amount, string? Reference,
+    bool With2307 = false, int? AcctNo = null);
 
 public record CollectionAttachmentDto(int Id, string FileName, string ContentType, long Size, DateTime UploadedAt, string UploadedBy);
 

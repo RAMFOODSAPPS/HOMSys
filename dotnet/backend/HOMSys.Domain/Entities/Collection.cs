@@ -102,7 +102,8 @@ public class Collection
     public Remittance? Remittance { get; set; }
     /// <summary>RA CR: HOMS desk from the Excel (FOR LUZON → 32, FOR VISMIN → 31); null = the site's own.</summary>
     public int? HomsDeptCode { get; set; }
-    /// <summary>RA CR: DCR no. typed by the Custodian Verifier (HOMS OR header DCRNO).</summary>
+    /// <summary>DCR no. (HOMS OR header DCRNO): typed by the custodian on every receipt (required since 2026-11-12);
+    /// an RA CR's comes from its Excel / the Custodian Verifier.</summary>
     public int? DcrNo { get; set; }
     public ICollection<RemittanceLine> RemittanceLines { get; set; } = [];
 
@@ -126,6 +127,9 @@ public class CollectionInvoice
 /// <summary>Non-cash credit against one invoice of the collection (e.g. EWT with its 2307).</summary>
 public class CollectionDeduction
 {
+    /// <summary>HOMS GL of an EWT: 10507 PREPAID CEWIT - WITH CERTIFICATE (2307 attached), 10508 RECEIVABLE DUE TO TAX WITHHELD W/O.</summary>
+    public const int EwtWith2307Account = 10507, EwtWithout2307Account = 10508;
+
     public int Id { get; set; }
     public int CollectionId { get; set; }
     public Collection Collection { get; set; } = null!;
@@ -134,6 +138,12 @@ public class CollectionDeduction
     public DeductionType Type { get; set; }
     public decimal Amount { get; set; }
     public string? Reference { get; set; }
+    /// <summary>EWT only: the customer's BIR 2307 is attached ("2307 att.", user 2026-11-12).</summary>
+    public bool With2307 { get; set; }
+    /// <summary>EWT only: the HOMS GL its CEWT line is debited to. Defaults to 10507 with a 2307, 10508 without; the custodian may type another.</summary>
+    public int? AcctNo { get; set; }
+
+    public static int DefaultEwtAccount(bool with2307) => with2307 ? EwtWith2307Account : EwtWithout2307Account;
 }
 
 /// <summary>Soft copy of the CR / PR / AR (or 2307) in blob storage; only the path is kept here.</summary>

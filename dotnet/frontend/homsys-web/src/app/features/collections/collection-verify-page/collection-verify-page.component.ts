@@ -162,7 +162,7 @@ const SHORT_MODE: Record<string, string> = { Cash: 'CASH', Check: 'CHEQUE',PostD
                           <td class="num" [class.neg]="i.rfcTotal < 0">{{ i.rfcTotal | number:'1.2-2' }}</td>
                           <td class="num strong">{{ i.amountApplied | number:'1.2-2' }}</td>
                           <td class="ded num">
-                            @for (d of dedOf(c, i.postedInvoiceId); track d.id) { <div>{{ dedLabel(d.type) }} {{ d.amount | number:'1.2-2' }}@if (d.reference) { <span class="muted"> {{ d.reference }}</span> }</div> }
+                            @for (d of dedOf(c, i.postedInvoiceId); track d.id) { <div>{{ dedLabel(d.type) }} {{ d.amount | number:'1.2-2' }}@if (d.reference) { <span class="muted"> {{ d.reference }}</span> }@if (d.type === 'Ewt2307') { <span class="muted"> · {{ d.with2307 ? '2307 att.' : 'no 2307' }} · {{ d.acctNo }}</span> }</div> }
                             @empty { <span class="nil">—</span> }
                           </td>
                           <td class="num strong">{{ i.balance | number:'1.2-2' }}</td>

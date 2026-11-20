@@ -66,6 +66,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     // (SL files), deposit batches, finance verification + PDC tracking.
     public DbSet<PostedInvoice> PostedInvoices => Set<PostedInvoice>();
     public DbSet<PostedRfc> PostedRfcs => Set<PostedRfc>();
+
+    // Mirror of HOMS's A/R open file AROF4HO.DBF + its block fingerprints (HomsArof.cs).
+    public DbSet<HomsArofRow> HomsArofRows => Set<HomsArofRow>();
+    public DbSet<HomsArofBlock> HomsArofBlocks => Set<HomsArofBlock>();
+    public DbSet<HomsArofFile> HomsArofFiles => Set<HomsArofFile>();
     public DbSet<InvoiceSyncRequest> InvoiceSyncRequests => Set<InvoiceSyncRequest>();
     public DbSet<InvoiceSyncRequestItem> InvoiceSyncRequestItems => Set<InvoiceSyncRequestItem>();
     public DbSet<Collection> Collections => Set<Collection>();
@@ -595,6 +600,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.SourceFile).HasMaxLength(100);
             e.Property(x => x.Total).HasPrecision(18, 2);
             e.Property(x => x.RfcTotal).HasPrecision(18, 2);
+            e.Property(x => x.HomsBalance).HasPrecision(18, 2);
+            e.HasIndex(x => x.DocNo);   // AROF4HO sync and fetch look invoices up by number alone
             e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -602,8 +609,46 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.HasIndex(x => new { x.WhseNo, x.SourceFile, x.InvoiceNo, x.RfcNo }).IsUnique();
             e.HasIndex(x => new { x.WhseNo, x.InvoiceNo });
+            e.HasIndex(x => x.InvoiceNo);   // the AROF4HO sync replaces an invoice's RFC set by invoice no.
             e.Property(x => x.SourceFile).HasMaxLength(100).IsRequired();
             e.Property(x => x.Amt).HasPrecision(18, 2);
+        });
+
+        // AROF4HO.DBF mirror (HomsArof.cs): text kept as varchar in the DBF's own code page (cp1252 = the DB collation),
+        // widths = the DBF field widths.
+        b.Entity<HomsArofRow>(e =>
+        {
+            e.HasKey(x => x.RecNo);
+            e.Property(x => x.RecNo).ValueGeneratedNever();
+            e.HasIndex(x => new { x.DocNo, x.DocId });
+            e.HasIndex(x => new { x.RefNo, x.RefId });
+            e.HasIndex(x => x.ArofId);
+            void Text(System.Linq.Expressions.Expression<Func<HomsArofRow, string>> p, int n) => e.Property(p).HasMaxLength(n).IsUnicode(false);
+            Text(x => x.AdjId, 12); Text(x => x.PaymentId, 20); Text(x => x.CSman, 4); Text(x => x.CKey, 5);
+            Text(x => x.CustName, 30); Text(x => x.DocType, 10); Text(x => x.RefType, 10); Text(x => x.Bank, 10);
+            Text(x => x.Location, 15); Text(x => x.CheckNo, 15); Text(x => x.Remarks, 10); Text(x => x.RefType2, 10);
+            Text(x => x.DssNo, 8); Text(x => x.Reference, 40); Text(x => x.DusCKey, 5); Text(x => x.DCusName, 35);
+            Text(x => x.UserName, 20); Text(x => x.Expln1, 75); Text(x => x.Expln2, 75); Text(x => x.Expln3, 75);
+            Text(x => x.BCode, 2); Text(x => x.SName, 35); Text(x => x.CustKey, 7); Text(x => x.Sman4Soa, 6);
+            Text(x => x.PayGroup1, 22); Text(x => x.PayGroup2, 22); Text(x => x.ArofId, 12); Text(x => x.PoNum, 15);
+            e.Property(x => x.DrAmt).HasPrecision(12, 2);
+            e.Property(x => x.CrAmt).HasPrecision(12, 2);
+            e.Property(x => x.DocBal).HasPrecision(12, 2);
+            e.Property(x => x.OrigAmt).HasPrecision(12, 2);
+        });
+
+        b.Entity<HomsArofBlock>(e =>
+        {
+            e.HasKey(x => x.BlockNo);
+            e.Property(x => x.BlockNo).ValueGeneratedNever();
+            e.Property(x => x.Hash).HasMaxLength(32).IsUnicode(false).IsRequired();
+        });
+
+        b.Entity<HomsArofFile>(e =>
+        {
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.Path).HasMaxLength(260).IsRequired();
+            e.Property(x => x.FieldList).HasMaxLength(4000).IsUnicode(false).IsRequired();
         });
 
         b.Entity<InvoiceSyncRequest>(e =>

@@ -287,7 +287,7 @@ interface Action { label: string; kind: 'primary' | 'secondary' | 'danger'; run:
                           <td class="num cll-strong">{{ i.amountApplied | number:'1.2-2' }}</td>
                           <td class="cll-inv-ded num">
                             @for (x of dedsOf(d, i.postedInvoiceId); track x.id) {
-                              <div>{{ dedLabel(x.type) }} {{ x.amount | number:'1.2-2' }}@if (x.reference) { <small> · {{ x.reference }}</small> }</div>
+                              <div>{{ dedLabel(x.type) }} {{ x.amount | number:'1.2-2' }}@if (x.reference) { <small> · {{ x.reference }}</small> }@if (x.type === 'Ewt2307') { <small> · {{ x.with2307 ? '2307 att.' : 'no 2307' }} · {{ x.acctNo }}</small> }</div>
                             } @empty { <span class="pdcm-sub">—</span> }
                           </td>
                           <td class="num cll-strong" [class.cll-un]="i.balance > 0">{{ i.balance | number:'1.2-2' }}</td>

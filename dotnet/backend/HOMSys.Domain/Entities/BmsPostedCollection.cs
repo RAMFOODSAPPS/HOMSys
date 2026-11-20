@@ -3,13 +3,16 @@ namespace HOMSys.Domain.Entities;
 /// <summary>
 /// Read-only mirror of a BMS posted collection (OR / RPDC) from the HO archives OH03{MMYY} header,
 /// with its OD03 double-entry lines. Synced by LegacyMasterWatcher; HOMSys never writes it back.
-/// Totals: ArApplied = Σ(CR−DR) on A/R Trade (10301); Ewt = Σ(DR−CR) on Prepaid CEWT (10507);
+/// Totals: ArApplied = Σ(CR−DR) on A/R Trade (10301); Ewt = Σ(DR−CR) on CEWT (10507 with a 2307, 10508 without);
 /// Received = Σ(DR−CR) on every other account (cash in bank). A receipt balances: Received + Ewt = ArApplied.
 /// </summary>
 public class BmsPostedCollection
 {
     public const int ArAccount = 10301;
     public const int EwtAccount = 10507;
+    /// <summary>RECEIVABLE DUE TO TAX WITHHELD W/O (no 2307): HOMSys posts an EWT without its 2307 here (2026-11-12).</summary>
+    public const int EwtNo2307Account = 10508;
+    public static bool IsEwt(int acctNo) => acctNo is EwtAccount or EwtNo2307Account;
 
     public int Id { get; set; }
     /// <summary>"OH03{MMYY}" — the month file it came from.</summary>

@@ -61,6 +61,15 @@ public class PricingDeltaImporter(AppDbContext db)
         {
             foreach (var (branch, delta) in branches)
             {
+                // hon-served folders (DAG, ISA, …): customer rows only, stored under the canonical
+                // spelling the pricing resolver maps to hon.
+                if (PricingDataImporter.HonCustomerFolders.TryGetValue(branch, out var honFolder))
+                {
+                    if (delta.CustomerBranchZones is { } honCust)
+                        result.CustomerBranchZones += await ApplyCustomerBranchZonesAsync(honFolder, honCust, log);
+                    continue;
+                }
+
                 if (!PricingDataImporter.ActiveBranches.Contains(branch))
                 {
                     log($"Branch '{branch}' not in active branch list — skipping.");
