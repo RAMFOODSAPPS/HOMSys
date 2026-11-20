@@ -53,9 +53,6 @@ public static class HomsPostingBuilder
         var c = x.C;
         if (c.Invoices.Count == 0) return (null, "No invoice applied — an on-account receipt has no GL account in HOMS yet.");
         if (c.UnappliedAmount != 0) return (null, $"Unapplied (on-account) {c.UnappliedAmount:N2} has no GL account in HOMS yet.");
-        if (c.Deductions.FirstOrDefault(d => d.Type != DeductionType.Ewt2307) is { } other)
-            return (null, $"Deduction {(other.Type == DeductionType.RfcBoRtv ? "RFC/BO/RTV" : other.Type.ToString())} {other.Amount:N2}"
-                          + $"{(other.Reference is { Length: > 0 } r ? $" ({r})" : "")} is waiting for its GL account in HOMS (only CEWT is posted yet).");
         if (HomsDocMap.Prefix(c.Site.Code) is not { } prefix) return (null, $"Branch {c.Site.Code} has no HOMS document prefix.");
         var digits = new string(c.ReceiptNo.Where(char.IsDigit).ToArray());
         if (digits.Length == 0 || digits.Length > 8 || !int.TryParse(digits, out var printed))
@@ -65,7 +62,10 @@ public static class HomsPostingBuilder
         var dept = c.HomsDeptCode ?? HomsDocMap.DeptCode(prefix);
         var user = Cut(x.UserName, 20).ToUpperInvariant();
 
-        var ewt = c.Deductions.GroupBy(d => d.PostedInvoiceId).ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
+        // Only EWT (2307) is posted (its own CEWT row). Other deductions have no HOMS GL account yet: they are left out, so
+        // HOMS keeps them open on the invoice until accounting clears them there (user 2026-11-20); see NotPosted.
+        var ewt = c.Deductions.Where(d => d.Type == DeductionType.Ewt2307)
+            .GroupBy(d => d.PostedInvoiceId).ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
         var invs = c.Invoices.OrderBy(i => i.PostedInvoice.DocNo).Select(i => (Inv: i.PostedInvoice, Applied: i.AmountApplied,
             Ewt: ewt.GetValueOrDefault(i.PostedInvoiceId))).ToList();
         var first = invs[0].Inv;
@@ -193,6 +193,25 @@ public static class HomsPostingBuilder
         c.Deductions.Where(d => d.PostedInvoiceId == postedInvoiceId && d.Type == DeductionType.Ewt2307)
             .GroupBy(d => d.AcctNo ?? Cewt).OrderBy(g => g.Key)
             .Select(g => (g.Key, g.Sum(d => d.Amount))).Where(x => x.Item2 > 0).ToList();
+
+    /// <summary>
+    /// The deductions a posting leaves out (all but EWT 2307: no HOMS GL account yet), for the collection's history, e.g.
+    /// "Not posted to HOMS (no GL account yet), still open on the invoice in HOMS: inv 94021515 Other 296.40, Discount
+    /// 8.01. Clear them in HOMS." Null when there are none.
+    /// </summary>
+    public static string? NotPosted(Collection c)
+    {
+        var nos = c.Invoices.Where(i => i.PostedInvoice is not null).ToDictionary(i => i.PostedInvoiceId, i => i.PostedInvoice.DocNo);
+        var parts = c.Deductions.Where(d => d.Type != DeductionType.Ewt2307 && d.Amount != 0)
+            .GroupBy(d => d.PostedInvoiceId)
+            .Select(g => $"inv {(nos.TryGetValue(g.Key, out var no) ? no : g.First().PostedInvoice?.DocNo)} "
+                         + string.Join(", ", g.Select(d => $"{(d.Type == DeductionType.RfcBoRtv ? "RFC/BO/RTV" : d.Type.ToString())} {d.Amount:N2}"
+                                                           + (d.Reference is { Length: > 0 } r ? $" ({r})" : ""))))
+            .ToList();
+        if (parts.Count == 0) return null;
+        var text = $"Not posted to HOMS (no GL account yet), still open on the invoice in HOMS: {string.Join("; ", parts)}. Clear them in HOMS.";
+        return text.Length > 500 ? text[..500] : text;
+    }
 
     public static string Json(object o) => JsonSerializer.Serialize(o);
 }

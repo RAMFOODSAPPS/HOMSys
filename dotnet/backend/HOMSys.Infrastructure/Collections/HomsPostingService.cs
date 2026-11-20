@@ -73,7 +73,7 @@ public class HomsPostingService(AppDbContext db)
             return;
         }
         p.Status = HomsPostingStatus.Pending;
-        p.Message = null;
+        p.Message = CreditsAr(p.Kind) ? HomsPostingBuilder.NotPosted(c) : null;
         p.DocNo = doc.DocNo ?? p.DocNo;
         p.HeaderJson = HomsPostingBuilder.Json(doc.Header);
         p.LinesJson = HomsPostingBuilder.Json(doc.Lines);
@@ -193,11 +193,19 @@ public class HomsPostingService(AppDbContext db)
             p.Status = HomsPostingStatus.Done;
             p.File = dto.File is { Length: > 0 } f ? f[..Math.Min(f.Length, 40)] : null;
             p.CompletedAt = DateTime.UtcNow;
-            p.Message = dto.AlreadyPresent ? $"Already in {p.File} — not written again." : null;
+            string? left = null;
+            if (CreditsAr(p.Kind))
+            {
+                await db.Entry(p.Collection).Collection(x => x.Deductions).LoadAsync();
+                await db.Entry(p.Collection).Collection(x => x.Invoices).Query().Include(i => i.PostedInvoice).LoadAsync();
+                left = HomsPostingBuilder.NotPosted(p.Collection);
+            }
+            p.Message = dto.AlreadyPresent ? $"Already in {p.File} — not written again." : left;
             if (p.Kind != HomsPostingKind.PdcJv) p.Collection.PostedToHomsAt = p.CompletedAt;
             p.Collection.History.Add(new CollectionHistory
             {
-                Action = $"Posted to HOMS ({Label(p.Kind)})", Reason = $"{Label(p.Kind)} {p.DocNo} in {p.File}", By = "watcher",
+                Action = $"Posted to HOMS ({Label(p.Kind)})",
+                Reason = Cut($"{Label(p.Kind)} {p.DocNo} in {p.File}" + (left is null ? "" : $". {left}")), By = "watcher",
             });
         }
         await db.SaveChangesAsync();
@@ -205,6 +213,9 @@ public class HomsPostingService(AppDbContext db)
     }
 
     private static string? Cut(string? s) => s is { Length: > 500 } ? s[..500] : s;
+
+    /// <summary>The kinds that credit the invoice in HOMS's A/R (so a deduction left out stays open there).</summary>
+    private static bool CreditsAr(HomsPostingKind k) => k is HomsPostingKind.Or or HomsPostingKind.Rpdc;
 
     // ── HOMSys side ─────────────────────────────────────────────────────────
 
