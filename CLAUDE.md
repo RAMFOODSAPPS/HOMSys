@@ -544,7 +544,8 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   Approval Rules) says when a role signs: `OverAmount` null = always, else only when
   the total is **more than** it (Promo: GKAM, TMM, NSM >20k, NSD >50k, COO >100k;
   Support: GKAM, TMM, NSM >20k, NSD + COO always). No rule = not required. Signing
-  order = role `SortOrder`. The person per role is per sales group in `TasafApprover`
+  order = role `SortOrder`: GKAM, NSM, TMM, NSD, COO (NSM before TMM since migration
+  `TasafNsmBeforeTmm`, user decision 2026-11-20). The person per role is per sales group in `TasafApprover`
   (setup › Approval Matrix); a vacant cell = step `Skipped`.
   Any approver can Return (→ Returned, editable; resubmit rebuilds the chain) or
   Reject; both need a comment. Mode of Payment = ONE payment type per TASAF (dropdown), carrying the whole

@@ -5289,7 +5289,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Description = "",
                             IsActive = true,
                             Name = "Trade Marketing Manager",
-                            SortOrder = 2
+                            SortOrder = 3
                         },
                         new
                         {
@@ -5300,7 +5300,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Description = "",
                             IsActive = true,
                             Name = "National Sales Manager",
-                            SortOrder = 3
+                            SortOrder = 2
                         },
                         new
                         {

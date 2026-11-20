@@ -312,6 +312,8 @@ internal static class TasafModel
 
     private static T Inactive<T>(T row) where T : TasafLookup { row.IsActive = false; return row; }
 
+    private static T Ordered<T>(T row, int sortOrder) where T : TasafLookup { row.SortOrder = sortOrder; return row; }
+
     private static T[] Rows<T>(params string[] names) where T : TasafLookup, new() =>
         names.Select((n, i) => Row<T>(i + 1, "", n)).ToArray();
 
@@ -397,13 +399,14 @@ internal static class TasafModel
             "Convention - Joining Fee", "Convention - Rebates", "Convention - Manpower",
             "Convention - Booth & Collaterals", "Near Ex Moveout - Rebates", "Free Goods - Free Goods"));
 
-        // Simplified Approval Matrix roles, in signing order. Who holds each role per
-        // sales group is set on the setup page (TasafApprover).
+        // Simplified Approval Matrix roles. Signing order = SortOrder: GKAM, NSM, TMM, NSD, COO
+        // (NSM before TMM since migration TasafNsmBeforeTmm, user decision 2026-11-20). Who holds
+        // each role per sales group is set on the setup page (TasafApprover).
         const int Gkam = 1, Tmm = 2, Nsm = 3, Nsd = 4, Coo = 5;
         mb.Entity<TasafApprovalRole>().HasData(
             Row<TasafApprovalRole>(Gkam, "GKAM", "Group Key Account Manager"),
-            Row<TasafApprovalRole>(Tmm,  "TMM",  "Trade Marketing Manager"),
-            Row<TasafApprovalRole>(Nsm,  "NSM",  "National Sales Manager"),
+            Ordered(Row<TasafApprovalRole>(Tmm, "TMM", "Trade Marketing Manager"), 3),
+            Ordered(Row<TasafApprovalRole>(Nsm, "NSM", "National Sales Manager"), 2),
             Row<TasafApprovalRole>(Nsd,  "NSD",  "National Sales Director"),
             Row<TasafApprovalRole>(Coo,  "COO",  "Chief Operating Officer"));
 
