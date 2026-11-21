@@ -62,8 +62,8 @@ public static class HomsPostingBuilder
         var dept = c.HomsDeptCode ?? HomsDocMap.DeptCode(prefix);
         var user = Cut(x.UserName, 20).ToUpperInvariant();
 
-        // Only EWT (2307) is posted (its own CEWT row). Other deductions have no HOMS GL account yet: they are left out, so
-        // HOMS keeps them open on the invoice until accounting clears them there (user 2026-11-20); see NotPosted.
+        // Only EWT (2307) is an OR line (its own CEWT row). The other deductions go to HOMS's ordeduc2 as HOMS's own ORs
+        // record them (user 2026-11-21), not as GL lines; see DeductionRows.
         var ewt = c.Deductions.Where(d => d.Type == DeductionType.Ewt2307)
             .GroupBy(d => d.PostedInvoiceId).ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
         var invs = c.Invoices.OrderBy(i => i.PostedInvoice.DocNo).Select(i => (Inv: i.PostedInvoice, Applied: i.AmountApplied,
@@ -194,22 +194,81 @@ public static class HomsPostingBuilder
             .GroupBy(d => d.AcctNo ?? Cewt).OrderBy(g => g.Key)
             .Select(g => (g.Key, g.Sum(d => d.Amount))).Where(x => x.Item2 > 0).ToList();
 
+    /// <summary>ordeduc2 REMARKS (50): the selection's short text (DeductionReasons.Remark), then for "Others" its description,
+    /// then the Ref. the custodian typed — so HOMS / the VFP reports can tell the selections apart.</summary>
+    public static string DedRemarks(CollectionDeduction d)
+    {
+        var r = DeductionReasons.Of(d);
+        var parts = new[] { r.Remark, r.Code == DeductionReasons.Others ? d.Description : null, d.Reference }
+            .Select(x => (x ?? "").Trim()).Where(x => x.Length > 0);
+        return Cut(string.Join(" ", parts).ToUpperInvariant(), 50);
+    }
+
     /// <summary>
-    /// The deductions a posting leaves out (all but EWT 2307: no HOMS GL account yet), for the collection's history, e.g.
-    /// "Not posted to HOMS (no GL account yet), still open on the invoice in HOMS: inv 94021515 Other 296.40, Discount
-    /// 8.01. Clear them in HOMS." Null when there are none.
+    /// Rows for HOMS's ordeduc2 (F:\HOMS\RAM\ordeduc2.DBF), field for field the way HOMS's own ORs fill it (checked on
+    /// 2026 rows, e.g. OR 93004129): one per deduction that is <see cref="CollectionDeduction.ReadyForHoms"/> — every type
+    /// but EWT (an OR line already), a Service Invoice only with its scanned copy (user 2026-11-21). docId 2 = OR, 33 = RPDC.
+    /// POSTED = the OR / RPDC's own posting date; SYSDATE = when this row is sent.
     /// </summary>
-    public static string? NotPosted(Collection c)
+    public static (List<Dictionary<string, object?>> Rows, List<int> Ids) DeductionRows(Collection c, int docId, int docNo, string userName,
+        DateOnly posted, DateOnly sysDate)
+    {
+        var invs = c.Invoices.Where(i => i.PostedInvoice is not null).ToDictionary(i => i.PostedInvoiceId, i => i.PostedInvoice);
+        var user = Cut(userName, 20).ToUpperInvariant();
+        var rows = new List<Dictionary<string, object?>>();
+        var ids = new List<int>();
+        foreach (var d in c.Deductions.Where(d => d.ReadyForHoms && d.Amount > 0).OrderBy(d => d.Id))
+        {
+            if (!invs.TryGetValue(d.PostedInvoiceId, out var inv)) continue;
+            var reason = DeductionReasons.Of(d);
+            var (code, text) = (reason.DedCode, reason.DedType);
+            var rfc = code == 11;   // BO RETURNS rows reference the RFC, as HOMS's own do
+            var cust = Cust(inv);
+            rows.Add(new()
+            {
+                ["DOCID"] = docId, ["DOCNO"] = docNo, ["WHSENO"] = cust["WHSENO"], ["CKEY"] = cust["CKEY"], ["CUSTKEY"] = cust["CUSTKEY"],
+                ["DOCDATE"] = D(c.ReceiptDate), ["DEDCODE"] = code, ["DEDTYPE"] = text, ["DEALCODE"] = 0,
+                ["REFID"] = rfc ? 6 : 1, ["REFTYPE"] = rfc ? "RFC" : "INV", ["REFNO"] = inv.DocNo,
+                ["AMOUNT"] = d.Amount, ["PAYMENTID"] = PaymentId(inv.DocDate, 1, inv.DocNo), ["REMARKS"] = DedRemarks(d),
+                ["FORAUTODN"] = false, ["POSTED"] = D(posted), ["SALESMAN"] = inv.Salesman, ["EMPNO"] = inv.EmpNo,
+                ["APPLYID"] = 1, ["APPLYDOC"] = inv.DocNo, ["APPDOCDATE"] = D(inv.DocDate),
+                ["USERNAME"] = user, ["SYSDATE"] = D(sysDate),
+            });
+            ids.Add(d.Id);
+        }
+        return (rows, ids);
+    }
+
+    /// <summary>Short name of a deduction's selection for notes ("Parking fee", "Others: freight to Naga").</summary>
+    private static string Label(CollectionDeduction d)
+    {
+        var r = DeductionReasons.Of(d);
+        var name = r.Label.Split(" (")[0];
+        return r.Code == DeductionReasons.Others && d.Description is { Length: > 0 } desc ? $"Others: {desc}" : name;
+    }
+
+    /// <summary>
+    /// Where a posting's deductions went, for the collection's history: EWT is an OR line; the rest go to HOMS's ordeduc2,
+    /// except a Service Invoice still without its scanned copy (a hanging balance in HOMS until it's uploaded), e.g.
+    /// "To HOMS ordeduc2: inv 94021515 Other 296.40, Discount 8.01. Waiting for the scanned Service Invoice (not in
+    /// ordeduc2 yet): inv 94021515 SI 1234 500.00". Null when there are none.
+    /// </summary>
+    public static string? DeductionNote(Collection c)
     {
         var nos = c.Invoices.Where(i => i.PostedInvoice is not null).ToDictionary(i => i.PostedInvoiceId, i => i.PostedInvoice.DocNo);
-        var parts = c.Deductions.Where(d => d.Type != DeductionType.Ewt2307 && d.Amount != 0)
-            .GroupBy(d => d.PostedInvoiceId)
+        string Part(IEnumerable<CollectionDeduction> ds) => string.Join("; ", ds.GroupBy(d => d.PostedInvoiceId)
             .Select(g => $"inv {(nos.TryGetValue(g.Key, out var no) ? no : g.First().PostedInvoice?.DocNo)} "
-                         + string.Join(", ", g.Select(d => $"{(d.Type == DeductionType.RfcBoRtv ? "RFC/BO/RTV" : d.Type.ToString())} {d.Amount:N2}"
-                                                           + (d.Reference is { Length: > 0 } r ? $" ({r})" : ""))))
-            .ToList();
+                         + string.Join(", ", g.Select(d => d.Type == DeductionType.ServiceInvoice
+                             ? $"SI {d.Reference} {d.Amount:N2}"
+                             : $"{Label(d)} {d.Amount:N2}" + (d.Reference is { Length: > 0 } r ? $" ({r})" : "")))));
+        var other = c.Deductions.Where(d => d.Type != DeductionType.Ewt2307 && d.Amount != 0).ToList();
+        var waiting = other.Where(d => d.Type == DeductionType.ServiceInvoice && d.AttachmentId is null).ToList();
+        var sent = other.Except(waiting).ToList();
+        var parts = new List<string>();
+        if (sent.Count > 0) parts.Add($"To HOMS ordeduc2: {Part(sent)}.");
+        if (waiting.Count > 0) parts.Add($"Waiting for the scanned Service Invoice (not in ordeduc2 yet): {Part(waiting)}.");
         if (parts.Count == 0) return null;
-        var text = $"Not posted to HOMS (no GL account yet), still open on the invoice in HOMS: {string.Join("; ", parts)}. Clear them in HOMS.";
+        var text = string.Join(" ", parts);
         return text.Length > 500 ? text[..500] : text;
     }
 

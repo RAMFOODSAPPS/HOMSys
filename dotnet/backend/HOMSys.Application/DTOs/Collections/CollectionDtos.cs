@@ -22,8 +22,11 @@ public record DepositInfoDto(int? BankAccountId, string? Bank, string SlipRefNo,
 
 public record SaveAllocationDto(int PostedInvoiceId, decimal AmountApplied);
 
-/// <summary>With2307 / AcctNo apply to an EWT only: "2307 att." and the HOMS GL of its CEWT line (null = 10507 with a 2307, else 10508).</summary>
-public record SaveDeductionDto(int PostedInvoiceId, string Type, decimal Amount, string? Reference, bool With2307 = false, int? AcctNo = null);
+/// <summary>With2307 / AcctNo apply to an EWT only: "2307 att." and the HOMS GL of its CEWT line (null = 10507 with a 2307, else 10508).
+/// Description: what an "Other" is (required for Other). AttachmentId: a Service Invoice's scanned copy (one of the collection's files).</summary>
+/// Reason: the selection from finance's list (DeductionReasons code); it sets Type. Without it, Type's default selection.
+public record SaveDeductionDto(int PostedInvoiceId, string Type, decimal Amount, string? Reference, bool With2307 = false, int? AcctNo = null,
+    string? Description = null, int? AttachmentId = null, string? Reason = null);
 
 /// <summary>Create / update a Draft (or Returned) collection. Enums travel as their names.</summary>
 public record SaveCollectionDto(
@@ -53,17 +56,24 @@ public record CollectionListItemDto(
     string? DepositSlipRef, string CreatedBy, DateTime CreatedAt, DateTime? SubmittedAt, bool PostedInBms = false,
     string? BankMatch = null,    // null | "Found" (awaiting the verifier) | "Approved"
     string? Homs = null,         // null | "Queued" | "Posted" | "Held" | "Failed" — writing into the HOMS ARCHIVES files
-    int? RemittanceId = null);   // part of a Remittance Advice (verified with it)
+    int? RemittanceId = null,    // part of a Remittance Advice (verified with it)
+    int MissingSiDocs = 0);      // Service Invoice deductions still without their scanned copy
 
 /// <summary>AvailableBalance = what this collection may still apply (balance with this collection's own lines added back).</summary>
 public record CollectionInvoiceDto(
     int PostedInvoiceId, int DocNo, DateOnly DocDate, string CustKey, string CustName,
     decimal Total, decimal RfcTotal, decimal AmountApplied, decimal Balance, decimal AvailableBalance);
 
+/// <summary>HomsSentAt = when its row went into HOMS's ordeduc2 (never for EWT, an OR line).</summary>
 public record CollectionDeductionDto(int Id, int PostedInvoiceId, int DocNo, string Type, decimal Amount, string? Reference,
-    bool With2307 = false, int? AcctNo = null);
+    bool With2307 = false, int? AcctNo = null, string? Description = null, int? AttachmentId = null, DateTime? HomsSentAt = null,
+    string? Reason = null);
 
-public record CollectionAttachmentDto(int Id, string FileName, string ContentType, long Size, DateTime UploadedAt, string UploadedBy);
+/// <summary>Kind: see AttachmentKinds (DepositSlip, CustomerSlip, ServiceInvoice, ...); Note: a short label.</summary>
+public record CollectionAttachmentDto(int Id, string FileName, string ContentType, long Size, DateTime UploadedAt, string UploadedBy,
+    string Kind = "Unspecified", string? Note = null);
+
+public record AttachmentLabelDto(string? Kind, string? Note);
 
 public record CollectionHistoryDto(string Action, string? FromStatus, string? ToStatus, string? Reason, DateTime At, string By);
 
@@ -88,7 +98,8 @@ public record CollectionDto(
     bool CanRetryHoms = false,
     int? RemittanceId = null, int? HomsDeptCode = null, int? DcrNo = null,
     bool CanPulloutPdc = false, string? PdcPullout = null, string? PdcPulloutReason = null,
-    DateTime? PdcPulloutRequestedAt = null, string? PdcPulloutRequestedBy = null);
+    DateTime? PdcPulloutRequestedAt = null, string? PdcPulloutRequestedBy = null,
+    int MissingSiDocs = 0, bool CanUpdateDocs = false);   // "Update supporting documents" (Service Invoice copies, user 2026-11-21)
 
 /// <summary>Type: "PulledOut" (customer took the check back) or "Replaced" (another check / payment took its place).</summary>
 public record PdcPulloutDto(string? Type, string? Reason);

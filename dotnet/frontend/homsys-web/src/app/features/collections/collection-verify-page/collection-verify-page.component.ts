@@ -10,7 +10,7 @@ import { GlobalToolbarService } from '../../../core/services/global-toolbar.serv
 import { CollectionService } from '../../../core/services/collection.service';
 import { BankStatementService } from '../../../core/services/bank-statement.service';
 import { RemittanceService } from '../../../core/services/remittance.service';
-import { BankStatementLineDto, CollectionDto, CollectionListItemDto, CollectionSiteDto, DEDUCTION_TYPES, inDateRange, PAYMENT_MODES, RemittanceListItemDto } from '../../../core/models/collection.model';
+import { BankStatementLineDto, CollectionDto, CollectionListItemDto, CollectionSiteDto, deductionName, inDateRange, PAYMENT_MODES, RemittanceListItemDto } from '../../../core/models/collection.model';
 
 /** Matured PDCs are confirmed by the CNC Verifier on the PDC Monitor (that posts the JV), not here. */
 type QueueTab = 'ForVerification' | 'Returned' | 'Verified' | 'all';
@@ -162,7 +162,7 @@ const SHORT_MODE: Record<string, string> = { Cash: 'CASH', Check: 'CHEQUE',PostD
                           <td class="num" [class.neg]="i.rfcTotal < 0">{{ i.rfcTotal | number:'1.2-2' }}</td>
                           <td class="num strong">{{ i.amountApplied | number:'1.2-2' }}</td>
                           <td class="ded num">
-                            @for (d of dedOf(c, i.postedInvoiceId); track d.id) { <div>{{ dedLabel(d.type) }} {{ d.amount | number:'1.2-2' }}@if (d.reference) { <span class="muted"> {{ d.reference }}</span> }@if (d.type === 'Ewt2307') { <span class="muted"> · {{ d.with2307 ? '2307 att.' : 'no 2307' }} · {{ d.acctNo }}</span> }</div> }
+                            @for (d of dedOf(c, i.postedInvoiceId); track d.id) { <div>{{ dedLabel(d.type, d.reason) }} {{ d.amount | number:'1.2-2' }}@if (d.reference) { <span class="muted"> {{ d.reference }}</span> }@if (d.type === 'Ewt2307') { <span class="muted"> · {{ d.with2307 ? '2307 att.' : 'no 2307' }} · {{ d.acctNo }}</span> }</div> }
                             @empty { <span class="nil">—</span> }
                           </td>
                           <td class="num strong">{{ i.balance | number:'1.2-2' }}</td>
@@ -579,7 +579,7 @@ export class CollectionVerifyPageComponent implements OnInit, OnDestroy {
       : 'Invoice balance once this receipt goes through — not yet deposited';
   }
 
-  dedLabel(t: string) { return DEDUCTION_TYPES.find(d => d.value === t)?.label ?? t; }
+  dedLabel(t: string, reason?: string | null) { return deductionName(t, reason); }
   shortMode(m: string) { return SHORT_MODE[m] ?? m; }
   statusText(s: string) { return s === 'ForVerification' ? 'For verification' : s; }
 

@@ -19,7 +19,8 @@ public class HomsPostingService(AppDbContext db)
 
     public static string Label(HomsPostingKind k) => k switch
     {
-        HomsPostingKind.Or => "OR", HomsPostingKind.Rpdc => "RPDC", HomsPostingKind.RpdcCancel => "RPDC-CANCEL", _ => "JV",
+        HomsPostingKind.Or => "OR", HomsPostingKind.Rpdc => "RPDC", HomsPostingKind.RpdcCancel => "RPDC-CANCEL",
+        HomsPostingKind.Deductions => "DEDUCTIONS", _ => "JV",
     };
 
     private static readonly HomsPostingStatus[] Open = [HomsPostingStatus.Pending, HomsPostingStatus.Held, HomsPostingStatus.Failed];
@@ -73,10 +74,82 @@ public class HomsPostingService(AppDbContext db)
             return;
         }
         p.Status = HomsPostingStatus.Pending;
-        p.Message = CreditsAr(p.Kind) ? HomsPostingBuilder.NotPosted(c) : null;
+        p.Message = CreditsAr(p.Kind) ? HomsPostingBuilder.DeductionNote(c) : null;
         p.DocNo = doc.DocNo ?? p.DocNo;
         p.HeaderJson = HomsPostingBuilder.Json(doc.Header);
         p.LinesJson = HomsPostingBuilder.Json(doc.Lines);
+        SetDeductions(p, c, post, user);
+    }
+
+    /// <summary>The OR / RPDC's ordeduc2 rows (every deduction but EWT; a Service Invoice only with its scanned copy).</summary>
+    private static void SetDeductions(HomsPosting p, Collection c, DateOnly posted, string user)
+    {
+        var (rows, ids) = CreditsAr(p.Kind) && p.DocNo is { } no
+            ? HomsPostingBuilder.DeductionRows(c, p.DocId, no, user, posted, TodayPh)
+            : ([], []);
+        p.DeductionsJson = HomsPostingBuilder.Json(rows);
+        p.DeductionIds = ids.Count == 0 ? null : string.Join(",", ids);
+    }
+
+    private static List<int> Ids(string? s) =>
+        (s ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => int.TryParse(x, out var n) ? n : 0).Where(n => n > 0).ToList();
+
+    /// <summary>The OR / RPDC's posting date (its header POSTED), for ordeduc2 rows sent after it.</summary>
+    private static DateOnly PostedOf(HomsPosting main)
+    {
+        try
+        {
+            if (JsonDocument.Parse(main.HeaderJson).RootElement.TryGetProperty("POSTED", out var v)
+                && v.ValueKind == JsonValueKind.String && DateOnly.TryParse(v.GetString(), out var d)) return d;
+        }
+        catch (JsonException) { }
+        return main.CompletedAt is { } at ? DateOnly.FromDateTime(at.AddHours(8)) : TodayPh;
+    }
+
+    /// <summary>
+    /// After a deduction became ready for HOMS (a Service Invoice's scanned copy uploaded later, user 2026-11-21), not saved:
+    /// its OR / RPDC still waiting → rebuilt with it; already in HOMS → an ordeduc2-only Deductions posting is queued (or a
+    /// waiting one refreshed). While one is being written nothing changes here: <see cref="CompleteAsync"/> queues the rest.
+    /// </summary>
+    public async Task QueueDeductionsAsync(Collection c, string user)
+    {
+        await LoadForBuildAsync(c);
+        if (!c.Deductions.Any(d => d.ReadyForHoms)) return;
+        var list = await db.HomsPostings.Where(p => p.CollectionId == c.Id && p.Status != HomsPostingStatus.Cancelled).ToListAsync();
+        list.AddRange(db.HomsPostings.Local.Where(p => p.Collection == c && p.Id == 0 && p.Status != HomsPostingStatus.Cancelled));
+        if (list.Any(p => p.Kind == HomsPostingKind.RpdcCancel)) return;   // pulled-out PDC: nothing goes to HOMS any more
+        var main = list.Where(p => CreditsAr(p.Kind)).OrderBy(p => p.Id == 0 ? int.MaxValue : p.Id).FirstOrDefault();
+        if (main is null || main.Status == HomsPostingStatus.Held) return;   // not verified yet / Retry rebuilds it
+        if (main.Status is HomsPostingStatus.Pending or HomsPostingStatus.Failed)
+        {
+            SetDeductions(main, c, TodayPh, user);
+            main.Message = HomsPostingBuilder.DeductionNote(c);
+            return;
+        }
+        if (main.Status != HomsPostingStatus.Done || main.DocNo is not { } docNo) return;   // Processing: CompleteAsync follows up
+        if (await db.BmsPostedCollections.AnyAsync(b => b.CollectionId == c.Id && !b.Removed && !b.Cancelled))
+            return;   // encoded in HOMS itself: its deductions are HOMS's own
+        if (list.Any(p => p.Kind == HomsPostingKind.Deductions && p.Status == HomsPostingStatus.Processing)) return;
+
+        var (rows, ids) = HomsPostingBuilder.DeductionRows(c, main.DocId, docNo, user, PostedOf(main), TodayPh);
+        if (rows.Count == 0) return;
+        var open = list.FirstOrDefault(p => p.Kind == HomsPostingKind.Deductions && Open.Contains(p.Status));
+        var job = open ?? new HomsPosting
+        {
+            Collection = c, Kind = HomsPostingKind.Deductions, Table = main.Table, MonthKey = main.MonthKey, DocId = main.DocId,
+            DocNo = docNo, CreatedBy = user,
+        };
+        job.Status = HomsPostingStatus.Pending;
+        job.DeductionsJson = HomsPostingBuilder.Json(rows);
+        job.DeductionIds = string.Join(",", ids);
+        job.Message = null;
+        if (open is not null) return;
+        db.HomsPostings.Add(job);
+        c.History.Add(new CollectionHistory
+        {
+            Action = "Queued for HOMS (ded.)", By = user,
+            Reason = Cut($"{rows.Count} deduction row(s) to ordeduc2 for {Label(main.Kind)} {docNo}"),
+        });
     }
 
     /// <summary>PDC pulled out / replaced (not saved). Its RPDC never reached HOMS → cancelled here, the PDC can be voided
@@ -98,10 +171,14 @@ public class HomsPostingService(AppDbContext db)
             return (false, null);
         }
         if (rpdc.Status != HomsPostingStatus.Done) rpdc.Status = HomsPostingStatus.Cancelled;   // never written again
+        // Its ordeduc2 rows (written with the RPDC or later) are taken out with it.
+        var deds = list.Where(p => p.Kind is HomsPostingKind.Rpdc or HomsPostingKind.Deductions)
+            .SelectMany(p => JsonDocument.Parse(p.DeductionsJson).RootElement.EnumerateArray().Select(e => e.Clone())).ToList();
+        foreach (var d in list.Where(p => p.Kind == HomsPostingKind.Deductions && Open.Contains(p.Status))) d.Status = HomsPostingStatus.Cancelled;
         db.HomsPostings.Add(new HomsPosting
         {
             Collection = c, Kind = HomsPostingKind.RpdcCancel, Table = rpdc.Table, MonthKey = rpdc.MonthKey, DocId = rpdc.DocId,
-            DocNo = rpdc.DocNo, LinesJson = rpdc.LinesJson, CreatedBy = user,
+            DocNo = rpdc.DocNo, LinesJson = rpdc.LinesJson, DeductionsJson = JsonSerializer.Serialize(deds), CreatedBy = user,
         });
         return (true, null);
     }
@@ -129,7 +206,8 @@ public class HomsPostingService(AppDbContext db)
         }
         var rows = await db.HomsPostings.AsNoTracking().Where(p => claimed.Contains(p.Id)).OrderBy(p => p.Id).ToListAsync();
         return rows.Select(p => new HomsPostingJobDto(p.Id, Label(p.Kind), p.Table, p.Table.Replace("OH", "OD").Replace("GH", "GD"),
-            p.MonthKey, p.DocId, p.DocNo, JsonDocument.Parse(p.HeaderJson).RootElement, JsonDocument.Parse(p.LinesJson).RootElement)).ToList();
+            p.MonthKey, p.DocId, p.DocNo, JsonDocument.Parse(p.HeaderJson).RootElement, JsonDocument.Parse(p.LinesJson).RootElement,
+            JsonDocument.Parse(p.DeductionsJson).RootElement)).ToList();
     }
 
     /// <summary>A JV's number, claimed from HOMS DOCNUM before it is written — kept so a retry reuses it.</summary>
@@ -188,6 +266,21 @@ public class HomsPostingService(AppDbContext db)
                 });
             }
         }
+        else if (p.Kind == HomsPostingKind.Deductions)
+        {
+            // Rows already there count as written (an earlier run got them in); the watcher never adds one twice.
+            p.Status = HomsPostingStatus.Done;
+            p.File = dto.File is { Length: > 0 } f ? f[..Math.Min(f.Length, 40)] : null;
+            p.CompletedAt = DateTime.UtcNow;
+            var n = await StampSentAsync(p);
+            p.Message = dto.AlreadyPresent ? "Already in ordeduc2 — not written again." : null;
+            p.Collection.History.Add(new CollectionHistory
+            {
+                Action = "Deductions to HOMS", Reason = Cut($"{n} row(s) in ordeduc2 for OR/RPDC {p.DocNo}"), By = "watcher",
+            });
+            await db.SaveChangesAsync();
+            await QueueDeductionsAsync(p.Collection, "watcher");   // a Service Invoice copy uploaded meanwhile
+        }
         else
         {
             p.Status = HomsPostingStatus.Done;
@@ -198,7 +291,10 @@ public class HomsPostingService(AppDbContext db)
             {
                 await db.Entry(p.Collection).Collection(x => x.Deductions).LoadAsync();
                 await db.Entry(p.Collection).Collection(x => x.Invoices).Query().Include(i => i.PostedInvoice).LoadAsync();
-                left = HomsPostingBuilder.NotPosted(p.Collection);
+                if (dto.DeductionsWritten) await StampSentAsync(p);
+                left = HomsPostingBuilder.DeductionNote(p.Collection);
+                if (!dto.DeductionsWritten && p.DeductionIds is not null)
+                    left = $"Deductions NOT written to ordeduc2 ({Label(p.Kind)} was already in HOMS). {left}";
             }
             p.Message = dto.AlreadyPresent ? $"Already in {p.File} — not written again." : left;
             if (p.Kind != HomsPostingKind.PdcJv) p.Collection.PostedToHomsAt = p.CompletedAt;
@@ -207,12 +303,28 @@ public class HomsPostingService(AppDbContext db)
                 Action = $"Posted to HOMS ({Label(p.Kind)})",
                 Reason = Cut($"{Label(p.Kind)} {p.DocNo} in {p.File}" + (left is null ? "" : $". {left}")), By = "watcher",
             });
+            if (CreditsAr(p.Kind) && dto.DeductionsWritten)
+            {
+                await db.SaveChangesAsync();
+                await QueueDeductionsAsync(p.Collection, "watcher");   // a Service Invoice copy uploaded while it was being written
+            }
         }
         await db.SaveChangesAsync();
         return null;
     }
 
     private static string? Cut(string? s) => s is { Length: > 500 } ? s[..500] : s;
+
+    /// <summary>Marks the deductions a posting carried as in ordeduc2 (not saved); returns how many it carried.</summary>
+    private async Task<int> StampSentAsync(HomsPosting p)
+    {
+        var ids = Ids(p.DeductionIds);
+        if (ids.Count == 0) return 0;
+        await db.Entry(p.Collection).Collection(x => x.Deductions).LoadAsync();
+        var now = DateTime.UtcNow;
+        foreach (var d in p.Collection.Deductions.Where(d => ids.Contains(d.Id) && d.HomsSentAt is null)) d.HomsSentAt = now;
+        return ids.Count;
+    }
 
     /// <summary>The kinds that credit the invoice in HOMS's A/R (so a deduction left out stays open there).</summary>
     private static bool CreditsAr(HomsPostingKind k) => k is HomsPostingKind.Or or HomsPostingKind.Rpdc;
@@ -230,7 +342,7 @@ public class HomsPostingService(AppDbContext db)
         await LoadForBuildAsync(c);
         foreach (var p in list)
         {
-            if (p.Status == HomsPostingStatus.Held) Fill(p, c, user);
+            if (p.Status == HomsPostingStatus.Held && p.Kind != HomsPostingKind.Deductions) Fill(p, c, user);
             else { p.Status = HomsPostingStatus.Pending; p.Message = null; }
             c.History.Add(new CollectionHistory { Action = $"HOMS {Label(p.Kind)} retried", Reason = p.Message, By = user });
         }

@@ -885,6 +885,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Amount).HasPrecision(18, 2);
             e.Property(x => x.Reference).HasMaxLength(100);
+            e.Property(x => x.Description).HasMaxLength(100);
+            e.Property(x => x.Reason).HasMaxLength(30);
+            e.Ignore(x => x.ReadyForHoms);
+            e.HasOne(x => x.Attachment).WithMany().HasForeignKey(x => x.AttachmentId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(x => x.Collection).WithMany(c => c.Deductions).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.PostedInvoice).WithMany().HasForeignKey(x => x.PostedInvoiceId).OnDelete(DeleteBehavior.Restrict);
         });
@@ -895,6 +899,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.FileName).HasMaxLength(200).IsRequired();
             e.Property(x => x.ContentType).HasMaxLength(100);
             e.Property(x => x.UploadedBy).HasMaxLength(100);
+            e.Property(x => x.Kind).HasMaxLength(30).IsRequired().HasDefaultValue("Unspecified");
+            e.Property(x => x.Note).HasMaxLength(100);
             e.HasOne(x => x.Collection).WithMany(c => c.Attachments).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Cascade);
         });
 

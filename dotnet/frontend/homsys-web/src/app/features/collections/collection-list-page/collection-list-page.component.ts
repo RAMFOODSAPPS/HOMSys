@@ -16,7 +16,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { CollectionService } from '../../../core/services/collection.service';
 import { ApiResponse } from '../../../core/models/auth.model';
 import {
-  CollectionDto, CollectionListItemDto, CollectionSiteDto, DEDUCTION_TYPES, inDateRange, InvoiceHistoryDto, isoDay, PAYMENT_MODES, RECEIPT_TYPES, statusLabel
+  CollectionDto, CollectionListItemDto, CollectionSiteDto, deductionName, inDateRange, InvoiceHistoryDto, isoDay, PAYMENT_MODES, RECEIPT_TYPES, statusLabel
 } from '../../../core/models/collection.model';
 import { collectionSteps } from '../collection-steps';
 
@@ -50,9 +50,11 @@ const PAY: Record<string, string> = {
 const HOMS: Record<string, string> = { Posted: C.green, Queued: C.blue, Held: C.amber, Failed: C.red };
 const VIEW_KEY = 'homsys_collections_view';
 
-/** Needs someone's attention: still a draft / returned, money left on-account, or a bounced check. */
+/** Needs someone's attention: still a draft / returned, money left on-account, a bounced check, or a Service Invoice
+ *  deduction without its scanned copy (not in HOMS until it's uploaded). */
 const attention = (c: CollectionListItemDto) =>
-  c.verificationStatus === 'Draft' || c.verificationStatus === 'Returned' || c.unappliedAmount > 0 || c.pdcState === 'Bounced';
+  c.verificationStatus === 'Draft' || c.verificationStatus === 'Returned' || c.unappliedAmount > 0 || c.pdcState === 'Bounced'
+  || c.missingSiDocs > 0;
 const payOf = (c: CollectionListItemDto) => c.pdcState ?? c.paymentStatus;
 const modeOf = (m: string) => m === 'PostDatedCheck' ? 'PDC' : m === 'BankTransfer' ? 'Bank transfer' : m === 'Check' ? 'Cheque' : m;
 
@@ -287,7 +289,7 @@ interface Action { label: string; kind: 'primary' | 'secondary' | 'danger'; run:
                           <td class="num cll-strong">{{ i.amountApplied | number:'1.2-2' }}</td>
                           <td class="cll-inv-ded num">
                             @for (x of dedsOf(d, i.postedInvoiceId); track x.id) {
-                              <div>{{ dedLabel(x.type) }} {{ x.amount | number:'1.2-2' }}@if (x.reference) { <small> · {{ x.reference }}</small> }@if (x.type === 'Ewt2307') { <small> · {{ x.with2307 ? '2307 att.' : 'no 2307' }} · {{ x.acctNo }}</small> }</div>
+                              <div>{{ dedLabel(x.type, x.reason) }} {{ x.amount | number:'1.2-2' }}@if (x.reference) { <small> · {{ x.reference }}</small> }@if (x.type === 'Ewt2307') { <small> · {{ x.with2307 ? '2307 att.' : 'no 2307' }} · {{ x.acctNo }}</small> }</div>
                             } @empty { <span class="pdcm-sub">—</span> }
                           </td>
                           <td class="num cll-strong" [class.cll-un]="i.balance > 0">{{ i.balance | number:'1.2-2' }}</td>
@@ -719,7 +721,7 @@ export class CollectionListPageComponent implements OnInit, AfterViewInit, OnDes
     : 'Some payments counted here are not deposited yet');
 
   dedsOf(d: CollectionDto, invoiceId: number) { return d.deductions.filter(x => x.postedInvoiceId === invoiceId); }
-  dedLabel(t: string) { return DEDUCTION_TYPES.find(x => x.value === t)?.label ?? t; }
+  dedLabel(t: string, reason?: string | null) { return deductionName(t, reason); }
   deductions(d: CollectionDto) { return d.deductions.reduce((s, x) => s + x.amount, 0); }
 
   progressText(d: CollectionDto) {

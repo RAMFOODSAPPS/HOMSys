@@ -714,6 +714,17 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Unspecified");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<long>("Size")
                         .HasColumnType("bigint");
 
@@ -747,11 +758,25 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int?>("AttachmentId")
+                        .HasColumnType("int");
+
                     b.Property<int>("CollectionId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("HomsSentAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("PostedInvoiceId")
                         .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<string>("Reference")
                         .HasMaxLength(100)
@@ -766,6 +791,8 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasColumnType("bit");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AttachmentId");
 
                     b.HasIndex("CollectionId");
 
@@ -1778,6 +1805,13 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("DeductionIds")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DeductionsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("DocId")
                         .HasColumnType("int");
@@ -8878,6 +8912,11 @@ namespace HOMSys.Infrastructure.Migrations
 
             modelBuilder.Entity("HOMSys.Domain.Entities.CollectionDeduction", b =>
                 {
+                    b.HasOne("HOMSys.Domain.Entities.CollectionAttachment", "Attachment")
+                        .WithMany()
+                        .HasForeignKey("AttachmentId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("HOMSys.Domain.Entities.Collection", "Collection")
                         .WithMany("Deductions")
                         .HasForeignKey("CollectionId")
@@ -8889,6 +8928,8 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasForeignKey("PostedInvoiceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Attachment");
 
                     b.Navigation("Collection");
 

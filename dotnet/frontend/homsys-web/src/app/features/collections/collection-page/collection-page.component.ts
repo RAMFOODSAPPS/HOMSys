@@ -23,8 +23,8 @@ import { CollectionService } from '../../../core/services/collection.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { BankStatementService } from '../../../core/services/bank-statement.service';
 import {
-  BankAccountOptionDto, CollectionDto, CollectionSiteDto, DEDUCTION_TYPES, DeductionType, ewtAccount, OpenInvoiceDto,
-  PAYMENT_MODES, PaymentMode, RECEIPT_TYPES, ReceiptType, SaveCollectionDto, statusLabel, statusSeverity
+  ATTACHMENT_KINDS, attachmentKindLabel, BankAccountOptionDto, CollectionDto, CollectionSiteDto, DEDUCTION_REASONS, DeductionType, deductionName, ewtAccount,
+  OpenInvoiceDto, PAYMENT_MODES, PaymentMode, RECEIPT_TYPES, ReceiptType, SaveCollectionDto, statusLabel, statusSeverity
 } from '../../../core/models/collection.model';
 import { CollectionStep as Step, collectionSteps } from '../collection-steps';
 
@@ -36,8 +36,18 @@ interface Line {
 }
 
 /** One deduction (EWT, discount…) on an invoice line; an invoice may carry several.
- *  EWT only: with2307 = "2307 att.", acctNo = HOMS GL of its CEWT line (10507 with the 2307, 10508 without; editable). */
-interface Ded { type: DeductionType | null; amount: number | null; ref: string; with2307: boolean; acctNo: number | null; }
+ *  EWT only: with2307 = "2307 att.", acctNo = HOMS GL of its CEWT line (10507 with the 2307, 10508 without; editable).
+ *  Other: desc (required). Service Invoice: ref = the SI no. (required), attachmentId = its scanned copy, docFile = a copy
+ *  picked here, uploaded right after Save; homsSentAt = when it went into HOMS's ordeduc2 (user 2026-11-21). */
+interface Ded {
+  /** reason = the selection from finance's list (DEDUCTION_REASONS); it sets type. */
+  reason: string | null;
+  type: DeductionType | null; amount: number | null; ref: string; with2307: boolean; acctNo: number | null;
+  desc: string; attachmentId: number | null; homsSentAt: string | null; docFile: File | null;
+}
+
+/** A file picked on a new collection, uploaded right after the first Save. */
+interface PendingFile { file: File; kind: string; note: string; }
 
 
 
@@ -131,6 +141,15 @@ const NEW_KEY = '/collections';
             <p-message severity="info" styleClass="w-full">
               Part of Remittance Advice #{{ c.remittanceId }} — its invoices come from the RA Excel, and it's submitted, verified and voided with the RA.
               <button type="button" class="btn ml-2" (click)="router.navigate(['/collections/remittance'], { state: { remittanceId: c.remittanceId } })">Open RA #{{ c.remittanceId }}</button>
+            </p-message>
+          }
+          @if (c.missingSiDocs > 0) {
+            <p-message severity="warn" styleClass="w-full">
+              {{ c.missingSiDocs }} Service Invoice deduction{{ c.missingSiDocs === 1 ? '' : 's' }} without the scanned copy — not sent to HOMS
+              (it stays a hanging balance there) until the copy is uploaded.
+              @if (c.canUpdateDocs) {
+                <button type="button" class="btn ml-2" (click)="docsVisible = true">Update supporting documents</button>
+              }
             </p-message>
           }
           @if (c.verificationStatus === 'Returned' && c.returnReason) {
@@ -382,7 +401,7 @@ const NEW_KEY = '/collections';
               </div>
               <ng-template #dedCells let-d let-l="l">
                 @if (readOnly()) {
-                  <td class="sans num">{{ dedLabel(d.type) }}</td>
+                  <td class="sans num ded-name">{{ dedName(d) }}</td>
                   @if (hasEwt()) {
                     @if (d.type === 'Ewt2307') {
                       <td class="c2307">@if (d.with2307) { <i class="pi pi-check" pTooltip="2307 attached"></i> } @else { <span class="nil">—</span> }</td>
@@ -390,9 +409,17 @@ const NEW_KEY = '/collections';
                     } @else { <td></td><td></td> }
                   }
                   <td class="num">{{ (d.amount ?? 0) | number:'1.2-2' }}</td>
-                  <td>{{ d.ref || '—' }}</td>
+                  <td class="ded-ref">
+                    @if (d.reason === 'OTHERS' && d.desc) { <span>{{ d.desc }}</span>@if (d.ref) { <span class="muted"> · </span> } }
+                    @if (d.type === 'ServiceInvoice') { <span class="muted">SI </span> }
+                    {{ d.ref || (d.reason === 'OTHERS' && d.desc ? '' : '—') }}
+                    <ng-container *ngTemplateOutlet="siDoc; context: { $implicit: d }" />
+                  </td>
                 } @else {
-                  <td class="sans num"><p-select [ngModel]="d.type" (ngModelChange)="onDedType(d, $event)" [options]="deductionTypes" optionLabel="label" optionValue="value" placeholder="Type" appendTo="body" /></td>
+                  <td class="sans num"><p-select [ngModel]="d.reason" (ngModelChange)="onDedReason(d, $event)" [options]="deductionReasons" optionLabel="label" optionValue="value"
+                    placeholder="Deduction" appendTo="body" [filter]="true" filterBy="label" styleClass="ded-pick" [panelStyle]="{ maxWidth: '30rem' }">
+                    <ng-template let-r pTemplate="item"><div class="ded-opt"><span>{{ r.label }}</span><small>{{ r.homs }}</small></div></ng-template>
+                  </p-select></td>
                   @if (hasEwt()) {
                     @if (d.type === 'Ewt2307') {
                       <td class="c2307"><p-checkbox [ngModel]="d.with2307" (ngModelChange)="set2307(d, $event)" [binary]="true" /></td>
@@ -401,8 +428,37 @@ const NEW_KEY = '/collections';
                     } @else { <td></td><td></td> }
                   }
                   <td class="num"><p-inputnumber [(ngModel)]="d.amount" (ngModelChange)="touchLines()" mode="decimal" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="col-num mono" /></td>
-                  <td class="ded-ref"><input pInputText [(ngModel)]="d.ref" maxlength="50" class="col-ref" />
+                  <td class="ded-ref">
+                    @if (d.reason === 'OTHERS') {
+                      <input pInputText [(ngModel)]="d.desc" (ngModelChange)="touchLines()" maxlength="100" class="col-desc" placeholder="Description (required)" />
+                    }
+                    <input pInputText [(ngModel)]="d.ref" (ngModelChange)="touchLines()" maxlength="50" class="col-ref"
+                      [placeholder]="d.type === 'ServiceInvoice' ? 'SI no. (required)' : 'Ref.'" />
+                    @if (d.type === 'ServiceInvoice') {
+                      @if (d.attachmentId || d.docFile) {
+                        <ng-container *ngTemplateOutlet="siDoc; context: { $implicit: d }" />
+                      } @else {
+                        <input #siFile type="file" accept=".pdf,.jpg,.jpeg,.png" hidden (change)="pickSiDoc(d, siFile)" />
+                        <p-button icon="pi pi-paperclip" [text]="true" size="small" severity="warn" (onClick)="siFile.click()"
+                          pTooltip="Attach the scanned Service Invoice — without it this deduction is not sent to HOMS" />
+                      }
+                    }
                     <p-button icon="pi pi-times" [text]="true" size="small" severity="secondary" pTooltip="Remove deduction" (onClick)="removeDed(l, d)" /></td>
+                }
+              </ng-template>
+              <!-- A Service Invoice's scanned copy: attached (view) / picked, uploaded on Save / missing = not in HOMS yet. -->
+              <ng-template #siDoc let-d>
+                @if (d.type === 'ServiceInvoice') {
+                  @if (d.attachmentId) {
+                    <a href="" class="si-doc ok" (click)="$event.preventDefault(); view(d.attachmentId)"
+                      [pTooltip]="d.homsSentAt ? 'In HOMS (ordeduc2) since ' + (d.homsSentAt | date:'MM/dd/yy hh:mm a') : 'Scanned copy attached'">
+                      <i class="pi pi-paperclip"></i>{{ d.homsSentAt ? 'In HOMS' : 'Scanned' }}</a>
+                  } @else if (d.docFile) {
+                    <span class="si-doc ok" pTooltip="Uploaded when you save"><i class="pi pi-paperclip"></i>{{ d.docFile.name }}
+                      <i class="pi pi-times si-x" (click)="d.docFile = null; touchLines()"></i></span>
+                  } @else {
+                    <span class="si-doc miss" pTooltip="No scanned copy yet — not sent to HOMS (hanging balance)"><i class="pi pi-exclamation-triangle"></i>No scan</span>
+                  }
                 }
               </ng-template>
             </section>
@@ -434,7 +490,7 @@ const NEW_KEY = '/collections';
             </section>
 
             <section class="card">
-              <div class="card-h between"><span>Receipt soft copy</span><span class="hint">PDF, JPG, PNG · 10 MB</span></div>
+              <div class="card-h between"><span>Supporting documents</span><span class="hint">PDF, JPG, PNG · 10 MB · photos are shrunk</span></div>
               <div class="files">
                 @if (col(); as c) {
                   @for (a of c.attachments; track a.id) {
@@ -442,6 +498,16 @@ const NEW_KEY = '/collections';
                       <div class="file-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"></path><path d="M14 3v5h5"></path></svg></div>
                       <div class="file-txt">
                         <a href="" (click)="$event.preventDefault(); view(a.id)">{{ a.fileName }}</a>
+                        @if (c.canEdit || c.canUpdateDocs) {
+                          <div class="file-kind">
+                            <p-select [ngModel]="a.kind === 'Unspecified' ? null : a.kind" (ngModelChange)="relabel(a.id, $event, a.note)" [options]="attachmentKinds"
+                              optionLabel="label" optionValue="value" placeholder="What is it?" appendTo="body" size="small" />
+                            <input pInputText #noteIn [value]="a.note ?? ''" maxlength="100" placeholder="Note" class="file-note"
+                              (blur)="noteIn.value !== (a.note ?? '') && relabel(a.id, a.kind, noteIn.value)" />
+                          </div>
+                        } @else {
+                          <span class="strong">{{ kindLabel(a.kind) }}@if (a.note) { · {{ a.note }} }</span>
+                        }
                         <span>{{ a.size / 1024 | number:'1.0-0' }} KB · {{ a.uploadedBy }}</span>
                       </div>
                       @if (c.canEdit) { <p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="removeAttachment(a.id)" /> }
@@ -449,19 +515,32 @@ const NEW_KEY = '/collections';
                   } @empty { <div class="muted">No file attached yet.</div> }
                   @if (c.canEdit) {
                     <input #file type="file" accept=".pdf,.jpg,.jpeg,.png" multiple hidden (change)="upload(file)" />
-                    <button type="button" class="upload" [disabled]="uploading()" (click)="file.click()">{{ uploading() ? 'Uploading…' : 'Upload file' }}</button>
+                    <div class="upload-row">
+                      <p-select [(ngModel)]="uploadKind" [options]="attachmentKinds" optionLabel="label" optionValue="value" placeholder="What is it?" appendTo="body" size="small" />
+                      <button type="button" class="upload" [disabled]="uploading() || !uploadKind" (click)="file.click()"
+                        [title]="uploadKind ? '' : 'Pick what the file is first'">{{ uploading() ? 'Uploading…' : 'Upload file' }}</button>
+                    </div>
                   }
                 } @else if (canEncode) {
                   <!-- New collection: files wait here and are uploaded right after the first Save. -->
                   @for (f of pendingFiles(); track $index) {
                     <div class="file">
                       <div class="file-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"></path><path d="M14 3v5h5"></path></svg></div>
-                      <div class="file-txt"><span class="strong">{{ f.name }}</span><span>{{ f.size / 1024 | number:'1.0-0' }} KB · attached when you save</span></div>
+                      <div class="file-txt"><span class="strong">{{ f.file.name }}</span>
+                        <div class="file-kind">
+                          <p-select [(ngModel)]="f.kind" [options]="attachmentKinds" optionLabel="label" optionValue="value" appendTo="body" size="small" />
+                          <input pInputText [(ngModel)]="f.note" maxlength="100" placeholder="Note" class="file-note" />
+                        </div>
+                        <span>{{ f.file.size / 1024 | number:'1.0-0' }} KB · attached when you save</span></div>
                       <p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="removePending($index)" />
                     </div>
                   } @empty { <div class="muted">No file attached yet.</div> }
                   <input #newFile type="file" accept=".pdf,.jpg,.jpeg,.png" multiple hidden (change)="upload(newFile)" />
-                  <button type="button" class="upload" (click)="newFile.click()">Upload file</button>
+                  <div class="upload-row">
+                    <p-select [(ngModel)]="uploadKind" [options]="attachmentKinds" optionLabel="label" optionValue="value" placeholder="What is it?" appendTo="body" size="small" />
+                    <button type="button" class="upload" [disabled]="!uploadKind" (click)="newFile.click()"
+                      [title]="uploadKind ? '' : 'Pick what the file is first'">Upload file</button>
+                  </div>
                 }
               </div>
             </section>
@@ -469,6 +548,18 @@ const NEW_KEY = '/collections';
         </div>
       </main>
     </div>
+
+    <p-dialog header="Update supporting documents" [(visible)]="docsVisible" [modal]="true" [style]="{ width: '520px' }">
+      <p class="muted mt-0">Upload the scanned Service Invoice of each deduction. Once uploaded it is sent to HOMS (ordeduc2) and leaves the hanging balance.</p>
+      @for (d of missingSi(); track d.id) {
+        <div class="si-row">
+          <span class="mono">Inv {{ d.docNo }}</span><span>SI {{ d.reference || '—' }}</span><span class="mono">{{ d.amount | number:'1.2-2' }}</span>
+          <input #docIn type="file" accept=".pdf,.jpg,.jpeg,.png" hidden (change)="uploadSiDoc(d.id, docIn)" />
+          <p-button label="Upload scan" icon="pi pi-upload" size="small" [loading]="uploading()" (onClick)="docIn.click()" />
+        </div>
+      } @empty { <p>All Service Invoices have their scanned copy.</p> }
+      <ng-template pTemplate="footer"><p-button label="Close" [text]="true" (onClick)="docsVisible = false" /></ng-template>
+    </p-dialog>
 
     <p-dialog header="Void collection" [(visible)]="voidVisible" [modal]="true" [style]="{ width: '420px' }">
       <textarea pTextarea [(ngModel)]="voidReason" rows="3" class="w-full" placeholder="Reason (required)"></textarea>
@@ -518,6 +609,19 @@ const NEW_KEY = '/collections';
     :host { display: block; }
     .ra-pick { cursor: pointer; }
     .ra-pick:hover { background: #e2e8f0; }
+    .col-desc { width: 9rem; margin-right: 4px; }
+    .si-doc { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; font-size: 12px; white-space: nowrap; }
+    .si-doc.ok { color: #15803d; }
+    .si-doc.miss { color: #b45309; }
+    .si-x { cursor: pointer; color: #64748b; }
+    .ded-opt { display: flex; flex-direction: column; white-space: normal; }
+    .ded-opt small { color: #64748b; font-size: 11px; }
+    .ded-name { white-space: normal; max-width: 14rem; }
+    .file-kind { display: flex; gap: 6px; margin: 2px 0; }
+    .file-note { width: 7rem; height: 30px; font-size: 12px; }
+    .upload-row { display: flex; gap: 8px; align-items: center; }
+    .upload-row .upload { flex: 1; }
+    .si-row { display: grid; grid-template-columns: 7rem 1fr 6rem auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #eef2f6; }
   `]
 })
 export class CollectionPageComponent implements OnInit, OnDestroy {
@@ -531,11 +635,13 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
   private bank = inject(BankStatementService);
 
   protected readonly receiptTypes = RECEIPT_TYPES;
-  // RFC/BO/RTV only comes from a Remittance Advice Excel.
-  protected readonly deductionTypes = DEDUCTION_TYPES.filter(d => d.value !== 'RfcBoRtv');
+  // Finance's full selection list (user 2026-11-21); each sets the type and HOMS's ordeduc2 code.
+  protected readonly deductionReasons = DEDUCTION_REASONS;
+  protected readonly attachmentKinds = ATTACHMENT_KINDS;
+  protected readonly kindLabel = attachmentKindLabel;
   protected readonly statusLabel = statusLabel;
   protected readonly sev = statusSeverity;
-  protected dedLabel(t: DeductionType | null) { return DEDUCTION_TYPES.find(d => d.value === t)?.label ?? '—'; }
+  protected dedName(d: { type: DeductionType | null; reason: string | null }) { return d.type ? deductionName(d.type, d.reason) : '—'; }
 
   form = this.fb.group({
     siteId: [null as number | null],
@@ -564,7 +670,12 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
   /** Invoice date shown beside the no. (user 2026-11-13): read-only, auto-filled from the invoice once it's found. */
   fetchDate = computed(() => this.toDate(this.fetched()?.docDate));
   /** Soft copies picked before the first Save; uploaded right after it. */
-  pendingFiles = signal<File[]>([]);
+  pendingFiles = signal<PendingFile[]>([]);
+  /** What the next uploaded file(s) are (picked before Upload). */
+  uploadKind: string | null = null;
+  docsVisible = false;
+  /** Service Invoice deductions still without their scanned copy ("Update supporting documents"). */
+  protected missingSi = computed(() => (this.col()?.deductions ?? []).filter(d => d.type === 'ServiceInvoice' && !d.attachmentId));
   /** Chain account paying several customers on this receipt: invoices of different customers allowed. */
   multiCustomer = signal(false);
   custInvoices = signal<OpenInvoiceDto[]>([]);
@@ -715,7 +826,8 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
       return {
         postedInvoiceId: i.postedInvoiceId, docNo: i.docNo, docDate: i.docDate, custKey: i.custKey, custName: i.custName,
         total: i.total, rfcTotal: i.rfcTotal, available: i.availableBalance, applied: i.amountApplied,
-        deds: ded.map(d => ({ type: d.type, amount: d.amount, ref: d.reference ?? '', with2307: d.with2307, acctNo: d.acctNo })),
+        deds: ded.map(d => ({ reason: d.reason, type: d.type, amount: d.amount, ref: d.reference ?? '', with2307: d.with2307, acctNo: d.acctNo,
+          desc: d.description ?? '', attachmentId: d.attachmentId, homsSentAt: d.homsSentAt, docFile: null })),
       };
     }));
     // Branch and type are fixed once saved; everything is fixed once submitted.
@@ -881,13 +993,30 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
     this.form.markAsDirty();
   }
 
-  addDed(l: Line) { l.deds = [...l.deds, { type: null, amount: null, ref: '', with2307: false, acctNo: null }]; this.lines.update(ls => [...ls]); this.touchLines(); }
+  addDed(l: Line) {
+    l.deds = [...l.deds, { reason: null, type: null, amount: null, ref: '', with2307: false, acctNo: null, desc: '', attachmentId: null, homsSentAt: null, docFile: null }];
+    this.lines.update(ls => [...ls]); this.touchLines();
+  }
+
+  /** A Service Invoice's scanned copy picked in the grid: uploaded and linked to its row right after Save. */
+  pickSiDoc(d: Ded, input: HTMLInputElement) {
+    const f = input.files?.[0];
+    input.value = '';
+    if (!f) return;
+    if (!/\.(pdf|jpe?g|png)$/i.test(f.name) || f.size > 10 * 1024 * 1024) {
+      this.toast.add({ severity: 'warn', summary: 'Service Invoice', detail: `${f.name}: PDF, JPG or PNG up to 10 MB only.` });
+      return;
+    }
+    d.docFile = f;
+    this.touchLines();
+  }
   removeDed(l: Line, d: Ded) { l.deds = l.deds.filter(x => x !== d); this.lines.update(ls => [...ls]); this.touchLines(); }
 
-  /** A new EWT starts with 2307 att. unticked, so ACCTNO 10508 (user 2026-11-12). */
-  onDedType(d: Ded, t: DeductionType | null) {
-    d.type = t;
-    if (t === 'Ewt2307' && d.acctNo == null) d.acctNo = ewtAccount(!!d.with2307);
+  /** Picking a selection sets its type. A new EWT starts with 2307 att. unticked, so ACCTNO 10508 (user 2026-11-12). */
+  onDedReason(d: Ded, code: string | null) {
+    d.reason = code;
+    d.type = DEDUCTION_REASONS.find(r => r.value === code)?.type ?? null;
+    if (d.type === 'Ewt2307' && d.acctNo == null) d.acctNo = ewtAccount(!!d.with2307);
     this.touchLines();
   }
   /** Ticking / unticking 2307 att. puts ACCTNO back to its default (10507 / 10508); it stays editable. */
@@ -916,6 +1045,16 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
       this.toast.add({ severity: 'warn', summary: 'Validation', detail: `Invoice ${noAcct.docNo}: enter the ACCTNO of its EWT (10507 with the 2307, 10508 without).` });
       return;
     }
+    const badOther = this.lines().find(l => l.deds.some(d => d.reason === 'OTHERS' && d.amount && !d.desc?.trim()));
+    if (badOther) {
+      this.toast.add({ severity: 'warn', summary: 'Validation', detail: `Invoice ${badOther.docNo}: describe the "Others (unspecified)" deduction.` });
+      return;
+    }
+    const noSi = this.lines().find(l => l.deds.some(d => d.type === 'ServiceInvoice' && d.amount && !d.ref?.trim()));
+    if (noSi) {
+      this.toast.add({ severity: 'warn', summary: 'Validation', detail: `Invoice ${noSi.docNo}: enter the Service Invoice no.` });
+      return;
+    }
     const hasDeposit = !!(v.depAccountId || v.depSlip?.trim());
     const dto: SaveCollectionDto = {
       siteId: v.siteId, receiptType: v.receiptType!, receiptNo: v.receiptNo.trim(), receiptDate: this.iso(v.receiptDate)!,
@@ -931,7 +1070,9 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
       invoices: this.lines().map(l => ({ postedInvoiceId: l.postedInvoiceId, amountApplied: l.applied ?? 0 })),
       deductions: this.lines().flatMap(l => l.deds.filter(d => d.type && d.amount)
         .map(d => ({ postedInvoiceId: l.postedInvoiceId, type: d.type!, amount: d.amount!, reference: d.ref?.trim() || null,
-          with2307: d.type === 'Ewt2307' && !!d.with2307, acctNo: d.type === 'Ewt2307' ? d.acctNo : null }))),
+          with2307: d.type === 'Ewt2307' && !!d.with2307, acctNo: d.type === 'Ewt2307' ? d.acctNo : null,
+          description: d.reason === 'OTHERS' ? d.desc?.trim() || null : null, reason: d.reason,
+          attachmentId: d.type === 'ServiceInvoice' ? d.attachmentId : null }))),
       multiCustomer: this.multiCustomer(),
     };
     if (dto.deposit && (!dto.deposit.bankAccountId || !dto.deposit.depositDate)) {
@@ -939,6 +1080,9 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
       return;
     }
     const c = this.col();
+    // Service Invoice copies picked in the grid: linked to their saved rows after Save.
+    const siDocs = this.lines().flatMap(l => l.deds.filter(d => d.type === 'ServiceInvoice' && d.amount && d.docFile && !d.attachmentId)
+      .map(d => ({ postedInvoiceId: l.postedInvoiceId, ref: d.ref.trim(), amount: d.amount!, file: d.docFile! })));
     this.saving.set(true);
     this.apiError.set(null);
     (c ? this.api.update(c.id, dto) : this.api.create(dto)).subscribe({
@@ -948,8 +1092,17 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
         this.toast.add({ severity: 'success', summary: 'Saved', detail: c ? 'Collection updated.'
           : pending.length ? `Draft saved — attaching ${pending.length} file${pending.length === 1 ? '' : 's'}; submit when ready.` : 'Draft saved — attach the receipt, then submit.' });
         if (!c) this.tabBar.updateTabState(NEW_KEY, undefined);
-        this.show(res.data!);
-        if (pending.length) { this.pendingFiles.set([]); this.uploadAll(res.data!.id, pending); }
+        const saved = res.data!;
+        this.show(saved);
+        const used = new Set<number>();
+        const docs = siDocs.map(s => {
+          const d = saved.deductions.find(x => x.type === 'ServiceInvoice' && !x.attachmentId && !used.has(x.id)
+            && x.postedInvoiceId === s.postedInvoiceId && (x.reference ?? '') === s.ref && x.amount === s.amount);
+          if (d) used.add(d.id);
+          return d ? { id: d.id, file: s.file } : null;
+        }).filter((x): x is { id: number; file: File } => !!x);
+        if (pending.length) this.pendingFiles.set([]);
+        if (pending.length || docs.length) this.uploadAll(saved.id, pending, docs);
       },
       error: err => this.fail(err, () => this.saving.set(false))
     });
@@ -1079,19 +1232,56 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
       return good;
     });
     if (!ok.length) return;
+    const kind = this.uploadKind ?? 'Other';
     const c = this.col();
-    if (c) this.uploadAll(c.id, ok);
-    else this.pendingFiles.update(p => [...p, ...ok]);
+    if (c) this.uploadAll(c.id, ok.map(file => ({ file, kind, note: '' })));
+    else this.pendingFiles.update(p => [...p, ...ok.map(file => ({ file, kind, note: '' }))]);
   }
 
   removePending(i: number) { this.pendingFiles.update(p => p.filter((_, x) => x !== i)); }
 
-  /** Uploads one file after another (each reply carries the refreshed collection). */
-  private uploadAll(collectionId: number, files: File[]) {
+  /** Uploads one file after another, then the Service Invoice copies of their rows (each reply carries the refreshed collection). */
+  private uploadAll(collectionId: number, files: PendingFile[], siDocs: { id: number; file: File }[] = []) {
     this.uploading.set(true);
-    from(files).pipe(concatMap(f => this.api.addAttachment(collectionId, f))).subscribe({
+    const calls = [
+      ...files.map(f => () => this.api.addAttachment(collectionId, f.file, f.kind, f.note.trim() || null)),
+      ...siDocs.map(s => () => this.api.addDeductionDocument(collectionId, s.id, s.file)),
+    ];
+    from(calls).pipe(concatMap(call => call())).subscribe({
       next: res => this.show(res.data!),
       complete: () => this.uploading.set(false),
+      error: err => this.fail(err, () => this.uploading.set(false))
+    });
+  }
+
+  /** Relabel a saved file (what it is / note). */
+  relabel(attachmentId: number, kind: string | null, note: string | null) {
+    const c = this.col();
+    if (!c || !kind) return;
+    this.api.labelAttachment(c.id, attachmentId, kind, note?.trim() || null).subscribe({ next: res => this.show(res.data!), error: err => this.fail(err) });
+  }
+
+  /** "Update supporting documents": one Service Invoice's scanned copy; it then goes to HOMS (ordeduc2). */
+  uploadSiDoc(deductionId: number, input: HTMLInputElement) {
+    const c = this.col(), f = input.files?.[0];
+    input.value = '';
+    if (!c || !f) return;
+    if (c.canEdit && this.form.dirty) {
+      this.toast.add({ severity: 'warn', summary: 'Service Invoice', detail: 'Save your changes first.' });
+      return;
+    }
+    if (!/\.(pdf|jpe?g|png)$/i.test(f.name) || f.size > 10 * 1024 * 1024) {
+      this.toast.add({ severity: 'warn', summary: 'Service Invoice', detail: `${f.name}: PDF, JPG or PNG up to 10 MB only.` });
+      return;
+    }
+    this.uploading.set(true);
+    this.api.addDeductionDocument(c.id, deductionId, f).subscribe({
+      next: res => {
+        this.uploading.set(false);
+        this.show(res.data!);
+        this.toast.add({ severity: 'success', summary: 'Service Invoice', detail: 'Scanned copy uploaded.' });
+        if (!res.data!.missingSiDocs) this.docsVisible = false;
+      },
       error: err => this.fail(err, () => this.uploading.set(false))
     });
   }

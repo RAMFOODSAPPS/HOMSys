@@ -16,7 +16,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
     InvoiceSyncRequestService invoiceRequests, IConfiguration config)
 {
     public const long MaxAttachmentBytes = 10 * 1024 * 1024;
-    private const int MaxAttachments = 10;
+    private const int MaxAttachments = 20;
 
     private static DateOnly Today => AnalyticsService.TodayPh();
     private static DateTime Utc(DateTime d) => DateTime.SpecifyKind(d, DateTimeKind.Utc);
@@ -156,12 +156,14 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
                 : c.HomsPostings.Any(p => p.Status == HomsPostingStatus.Held) ? "Held"
                 : c.HomsPostings.Any(p => p.Status == HomsPostingStatus.Pending || p.Status == HomsPostingStatus.Processing) ? "Queued"
                 : c.HomsPostings.Any(p => p.Status == HomsPostingStatus.Done) ? "Posted" : null,
+            MissingSi = c.VerificationStatus == VerificationStatus.Voided ? 0
+                : c.Deductions.Count(d => d.Type == DeductionType.ServiceInvoice && d.AttachmentId == null),
         }).ToListAsync();
         return rows.Select(c => new CollectionListItemDto(c.Id, c.SiteId, c.SiteCode, c.ReceiptType.ToString(), c.ReceiptNo,
             c.ReceiptDate, c.CustKey, c.CustName, c.PaymentMode.ToString(), c.Amount, c.UnappliedAmount, c.InvoiceCount,
             c.PaymentStatus.ToString(), c.VerificationStatus.ToString(),
             PdcState(c.PaymentMode, c.PaymentStatus, c.CheckDate, c.PdcOutcome, today), c.CheckDate, c.Slip,
-            c.CreatedBy, Utc(c.CreatedAt), c.SubmittedAt is { } s ? Utc(s) : null, c.InBms, c.BankMatch, c.Homs, c.RemittanceId)).ToList();
+            c.CreatedBy, Utc(c.CreatedAt), c.SubmittedAt is { } s ? Utc(s) : null, c.InBms, c.BankMatch, c.Homs, c.RemittanceId, c.MissingSi)).ToList();
     }
 
     /// <summary>Immature / Matured / Deposited / Succeeded / Bounced for PDCs; null otherwise.</summary>
@@ -236,9 +238,10 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             CanVerify: CanVerifyThis(u, c),
             invoices,
             c.Deductions.OrderBy(d => d.Id).Select(d => new CollectionDeductionDto(d.Id, d.PostedInvoiceId, d.PostedInvoice.DocNo,
-                d.Type.ToString(), d.Amount, d.Reference, d.With2307, d.AcctNo)).ToList(),
+                d.Type.ToString(), d.Amount, d.Reference, d.With2307, d.AcctNo, d.Description, d.AttachmentId,
+                d.HomsSentAt is { } hs ? Utc(hs) : null, DeductionReasons.Of(d).Code)).ToList(),
             c.Attachments.OrderBy(a => a.Id).Select(a => new CollectionAttachmentDto(a.Id, a.FileName, a.ContentType, a.Size,
-                Utc(a.UploadedAt), a.UploadedBy)).ToList(),
+                Utc(a.UploadedAt), a.UploadedBy, a.Kind, a.Note)).ToList(),
             c.History.OrderBy(h => h.Id).Select(h => new CollectionHistoryDto(h.Action, h.FromStatus, h.ToStatus, h.Reason,
                 Utc(h.At), h.By)).ToList(),
             bms, c.MultiCustomer, bankLine,
@@ -249,8 +252,20 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             RemittanceId: c.RemittanceId, HomsDeptCode: c.HomsDeptCode, DcrNo: c.DcrNo,
             CanPulloutPdc: u.CanManage && isPdc && await PulloutGateAsync(c) is null,
             PdcPullout: c.PdcPullout, PdcPulloutReason: c.PdcPulloutReason,
-            PdcPulloutRequestedAt: c.PdcPulloutRequestedAt is { } pr ? Utc(pr) : null, PdcPulloutRequestedBy: c.PdcPulloutRequestedBy);
+            PdcPulloutRequestedAt: c.PdcPulloutRequestedAt is { } pr ? Utc(pr) : null, PdcPulloutRequestedBy: c.PdcPulloutRequestedBy,
+            MissingSiDocs: MissingSiDocs(c),
+            CanUpdateDocs: MissingSiDocs(c) > 0 && await CanUpdateDocsAsync(u, c));
     }
+
+    /// <summary>Service Invoice deductions still without their scanned copy (they stay out of HOMS's ordeduc2 until then).</summary>
+    private static int MissingSiDocs(Collection c) => c.VerificationStatus == VerificationStatus.Voided ? 0
+        : c.Deductions.Count(d => d.Type == DeductionType.ServiceInvoice && d.AttachmentId is null);
+
+    /// <summary>"Update supporting documents": the branch's custodian, the Custodian Verifier, Finance and admin — in any status
+    /// but voided, so a Service Invoice's copy can follow after the collection is verified and posted (user 2026-11-21).</summary>
+    private async Task<bool> CanUpdateDocsAsync(CollectionUser u, Collection c) =>
+        c.VerificationStatus != VerificationStatus.Voided && c.PdcPulloutRequestedAt is null
+        && (u.CanVerify || u.CanManage || u.CanEncodeRa || await CanWriteSiteAsync(u, c.SiteId));
 
     /// <summary>Finance Manager, after fixing what held it (e.g. the deposit account's GL): build / send it again.</summary>
     public async Task<(CollectionDto? dto, string? error)> RetryHomsAsync(CollectionUser u, int id)
@@ -366,7 +381,12 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         foreach (var d in deds)
         {
             if (!invoices.ContainsKey(d.PostedInvoiceId)) return "A deduction must be on one of the collection's invoices.";
-            if (!Enum.TryParse<DeductionType>(d.Type, true, out var dt)) return "Choose the deduction type.";
+            // The selection from finance's list sets the type; a client without it sends only the type (its default selection).
+            var reason = DeductionReasons.Find(d.Reason);
+            if (reason is null && !string.IsNullOrWhiteSpace(d.Reason)) return $"Unknown deduction \"{d.Reason}\" — refresh the page.";
+            if (reason is null && !Enum.TryParse<DeductionType>(d.Type, true, out _)) return "Choose the deduction.";
+            reason ??= DeductionReasons.ForType(Enum.Parse<DeductionType>(d.Type, true));
+            var dt = reason.Type;
             var amt = Math.Round(d.Amount, 2);
             if (amt <= 0) return "A deduction amount must be more than zero.";
             // EWT: "2307 att." picks the HOMS GL of its CEWT line — 10507 with the 2307, 10508 without — unless one is typed.
@@ -374,11 +394,19 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             var acctNo = ewt ? d.AcctNo ?? CollectionDeduction.DefaultEwtAccount(d.With2307) : (int?)null;
             if (acctNo is <= 0 or > 99_999)
                 return $"Invoice {invoices[d.PostedInvoiceId].DocNo}: the EWT ACCTNO must be a HOMS GL account (5 digits at most).";
+            var invNo = invoices[d.PostedInvoiceId].DocNo;
+            var desc = d.Description?.Trim() is { Length: > 0 } ds ? ds[..Math.Min(ds.Length, 100)] : null;
+            var refText = d.Reference?.Trim() is { Length: > 0 } r ? r[..Math.Min(r.Length, 100)] : null;
+            var others = reason.Code == DeductionReasons.Others;
+            if (others && desc is null) return $"Invoice {invNo}: describe the \"Others (unspecified)\" deduction.";
+            if (dt == DeductionType.ServiceInvoice && refText is null) return $"Invoice {invNo}: enter the Service Invoice no.";
+            // A Service Invoice's scanned copy must be one of this collection's files.
+            int? attId = dt == DeductionType.ServiceInvoice && d.AttachmentId is { } aid && c.Attachments.Any(a => a.Id == aid) ? aid : null;
             newDeds.Add(new CollectionDeduction
             {
-                PostedInvoiceId = d.PostedInvoiceId, Type = dt, Amount = amt,
-                Reference = d.Reference?.Trim() is { Length: > 0 } r ? r[..Math.Min(r.Length, 100)] : null,
+                PostedInvoiceId = d.PostedInvoiceId, Type = dt, Amount = amt, Reference = refText,
                 With2307 = ewt && d.With2307, AcctNo = acctNo,
+                Reason = reason.Code, Description = others ? desc : null, AttachmentId = attId,
             });
         }
 
@@ -580,7 +608,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (await db.Collections.Where(x => x.SettledByCollectionId == c.Id).Select(x => new { x.ReceiptType, x.ReceiptNo }).FirstOrDefaultAsync() is { } settles)
             return (null, $"This receipt settles bounced PDC {settles.ReceiptType} {settles.ReceiptNo} — remove that settlement on the PDC Monitor first.");
         // Already written into HOMS → it's cancelled there first; anything still queued is cancelled here.
-        if (await homs.CancelOpenAsync(c.Id, HomsPostingKind.Or, HomsPostingKind.Rpdc, HomsPostingKind.PdcJv) is { } posted)
+        if (await homs.CancelOpenAsync(c.Id, HomsPostingKind.Or, HomsPostingKind.Rpdc, HomsPostingKind.PdcJv, HomsPostingKind.Deductions) is { } posted)
             return (null, posted);
 
         var from = c.VerificationStatus;
@@ -1115,18 +1143,82 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         [".jpeg"] = ("image/jpeg", [0xFF, 0xD8, 0xFF]),
     };
 
-    public async Task<(CollectionDto? dto, string? error)> AddAttachmentAsync(CollectionUser u, int id, string fileName, Stream content, long length)
+    public async Task<(CollectionDto? dto, string? error)> AddAttachmentAsync(CollectionUser u, int id, string fileName, Stream content, long length,
+        string? kind = null, string? note = null)
     {
         var c = await LoadAsync(id);
         if (c is null || !await CanReadSiteAsync(u, c.SiteId)) return (null, "Collection not found.");
         if (!await CanWriteSiteAsync(u, c.SiteId)) return (null, "You are not assigned to this branch.");
         if (c.VerificationStatus is not (VerificationStatus.Draft or VerificationStatus.Returned))
             return (null, "Attachments can only be changed before the collection is submitted.");
+        if (KindOf(kind) is not { } k) return (null, "Choose what the file is (Deposit Slip, Customer Slip, ...).");
 
         var (a, error) = await StoreAttachmentAsync(c, fileName, content, length, u.Name);
         if (a is null) return (null, error);
-        History(c, "Attachment added", null, null, a.FileName, u.Name);
+        a.Kind = k;
+        a.Note = NoteOf(note);
+        History(c, "Attachment added", null, null, $"{a.FileName} ({k})", u.Name);
         return await SaveAndReturnAsync(u, c);
+    }
+
+    /// <summary>A known attachment kind (null/blank = Unspecified), or null when it isn't one.</summary>
+    private static string? KindOf(string? kind) => string.IsNullOrWhiteSpace(kind) ? AttachmentKinds.Unspecified
+        : AttachmentKinds.All.FirstOrDefault(k => k.Equals(kind.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private static string? NoteOf(string? note) => note?.Trim() is { Length: > 0 } n ? n[..Math.Min(n.Length, 100)] : null;
+
+    /// <summary>Relabels a file (kind / note) — while the collection is editable, or by whoever may update its documents.</summary>
+    public async Task<(CollectionDto? dto, string? error)> LabelAttachmentAsync(CollectionUser u, int id, int attachmentId, AttachmentLabelDto dto)
+    {
+        var c = await LoadAsync(id);
+        if (c is null || !await CanReadSiteAsync(u, c.SiteId)) return (null, "Collection not found.");
+        var editable = c.VerificationStatus is VerificationStatus.Draft or VerificationStatus.Returned;
+        if (!(editable && await CanWriteSiteAsync(u, c.SiteId)) && !await CanUpdateDocsAsync(u, c))
+            return (null, "You can't change this collection's files.");
+        var a = c.Attachments.FirstOrDefault(x => x.Id == attachmentId);
+        if (a is null) return (null, "Attachment not found.");
+        if (KindOf(dto.Kind) is not { } k) return (null, "Choose what the file is.");
+        if (k != AttachmentKinds.ServiceInvoice && c.Deductions.Any(d => d.AttachmentId == a.Id))
+            return (null, "This file is a Service Invoice deduction's scanned copy — it stays a Service Invoice.");
+        a.Kind = k;
+        a.Note = NoteOf(dto.Note);
+        return await SaveDocsAsync(u, c);
+    }
+
+    /// <summary>
+    /// "Update supporting documents": the scanned copy of one Service Invoice deduction, in any status but voided (user
+    /// 2026-11-21). Stored as a Service Invoice file and linked to the row; if its OR / RPDC is already in HOMS the row is
+    /// queued for HOMS's ordeduc2 now (it was left out, a hanging balance in the VFP report, until this copy came).
+    /// </summary>
+    public async Task<(CollectionDto? dto, string? error)> AddDeductionDocumentAsync(CollectionUser u, int id, int deductionId,
+        string fileName, Stream content, long length)
+    {
+        var c = await LoadAsync(id);
+        if (c is null || !await CanReadSiteAsync(u, c.SiteId)) return (null, "Collection not found.");
+        var editable = c.VerificationStatus is VerificationStatus.Draft or VerificationStatus.Returned;
+        if (!(editable && await CanWriteSiteAsync(u, c.SiteId)) && !await CanUpdateDocsAsync(u, c))
+            return (null, "You can't update this collection's documents.");
+        var d = c.Deductions.FirstOrDefault(x => x.Id == deductionId);
+        if (d is null) return (null, "Deduction not found — refresh the page.");
+        if (d.Type != DeductionType.ServiceInvoice) return (null, "Only a Service Invoice deduction takes a scanned copy here.");
+        if (d.AttachmentId is not null) return (null, "This Service Invoice already has its scanned copy.");
+
+        var (a, error) = await StoreAttachmentAsync(c, fileName, content, length, u.Name);
+        if (a is null) return (null, error);
+        a.Kind = AttachmentKinds.ServiceInvoice;
+        a.Note = NoteOf($"SI {d.Reference}");
+        d.Attachment = a;
+        History(c, "SI document added", null, null, $"inv {d.PostedInvoice.DocNo} SI {d.Reference} {d.Amount:N2}: {a.FileName}", u.Name);
+        await db.SaveChangesAsync();   // the row has its AttachmentId before it is built for HOMS
+        await homs.QueueDeductionsAsync(c, u.Name);
+        return await SaveDocsAsync(u, c);
+    }
+
+    /// <summary>Saves a file-only change (a document or its label) — the money, deposit and bank match are untouched.</summary>
+    private async Task<(CollectionDto? dto, string? error)> SaveDocsAsync(CollectionUser u, Collection c)
+    {
+        await db.SaveChangesAsync();
+        return (await ToDtoAsync(u, (await LoadAsync(c.Id))!), null);
     }
 
     /// <summary>Checks the file (size, type, real signature), stores it and adds it to the collection (not saved yet).</summary>
@@ -1172,6 +1264,11 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (a is null) return (null, "Attachment not found.");
         if (c.RemittanceId is not null && IsRaExcel(a))
             return (null, "This is the CR's RA Excel — upload a corrected file on the Remittance Advice instead.");
+        foreach (var d in c.Deductions.Where(d => d.AttachmentId == a.Id))
+        {
+            if (d.HomsSentAt is not null) return (null, "This Service Invoice copy is already in HOMS (ordeduc2) — it can't be removed.");
+            d.AttachmentId = null;
+        }
 
         db.CollectionAttachments.Remove(a);
         History(c, "Attachment removed", null, null, a.FileName, u.Name);

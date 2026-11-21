@@ -159,7 +159,7 @@ public partial class CollectionService
                 l.PostedInvoiceId is { } id && elsewhere.TryGetValue(id, out var who) ? who : null,
                 rfcs.GetValueOrDefault((l.WhseNo, l.DocNo)))).ToList();
             var att = c.Attachments.OrderBy(a => a.Id).Select(a => new CollectionAttachmentDto(a.Id, a.FileName, a.ContentType, a.Size,
-                Utc(a.UploadedAt), a.UploadedBy)).ToList();
+                Utc(a.UploadedAt), a.UploadedBy, a.Kind, a.Note)).ToList();
             var excel = c.Attachments.Where(IsRaExcel).MaxBy(a => a.Id);
             crs.Add(new RemittanceCrDto(c.Id, c.ReceiptNo, c.DcrNo, c.ReceiptDate, c.HomsDeptCode,
                 c.HomsDeptCode switch { 32 => "Luzon", 31 => "VisMin", _ => null }, c.Amount,
