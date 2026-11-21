@@ -126,9 +126,11 @@ public class HomsPostingService(AppDbContext db)
             main.Message = HomsPostingBuilder.DeductionNote(c);
             return;
         }
-        if (main.Status != HomsPostingStatus.Done || main.DocNo is not { } docNo) return;   // Processing: CompleteAsync follows up
-        if (await db.BmsPostedCollections.AnyAsync(b => b.CollectionId == c.Id && !b.Removed && !b.Cancelled))
-            return;   // encoded in HOMS itself: its deductions are HOMS's own
+        // Processing: CompleteAsync follows up. No DocNo = encoded in HOMS itself (QueueAsync found it there), and "Already
+        // in" = HOMS had the OR before HOMSys wrote it: their deductions are HOMS's own. (The BMS mirror links HOMSys's own
+        // ORs too, so it can't tell these apart.)
+        if (main.Status != HomsPostingStatus.Done || main.DocNo is not { } docNo) return;
+        if (main.Message?.StartsWith("Already in", StringComparison.Ordinal) == true) return;
         if (list.Any(p => p.Kind == HomsPostingKind.Deductions && p.Status == HomsPostingStatus.Processing)) return;
 
         var (rows, ids) = HomsPostingBuilder.DeductionRows(c, main.DocId, docNo, user, PostedOf(main), TodayPh);
