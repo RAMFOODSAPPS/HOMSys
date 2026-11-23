@@ -101,7 +101,8 @@ public record CollectionDto(
     bool CanPulloutPdc = false, string? PdcPullout = null, string? PdcPulloutReason = null,
     DateTime? PdcPulloutRequestedAt = null, string? PdcPulloutRequestedBy = null,
     int MissingSiDocs = 0, bool CanUpdateDocs = false,   // "Update supporting documents" (Service Invoice copies, user 2026-11-21)
-    int? DepositoryAccountId = null, string? DepositoryBank = null);   // PDC: where it will be deposited (user 2026-11-23)
+    int? DepositoryAccountId = null, string? DepositoryBank = null,   // PDC: where it will be deposited (user 2026-11-23)
+    string? CreatedByName = null);   // the encoder's full name (CreatedBy is the username)
 
 /// <summary>Type: "PulledOut" (customer took the check back) or "Replaced" (another check / payment took its place).</summary>
 public record PdcPulloutDto(string? Type, string? Reason);

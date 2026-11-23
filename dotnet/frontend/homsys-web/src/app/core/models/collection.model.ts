@@ -148,6 +148,8 @@ export interface CollectionDto {
   missingSiDocs: number; canUpdateDocs: boolean;
   /** PDC: the account it will be deposited into, named at encoding. */
   depositoryAccountId: number | null; depositoryBank: string | null;
+  /** The encoder's full name (createdBy is the username). */
+  createdByName: string | null;
 }
 
 // ── Remittance Advice (NKA chains) ──────────────────────────────────────────

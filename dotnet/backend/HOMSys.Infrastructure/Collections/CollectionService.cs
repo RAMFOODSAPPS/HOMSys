@@ -255,7 +255,9 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             PdcPulloutRequestedAt: c.PdcPulloutRequestedAt is { } pr ? Utc(pr) : null, PdcPulloutRequestedBy: c.PdcPulloutRequestedBy,
             MissingSiDocs: MissingSiDocs(c),
             CanUpdateDocs: MissingSiDocs(c) > 0 && await CanUpdateDocsAsync(u, c),
-            DepositoryAccountId: c.DepositoryAccountId, DepositoryBank: c.DepositoryAccount?.Label);
+            DepositoryAccountId: c.DepositoryAccountId, DepositoryBank: c.DepositoryAccount?.Label,
+            CreatedByName: await db.Users.Where(x => x.Username == c.CreatedBy)
+                .Select(x => (x.FirstName + " " + x.LastName).Trim()).FirstOrDefaultAsync());
     }
 
     /// <summary>Service Invoice deductions still without their scanned copy (they stay out of HOMS's ordeduc2 until then).</summary>

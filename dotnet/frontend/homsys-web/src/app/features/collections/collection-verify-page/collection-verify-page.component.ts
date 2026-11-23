@@ -10,7 +10,7 @@ import { GlobalToolbarService } from '../../../core/services/global-toolbar.serv
 import { CollectionService } from '../../../core/services/collection.service';
 import { BankStatementService } from '../../../core/services/bank-statement.service';
 import { RemittanceService } from '../../../core/services/remittance.service';
-import { BankStatementLineDto, CollectionDto, CollectionListItemDto, CollectionSiteDto, deductionName, inDateRange, PAYMENT_MODES, RemittanceListItemDto } from '../../../core/models/collection.model';
+import { BankStatementLineDto, CollectionDocumentKindDto, CollectionDto, documentKindLabel, CollectionListItemDto, CollectionSiteDto, deductionName, inDateRange, PAYMENT_MODES, RemittanceListItemDto } from '../../../core/models/collection.model';
 
 /** Matured PDCs are confirmed by the CNC Verifier on the PDC Monitor (that posts the JV), not here. */
 type QueueTab = 'ForVerification' | 'Returned' | 'Verified' | 'all';
@@ -111,92 +111,93 @@ const SHORT_MODE: Record<string, string> = { Cash: 'CASH', Check: 'CHEQUE',PostD
             </div>
           </div>
 
-          <div class="vq-body">
-            <div class="vq-check-head">
-              <span class="strong">Check against the receipt</span>
-              <div class="prog">
+          <!-- Design "Verification Queue v2" (2026-11-23): invoices and the checklist side by side, bank match across both,
+               encoder + actions in the footer. Layout only: every action and gate is the page's own. -->
+          <div class="vq-cols">
+            <div class="vq-col">
+              <div class="vq-col-head">
+                <span class="strong grow">Applied to invoices</span>
+                <span class="muted sm">{{ c.invoices.length }} invoice{{ c.invoices.length === 1 ? '' : 's' }}</span>
+              </div>
+              @for (i of c.invoices; track i.postedInvoiceId; let n = $index) {
+                <div class="vq-invc">
+                  <button type="button" class="vq-invc-head" (click)="toggleInv(i.postedInvoiceId)">
+                    <span class="l"><i class="chev pi" [class.pi-chevron-down]="invOpen(i.postedInvoiceId)" [class.pi-chevron-right]="!invOpen(i.postedInvoiceId)"></i><span class="muted">{{ n + 1 }}</span>
+                      <span class="mono strong">{{ i.docNo }}</span><span class="mono muted sm">{{ i.docDate | date:'MM/dd/yyyy' }}</span></span>
+                    <span class="mono">{{ i.total | number:'1.2-2' }}</span>
+                  </button>
+                  @if (invOpen(i.postedInvoiceId)) {
+                    <div class="vq-invc-nums">
+                      <div><span>Total</span><b class="mono">{{ i.total | number:'1.2-2' }}</b></div>
+                      <div><span>RFC</span><b class="mono" [class.neg]="i.rfcTotal < 0">{{ i.rfcTotal | number:'1.2-2' }}</b></div>
+                      <div><span>Applied</span><b class="mono strong">{{ i.amountApplied | number:'1.2-2' }}</b></div>
+                      <div><span [pTooltip]="balanceHint(c)" tooltipPosition="top">{{ balanceLabel(c) }}</span><b class="mono">{{ i.balance | number:'1.2-2' }}</b></div>
+                    </div>
+                    <div class="vq-invc-deds">
+                      <span class="cap">Deductions</span>
+                      @for (d of dedOf(c, i.postedInvoiceId); track d.id) {
+                        <div class="ded-row">
+                          <span>{{ dedLabel(d.type, d.reason) }}@if (d.type === 'Ewt2307') { <span class="muted"> · {{ d.with2307 ? '2307 att.' : 'no 2307' }} · {{ d.acctNo }}</span> }@if (d.reference) { <span class="muted"> · {{ d.reference }}</span> }</span>
+                          <span class="mono">{{ d.amount | number:'1.2-2' }}</span>
+                        </div>
+                      } @empty { <span class="muted">None</span> }
+                    </div>
+                  }
+                </div>
+              } @empty { <div class="muted">On-account (no invoice).</div> }
+              <div class="vq-sum">
+                <span>Received</span><b class="mono">{{ c.amount | number:'1.2-2' }}</b>
+                <span>Applied</span><b class="mono">{{ c.amount - c.unappliedAmount | number:'1.2-2' }}</b>
+                <span>Deductions</span><b class="mono">{{ deductions(c) | number:'1.2-2' }}</b>
+                <span class="tot">Unapplied</span><b class="mono tot">{{ c.unappliedAmount | number:'1.2-2' }}</b>
+              </div>
+              @if (c.remarks) { <div class="muted">Remarks: {{ c.remarks }}</div> }
+            </div>
+
+            <div class="vq-col">
+              <div class="vq-col-head">
+                <span class="strong grow">Check against the receipt</span>
                 <div class="bar"><div [style.width.%]="progress().pct"></div></div>
-                <span class="mono muted">{{ progress().done }} / {{ progress().total }}</span>
+                <span class="mono muted sm">{{ progress().done }} / {{ progress().total }}</span>
                 @if (isOpen()) { <button type="button" class="link" (click)="checkAll()">{{ progress().done < progress().total ? 'Check all' : 'Uncheck all' }}</button> }
               </div>
-            </div>
-            <div class="vq-checks">
-              @for (k of checks(); track k.key) {
-                <button type="button" class="chk" [class.on]="isChecked(k.key)" [disabled]="!isOpen()" (click)="toggle(k.key)">
-                  <span class="box">{{ isChecked(k.key) ? '✓' : '' }}</span>
-                  <span class="muted lbl">{{ k.label }}</span>
-                  <span class="val"><span [class.mono]="k.mono">{{ k.value }}</span><span class="muted">{{ k.sub }}</span></span>
-                </button>
+              <div class="vq-checks">
+                @for (k of checks(); track k.key) {
+                  <button type="button" class="chk" [class.on]="isChecked(k.key)" [disabled]="!isOpen()" (click)="toggle(k.key)">
+                    <span class="box">{{ isChecked(k.key) ? '✓' : '' }}</span>
+                    <span class="muted lbl">{{ k.label }}</span>
+                    <span class="val"><span [class.mono]="k.mono">{{ k.value }}</span><span class="muted">{{ k.sub }}</span></span>
+                  </button>
+                }
+              </div>
+
+              @if (c.paymentMode === 'PostDatedCheck' && !c.deposit && c.canRecordDeposit) {
+                <div class="vq-dep">
+                  <span class="strong">Enter the deposit</span>
+                  <span class="muted">The branch left it blank — fill it in from the deposit slip.</span>
+                  <div class="vq-dep-row">
+                    <select [(ngModel)]="dep.accountId"><option [ngValue]="null" disabled>Deposited into…</option>
+                      @for (a of depAccounts(); track a.id) { <option [ngValue]="a.id">{{ a.label }}</option> }</select>
+                    <input [(ngModel)]="dep.slip" maxlength="30" placeholder="Slip ref. no. (optional)" />
+                    <input type="date" [(ngModel)]="dep.date" [min]="c.checkDate ?? ''" />
+                    <button type="button" class="btn-sm" [disabled]="!dep.accountId || !dep.date || depSaving()" (click)="saveDeposit()">{{ depSaving() ? 'Saving…' : 'Save deposit' }}</button>
+                  </div>
+                </div>
               }
+              <span class="muted">{{ hint() }}</span>
             </div>
-
-            @if (c.paymentMode === 'PostDatedCheck' && !c.deposit && c.canRecordDeposit) {
-              <div class="vq-dep">
-                <span class="strong">Enter the deposit</span>
-                <span class="muted">The branch left it blank — fill it in from the deposit slip.</span>
-                <div class="vq-dep-row">
-                  <select [(ngModel)]="dep.accountId"><option [ngValue]="null" disabled>Deposited into…</option>
-                    @for (a of depAccounts(); track a.id) { <option [ngValue]="a.id">{{ a.label }}</option> }</select>
-                  <input [(ngModel)]="dep.slip" maxlength="30" placeholder="Slip ref. no. (optional)" />
-                  <input type="date" [(ngModel)]="dep.date" [min]="c.checkDate ?? ''" />
-                  <button type="button" class="btn-sm" [disabled]="!dep.accountId || !dep.date || depSaving()" (click)="saveDeposit()">{{ depSaving() ? 'Saving…' : 'Save deposit' }}</button>
-                </div>
-              </div>
-            }
-
-            @if (c.bankLine; as b) {
-              <div class="vq-bank" [class.ok]="b.confirmed">
-                <span class="ico">✓</span>
-                <div class="txt">
-                  <span class="strong">{{ b.confirmed ? 'Bank match approved' + (b.confirmedBy ? ' by ' + b.confirmedBy : '') : (c.paymentMode === 'PostDatedCheck' ? 'Bank match found — the CNC Verifier confirms it on the PDC Monitor' : 'Bank match found — verifying approves it') }}</span>
-                  <span class="mono">{{ b.account }} · {{ b.txnDate | date:'MM/dd/yyyy' }} · credit {{ b.credit | number:'1.2-2' }}@if (b.reference) { · ref {{ b.reference }} }</span>
-                </div>
-                <button type="button" class="btn-sm" (click)="viewBank()">View in bank statement</button>
-              </div>
-            }
-
-            <div class="vq-inv">
-              <span class="strong">Applied to invoices</span>
-              <div class="box-tbl">
-                <div class="tbl-wrap">
-                  <!-- Fixed layout: the money columns share one width so they line up evenly. -->
-                  <table class="tbl" style="table-layout: fixed">
-                    <colgroup>
-                      <col style="width: 36px" /><col style="width: 14%" />
-                      <col style="width: 12%" /><col style="width: 10%" /><col style="width: 12%" />
-                      <col /><col style="width: 12%" />
-                    </colgroup>
-                    <thead><tr><th class="n">#</th><th>Invoice / date</th><th class="num">Total</th><th class="num">RFC</th><th class="num">Applied</th><th class="num">Deduction</th><th class="num" [pTooltip]="balanceHint(c)" tooltipPosition="top">{{ balanceLabel(c) }}</th></tr></thead>
-                    <tbody class="mono">
-                      @for (i of c.invoices; track i.postedInvoiceId; let n = $index) {
-                        <tr>
-                          <td class="n muted">{{ n + 1 }}</td>
-                          <td class="nowrap">{{ i.docNo }}<div class="sub">{{ i.docDate | date:'MM/dd/yyyy' }}</div></td>
-                          <td class="num">{{ i.total | number:'1.2-2' }}</td>
-                          <td class="num" [class.neg]="i.rfcTotal < 0">{{ i.rfcTotal | number:'1.2-2' }}</td>
-                          <td class="num strong">{{ i.amountApplied | number:'1.2-2' }}</td>
-                          <td class="ded num">
-                            @for (d of dedOf(c, i.postedInvoiceId); track d.id) { <div>{{ dedLabel(d.type, d.reason) }} {{ d.amount | number:'1.2-2' }}@if (d.reference) { <span class="muted"> {{ d.reference }}</span> }@if (d.type === 'Ewt2307') { <span class="muted"> · {{ d.with2307 ? '2307 att.' : 'no 2307' }} · {{ d.acctNo }}</span> }</div> }
-                            @empty { <span class="nil">—</span> }
-                          </td>
-                          <td class="num strong">{{ i.balance | number:'1.2-2' }}</td>
-                        </tr>
-                      } @empty { <tr><td colspan="7" class="muted">On-account (no invoice).</td></tr> }
-                    </tbody>
-                  </table>
-                </div>
-                <div class="inv-foot">
-                  <span>Received <b class="mono">{{ c.amount | number:'1.2-2' }}</b></span>
-                  <span>Applied <b class="mono">{{ c.amount - c.unappliedAmount | number:'1.2-2' }}</b></span>
-                  @if (deductions(c)) { <span>Deductions <b class="mono">{{ deductions(c) | number:'1.2-2' }}</b></span> }
-                  <span>Unapplied <b class="mono">{{ c.unappliedAmount | number:'1.2-2' }}</b></span>
-                </div>
-              </div>
-            </div>
-
-            @if (c.remarks) { <div class="muted">Remarks: {{ c.remarks }}</div> }
-            <div class="muted">Encoded by {{ c.createdBy }} · submitted {{ c.submittedAt | date:'MM/dd/yyyy hh:mm a' }}</div>
           </div>
+
+          @if (c.bankLine; as b) {
+            <div class="vq-bank" [class.ok]="b.confirmed">
+              <span class="ico">✓</span>
+              <div class="txt">
+                <span class="strong">{{ b.confirmed ? 'Bank match approved' + (b.confirmedBy ? ' by ' + b.confirmedBy : '') : (c.paymentMode === 'PostDatedCheck' ? 'Bank match found — the CNC Verifier confirms it on the PDC Monitor' : 'Bank match found — verifying approves it') }}</span>
+                <span class="mono">{{ b.account }} · {{ b.txnDate | date:'MM/dd/yyyy' }} · credit {{ b.credit | number:'1.2-2' }}@if (b.reference) { · ref {{ b.reference }} }</span>
+              </div>
+              <button type="button" class="btn-sm" (click)="viewBank()">View in bank statement</button>
+            </div>
+          }
 
           <div class="vq-foot">
             @if (returning()) {
@@ -209,7 +210,7 @@ const SHORT_MODE: Record<string, string> = { Cash: 'CASH', Check: 'CHEQUE',PostD
               </div>
             }
             <div class="foot-bar">
-              <span class="muted">{{ hint() }}</span>
+              <span class="muted enc">Encoded by {{ c.createdBy }}@if (c.createdByName) { - {{ c.createdByName }} }@if (c.submittedAt) { · submitted {{ c.submittedAt | date:'MM/dd/yyyy hh:mm a' }} }</span>
               <div class="foot-btns">
                 @if (c.canConfirmMatch) {
                   <button type="button" class="btn btn-ret" [disabled]="busy()" (click)="matchAction(c, false)">Reject bank match</button>
@@ -282,6 +283,10 @@ const SHORT_MODE: Record<string, string> = { Cash: 'CASH', Check: 'CHEQUE',PostD
               }
             </div>
           } @else {
+          @if (viewed(); as a) {
+            <!-- What the file is (its supporting-document type) and its note, above the preview (user 2026-11-23). -->
+            <div class="prev-title"><span class="strong">{{ kindLabel(a.kind) }}</span>@if (a.note) { <span class="muted"> · {{ a.note }}</span> }</div>
+          }
           <div class="prev-body">
             @if (pdfUrl()) { <iframe [src]="pdfUrl()" title="Receipt"></iframe> }
             @else if (imgUrl()) { <img [src]="imgUrl()" alt="Receipt" [style.transform]="'scale(' + zoom() + ') rotate(' + rot() + 'deg)'" /> }
@@ -417,9 +422,14 @@ export class CollectionVerifyPageComponent implements OnInit, OnDestroy {
     if (this.progress().done < this.progress().total) return 'Tick each item to enable Verify.';
     return 'Ready to verify. The next receipt opens automatically.';
   });
+  /** Supporting-document types, for the title above the preview. */
+  docKinds = signal<CollectionDocumentKindDto[]>([]);
+  viewed = computed(() => this.col()?.attachments.find(a => a.id === this.viewing()) ?? null);
+  protected kindLabel(code: string | null | undefined) { return documentKindLabel(this.docKinds(), code); }
   fileName = computed(() => this.col()?.attachments.find(a => a.id === this.viewing())?.fileName ?? this.col()?.attachments[0]?.fileName ?? '');
 
   ngOnInit() {
+    this.api.documentKinds(true).subscribe(res => this.docKinds.set(res.data ?? []));
     this.api.mySites().subscribe(res => this.sites.set(res.data ?? []));
     this.load(true);
     this.toolbar.set({
@@ -521,6 +531,11 @@ export class CollectionVerifyPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Expanded invoice cards (design v2); every card starts closed (user 2026-11-23), click to open. */
+  private openInvs = signal<Set<number>>(new Set());
+  protected invOpen(id: number) { return this.openInvs().has(id); }
+  protected toggleInv(id: number) { this.openInvs.update(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; }); }
+
   select(row: CollectionListItemDto) {
     this.returning.set(false); this.reason.set(''); this.note.set('');
     this.pane.set('receipt'); this.bankFor = null; this.bankRows.set([]);
@@ -528,6 +543,7 @@ export class CollectionVerifyPageComponent implements OnInit, OnDestroy {
       const c = res.data!;
       this.col.set(c);
       this.prepDeposit(c);
+      this.openInvs.set(new Set());
       this.clearPreview();
       const first = c.attachments[0];
       if (first) this.preview(c.id, first.id, first.contentType);
