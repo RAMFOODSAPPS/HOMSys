@@ -511,6 +511,9 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<int?>("DepositBatchId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("DepositoryAccountId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("HomsDeptCode")
                         .HasColumnType("int");
 
@@ -673,6 +676,8 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsUnique();
 
                     b.HasIndex("DepositBatchId");
+
+                    b.HasIndex("DepositoryAccountId");
 
                     b.HasIndex("RemittanceId");
 
@@ -9033,6 +9038,11 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasForeignKey("DepositBatchId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("HOMSys.Domain.Entities.BankAccount", "DepositoryAccount")
+                        .WithMany()
+                        .HasForeignKey("DepositoryAccountId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("HOMSys.Domain.Entities.Remittance", "Remittance")
                         .WithMany("Collections")
                         .HasForeignKey("RemittanceId")
@@ -9050,6 +9060,8 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("DepositBatch");
+
+                    b.Navigation("DepositoryAccount");
 
                     b.Navigation("Remittance");
 

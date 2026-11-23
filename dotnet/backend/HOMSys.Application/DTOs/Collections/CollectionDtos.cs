@@ -45,7 +45,8 @@ public record SaveCollectionDto(
     List<SaveAllocationDto>? Invoices,
     List<SaveDeductionDto>? Deductions,
     bool MultiCustomer = false,
-    int? DcrNo = null);   // HOMS DCRNO, N(8); required on every receipt except an RA's CR (set by its RA)
+    int? DcrNo = null,    // HOMS DCRNO, N(8); required on every receipt except an RA's CR (set by its RA)
+    int? DepositoryAccountId = null);   // PDC: the account it will be deposited into (required); Deposit = once deposited
 
 public record ReasonDto(string? Reason);
 
@@ -99,7 +100,8 @@ public record CollectionDto(
     int? RemittanceId = null, int? HomsDeptCode = null, int? DcrNo = null,
     bool CanPulloutPdc = false, string? PdcPullout = null, string? PdcPulloutReason = null,
     DateTime? PdcPulloutRequestedAt = null, string? PdcPulloutRequestedBy = null,
-    int MissingSiDocs = 0, bool CanUpdateDocs = false);   // "Update supporting documents" (Service Invoice copies, user 2026-11-21)
+    int MissingSiDocs = 0, bool CanUpdateDocs = false,   // "Update supporting documents" (Service Invoice copies, user 2026-11-21)
+    int? DepositoryAccountId = null, string? DepositoryBank = null);   // PDC: where it will be deposited (user 2026-11-23)
 
 /// <summary>Type: "PulledOut" (customer took the check back) or "Replaced" (another check / payment took its place).</summary>
 public record PdcPulloutDto(string? Type, string? Reason);
@@ -124,7 +126,8 @@ public record PdcItemDto(
     string? DepositBy = null,            // who recorded the deposit slip
     bool CanConfirmMatch = false,        // CNC Verifier may confirm / reject the match (posts the JV)
     bool CanRecordDeposit = false,
-    PdcDishonorDto? Dishonor = null);    // bounced PDCs only: the LOD -> settlement / legal follow-up
+    PdcDishonorDto? Dishonor = null,     // bounced PDCs only: the LOD -> settlement / legal follow-up
+    int? DepositoryAccountId = null, string? DepositoryBank = null);   // the account named at encoding
 
 /// <summary>Outcome: Succeeded, Bounced, or None (clears a wrong tag; reason required).</summary>
 public record PdcTagDto(string Outcome, DateOnly? Date, string? Reason);

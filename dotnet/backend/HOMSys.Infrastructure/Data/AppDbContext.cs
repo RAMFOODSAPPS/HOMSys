@@ -820,6 +820,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.PdcPulloutRequestedBy).HasMaxLength(100);
             e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.DepositBatch).WithMany(d => d.Collections).HasForeignKey(x => x.DepositBatchId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.DepositoryAccount).WithMany().HasForeignKey(x => x.DepositoryAccountId).OnDelete(DeleteBehavior.NoAction);
             // One replacement CR settles at most one bounced PDC.
             e.HasOne(x => x.SettledByCollection).WithMany().HasForeignKey(x => x.SettledByCollectionId).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => x.SettledByCollectionId).IsUnique().HasFilter("[SettledByCollectionId] IS NOT NULL");

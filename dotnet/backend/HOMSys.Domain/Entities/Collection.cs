@@ -41,6 +41,11 @@ public class Collection
     public int? DepositBatchId { get; set; }
     public DepositBatch? DepositBatch { get; set; }
 
+    /// <summary>PDC: the company account the check will be deposited into, named at encoding (required, user 2026-11-23);
+    /// the deposit itself (date, slip) is recorded once it matures and is deposited, into this account by default.</summary>
+    public int? DepositoryAccountId { get; set; }
+    public BankAccount? DepositoryAccount { get; set; }
+
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Draft;
     public VerificationStatus VerificationStatus { get; set; } = VerificationStatus.Draft;
     public string? ReturnReason { get; set; }

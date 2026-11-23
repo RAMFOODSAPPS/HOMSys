@@ -268,16 +268,24 @@ const NEW_KEY = '/collections';
                   @if (raw().receiptType === 'CR') {
                     <div class="sub-title">Deposit <span class="muted">· bank statement as of {{ asOf() ? (asOf() | date:'MM/dd/yyyy') : '—' }}</span></div>
                   } @else {
-                    <div class="sub-title">Depository bank <span class="muted">· optional: fill in only if the branch already deposited the matured check</span></div>
+                    <div class="sub-title">Depository bank <span class="muted">· slip no. and deposit date only once the matured check is deposited</span></div>
                   }
                   <div class="fields auto">
-                    <div class="field"><span>Deposited into</span>
+                    <div class="field"><span>{{ raw().receiptType === 'CR' ? 'Deposited into' : 'Depository bank' }}</span>
                       <p-select formControlName="depAccountId" [options]="depositAccounts()" optionLabel="label" optionValue="id"
                         [showClear]="!readOnly()" placeholder="Company account" styleClass="w-full" appendTo="body" /></div>
                     <div class="field"><span>Slip / transfer ref. no. <span class="muted">(optional)</span></span><input pInputText formControlName="depSlip" maxlength="30" class="mono" /></div>
-                    <div class="field"><span>Deposit date</span>
+                    <div class="field"><span>Deposit date @if (raw().receiptType !== 'CR') { <span class="muted">(when deposited)</span> }</span>
                       <p-datepicker formControlName="depDate" dateFormat="mm/dd/yy" appendTo="body" [showIcon]="!readOnly()" styleClass="w-full" inputStyleClass="mono" /></div>
                     @if (!isCheck()) { <ng-container *ngTemplateOutlet="amountField" /> }
+                  </div>
+                </div>
+              } @else if (!col()?.deposit && col()?.depositoryBank) {
+                <div class="sub-box">
+                  <div class="sub-title">Depository bank</div>
+                  <div class="fields auto">
+                    <div class="field"><span>Depository bank</span><div class="ro">{{ col()!.depositoryBank }}</div></div>
+                    <div class="field"><span>Deposit</span><div class="ro">Not yet deposited</div></div>
                   </div>
                 </div>
               } @else if (col()?.deposit) {
@@ -837,7 +845,7 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
       siteId: c.siteId, receiptType: c.receiptType, receiptNo: c.receiptNo, dcrNo: c.dcrNo, receiptDate: this.toDate(c.receiptDate),
       paymentMode: c.paymentMode, amount: c.amount, custKey: c.custKey,
       bank: c.bank ?? '', checkNo: c.checkNo ?? '', checkDate: this.toDate(c.checkDate),
-      depAccountId: c.deposit?.bankAccountId ?? null, depSlip: c.deposit?.slipRefNo ?? '', depDate: this.toDate(c.deposit?.depositDate ?? null),
+      depAccountId: c.deposit?.bankAccountId ?? c.depositoryAccountId ?? null, depSlip: c.deposit?.slipRefNo ?? '', depDate: this.toDate(c.deposit?.depositDate ?? null),
       remarks: c.remarks ?? '',
     }, { emitEvent: true });
     this.multiCustomer.set(c.multiCustomer);
@@ -1075,7 +1083,9 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
       this.toast.add({ severity: 'warn', summary: 'Validation', detail: `Invoice ${noSi.docNo}: enter the Service Invoice no.` });
       return;
     }
-    const hasDeposit = !!(v.depAccountId || v.depSlip?.trim());
+    // A PDC always names its depository bank; its deposit (date, slip) only once it is deposited (user 2026-11-23).
+    const isPdc = v.paymentMode === 'PostDatedCheck';
+    const hasDeposit = isPdc ? !!(v.depDate || v.depSlip?.trim()) : !!(v.depAccountId || v.depSlip?.trim());
     const dto: SaveCollectionDto = {
       siteId: v.siteId, receiptType: v.receiptType!, receiptNo: v.receiptNo.trim(), receiptDate: this.iso(v.receiptDate)!,
       custKey: v.custKey?.trim() ?? '', dcrNo: v.dcrNo, paymentMode: v.paymentMode!, amount: v.amount,
@@ -1085,6 +1095,7 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
       // A PDC's deposit is optional here: filled in when the branch already deposited the matured check (NAGA
       // 2026-11-23); otherwise it's recorded later with Record PDC deposit / the PDC Monitor.
       deposit: hasDeposit ? { bankAccountId: v.depAccountId, slipRefNo: v.depSlip?.trim() ?? '', depositDate: this.iso(v.depDate) ?? '' } : null,
+      depositoryAccountId: isPdc ? v.depAccountId : null,
       remarks: v.remarks?.trim() || null,
       invoices: this.lines().map(l => ({ postedInvoiceId: l.postedInvoiceId, amountApplied: l.applied ?? 0 })),
       deductions: this.lines().flatMap(l => l.deds.filter(d => d.type && d.amount)
@@ -1094,12 +1105,16 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
           attachmentId: d.type === 'ServiceInvoice' ? d.attachmentId : null }))),
       multiCustomer: this.multiCustomer(),
     };
+    if (isPdc && !dto.depositoryAccountId) {
+      this.toast.add({ severity: 'warn', summary: 'Validation', detail: 'Choose the depository bank: the company account this check will be deposited into.' });
+      return;
+    }
     if (dto.deposit && (!dto.deposit.bankAccountId || !dto.deposit.depositDate)) {
       this.toast.add({ severity: 'warn', summary: 'Validation', detail: 'Complete the deposit: bank account and date (the slip ref. no. is optional).' });
       return;
     }
-    if (dto.deposit && dto.paymentMode === 'PostDatedCheck' && dto.checkDate && dto.deposit.depositDate < dto.checkDate) {
-      this.toast.add({ severity: 'warn', summary: 'Validation', detail: "A post-dated check can't be deposited before its check date. Leave the depository bank blank until it matures." });
+    if (dto.deposit && isPdc && dto.checkDate && dto.deposit.depositDate < dto.checkDate) {
+      this.toast.add({ severity: 'warn', summary: 'Validation', detail: "A post-dated check can't be deposited before its check date. Leave the deposit date blank until it is deposited." });
       return;
     }
     const c = this.col();
@@ -1229,7 +1244,7 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
   }
 
   openDeposit() {
-    this.dep = { accountId: this.depositAccounts().length === 1 ? this.depositAccounts()[0].id : null, slip: '', date: new Date() };
+    this.dep = { accountId: this.col()?.depositoryAccountId ?? (this.depositAccounts().length === 1 ? this.depositAccounts()[0].id : null), slip: '', date: new Date() };
     this.depositVisible = true;
   }
 

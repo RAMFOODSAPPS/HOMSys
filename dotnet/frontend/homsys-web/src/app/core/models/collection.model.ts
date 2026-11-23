@@ -71,6 +71,8 @@ export interface SaveCollectionDto {
   checkNo: string | null;
   checkDate: string | null;
   deposit: DepositInfoDto | null;
+  /** PDC: the account it will be deposited into (required); deposit = once it is actually deposited. */
+  depositoryAccountId?: number | null;
   remarks: string | null;
   invoices: { postedInvoiceId: number; amountApplied: number }[];
   /** with2307 / acctNo: EWT only — "2307 att." and the HOMS GL of its CEWT line (10507 with the 2307, else 10508). */
@@ -144,6 +146,8 @@ export interface CollectionDto {
   pdcPulloutRequestedAt: string | null; pdcPulloutRequestedBy: string | null;
   /** Service Invoice deductions without their scanned copy; canUpdateDocs = may upload them ("Update supporting documents"). */
   missingSiDocs: number; canUpdateDocs: boolean;
+  /** PDC: the account it will be deposited into, named at encoding. */
+  depositoryAccountId: number | null; depositoryBank: string | null;
 }
 
 // ── Remittance Advice (NKA chains) ──────────────────────────────────────────
@@ -243,6 +247,8 @@ export interface PdcItemDto {
   canConfirmMatch: boolean; canRecordDeposit: boolean;
   /** Bounced PDCs only: Letter of Dishonor -> settled by a new CR, or endorsed for legal action. */
   dishonor: PdcDishonorDto | null;
+  /** The account named at encoding (pre-fills the deposit). */
+  depositoryAccountId: number | null; depositoryBank: string | null;
 }
 
 /** One posted invoice's payment history; counts = false for voided receipts and bounced PDCs. */

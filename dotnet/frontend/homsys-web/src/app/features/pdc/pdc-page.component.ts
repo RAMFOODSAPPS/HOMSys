@@ -421,6 +421,7 @@ interface Row { p: PdcItemDto; st: StatusKey; meta: StatusMeta; action: Act | nu
               <dt>Drawee / check no.</dt><dd>{{ p.bank }} #{{ p.checkNo }}</dd>
               <dt>Check date</dt><dd>{{ p.checkDate | date:'MM/dd/yyyy' }}</dd>
               <dt>Amount</dt><dd class="amt">{{ p.amount | number:'1.2-2' }}</dd>
+              <dt>Depository bank</dt><dd>{{ p.depositoryBank || '—' }}</dd>
             </dl>
           </section>
           <section>
@@ -1006,12 +1007,15 @@ export class PdcPageComponent implements OnInit, OnDestroy {
 
   openDeposit(p: PdcItemDto) {
     this.depositing.set(p);
-    this.dep = { accountId: null, slip: '', date: new Date() };
+    this.dep = { accountId: p.depositoryAccountId, slip: '', date: new Date() };
     this.depAccounts.set([]);
     this.api.pdcDepositAccounts(p.siteId).subscribe(res => {
       const list = res.data ?? [];
+      // The depository named at encoding stays offered even if it was since unlinked.
+      if (p.depositoryAccountId && !list.some(a => a.id === p.depositoryAccountId))
+        list.push({ id: p.depositoryAccountId, label: p.depositoryBank ?? '', accountName: '' });
       this.depAccounts.set(list);
-      if (list.length === 1) this.dep.accountId = list[0].id;
+      if (!this.dep.accountId && list.length === 1) this.dep.accountId = list[0].id;
     });
     this.depositVisible = true;
   }

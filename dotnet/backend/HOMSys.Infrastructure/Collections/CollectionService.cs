@@ -174,7 +174,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         : checkDate > today ? "Immature" : "Matured";
 
     private Task<Collection?> LoadAsync(int id) => db.Collections
-        .Include(c => c.Site).Include(c => c.DepositBatch)
+        .Include(c => c.Site).Include(c => c.DepositBatch).Include(c => c.DepositoryAccount)
         .Include(c => c.Invoices).ThenInclude(i => i.PostedInvoice)
         .Include(c => c.Deductions).ThenInclude(d => d.PostedInvoice)
         .Include(c => c.Attachments).Include(c => c.History).Include(c => c.RemittanceLines)
@@ -254,7 +254,8 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             PdcPullout: c.PdcPullout, PdcPulloutReason: c.PdcPulloutReason,
             PdcPulloutRequestedAt: c.PdcPulloutRequestedAt is { } pr ? Utc(pr) : null, PdcPulloutRequestedBy: c.PdcPulloutRequestedBy,
             MissingSiDocs: MissingSiDocs(c),
-            CanUpdateDocs: MissingSiDocs(c) > 0 && await CanUpdateDocsAsync(u, c));
+            CanUpdateDocs: MissingSiDocs(c) > 0 && await CanUpdateDocsAsync(u, c),
+            DepositoryAccountId: c.DepositoryAccountId, DepositoryBank: c.DepositoryAccount?.Label);
     }
 
     /// <summary>Service Invoice deductions still without their scanned copy (they stay out of HOMS's ordeduc2 until then).</summary>
@@ -433,6 +434,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (!InRemittance(c) && await AssignDepositAsync(c, dto.Deposit, mode, checkDate, u.Name) is { } batchError) return batchError;
         // A PDC the branch already deposited (matured on arrival) can carry its deposit from encoding (NAGA 2026-11-23);
         // logged like Record PDC deposit, so the PDC Monitor shows who recorded it (four-eyes on the CNC confirm).
+        if (mode == PaymentMode.PostDatedCheck && await DepositoryAsync(c, dto, mode) is { } depositoryError) return depositoryError;
         if (mode == PaymentMode.PostDatedCheck && c.DepositBatch is { } pdcDep && depBefore != (pdcDep, pdcDep.DepositDate))
         {
             var slip = pdcDep.SlipRefNo;
@@ -463,6 +465,19 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         db.CollectionDeductions.RemoveRange(c.Deductions);
         c.Invoices = allocs.Select(a => new CollectionInvoice { PostedInvoiceId = a.PostedInvoiceId, AmountApplied = Math.Round(a.AmountApplied, 2) }).ToList();
         c.Deductions = newDeds;
+        return null;
+    }
+
+    /// <summary>A PDC names its depository bank at encoding (required, NAGA / user 2026-11-23): the branch account it will be
+    /// deposited into once it matures. A deposit already recorded (date given) uses that account. Other modes have none.</summary>
+    private async Task<string?> DepositoryAsync(Collection c, SaveCollectionDto dto, PaymentMode mode)
+    {
+        if (mode != PaymentMode.PostDatedCheck) { c.DepositoryAccountId = null; return null; }
+        var id = c.DepositBatch?.BankAccountId ?? dto.DepositoryAccountId;
+        if (id is not { } accountId) return "Choose the depository bank: the company account this check will be deposited into.";
+        if (accountId != c.DepositoryAccountId && !(await DepositAccountsAsync(c.SiteId)).Any(a => a.Id == accountId))
+            return "That depository bank account isn't available for this branch.";
+        c.DepositoryAccountId = accountId;
         return null;
     }
 
@@ -564,6 +579,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (c.Invoices.Count == 0) m.Add("Add the invoice(s) this payment is for.");
         if (c.Attachments.Count == 0) m.Add("Attach the soft copy of the receipt.");
         if (c.ReceiptType == ReceiptType.CR && c.DepositBatch is null) m.Add("Enter the deposit (bank account and date; the reference no. is optional).");
+        if (c.PaymentMode == PaymentMode.PostDatedCheck && c.DepositoryAccountId is null) m.Add("Choose the depository bank.");
         return m;
     }
 
@@ -781,7 +797,8 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (siteId is not null) q = q.Where(c => c.SiteId == siteId);
 
         var today = Today;
-        var rows = await q.Include(c => c.Site).Include(c => c.DepositBatch).OrderBy(c => c.CheckDate).Take(5000).ToListAsync();
+        var rows = await q.Include(c => c.Site).Include(c => c.DepositBatch).Include(c => c.DepositoryAccount)
+            .OrderBy(c => c.CheckDate).Take(5000).ToListAsync();
         var ids = rows.Select(c => c.Id).ToList();
         var bms = (await db.BmsPostedCollections.Where(b => b.CollectionId != null && ids.Contains(b.CollectionId.Value) && !b.Removed)
             .Select(b => new { b.CollectionId, b.DocNo, b.Bounced }).ToListAsync())
@@ -820,7 +837,8 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
                 CanRecordDeposit: (canWrite || u.CanVerify || u.CanConfirmPdc) && c.PdcOutcome is null
                                   && checkDate <= today && batch?.MatchedBankLineId is null,
                 Dishonor: Dishonor(u, c, today, c.SettledByCollectionId is { } sid && settles.TryGetValue(sid, out var cr)
-                    ? ($"{cr.ReceiptType} {cr.ReceiptNo}", cr.ReceiptDate) : null));
+                    ? ($"{cr.ReceiptType} {cr.ReceiptNo}", cr.ReceiptDate) : null),
+                DepositoryAccountId: c.DepositoryAccountId, DepositoryBank: c.DepositoryAccount?.Label);
         }).ToList();
     }
 
@@ -923,6 +941,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
 
         var error = await AssignDepositAsync(c, dep, c.PaymentMode, c.CheckDate, u.Name);
         if (error is not null) return (null, error);
+        c.DepositoryAccountId = c.DepositBatch!.BankAccountId;   // where it actually went
         var slip = (dep.SlipRefNo ?? "").Trim();
         History(c, "Deposit recorded", null, null, $"{c.DepositBatch!.Bank}{(slip.Length > 0 ? $" slip {slip}" : "")} on {dep.DepositDate:yyyy-MM-dd}", u.Name);
         return await SaveAndReturnAsync(u, c);
