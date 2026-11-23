@@ -130,11 +130,25 @@ const SHORT_MODE: Record<string, string> = { Cash: 'CASH', Check: 'CHEQUE',PostD
               }
             </div>
 
+            @if (c.paymentMode === 'PostDatedCheck' && !c.deposit && c.canRecordDeposit) {
+              <div class="vq-dep">
+                <span class="strong">Enter the deposit</span>
+                <span class="muted">The branch left it blank — fill it in from the deposit slip.</span>
+                <div class="vq-dep-row">
+                  <select [(ngModel)]="dep.accountId"><option [ngValue]="null" disabled>Deposited into…</option>
+                    @for (a of depAccounts(); track a.id) { <option [ngValue]="a.id">{{ a.label }}</option> }</select>
+                  <input [(ngModel)]="dep.slip" maxlength="30" placeholder="Slip ref. no. (optional)" />
+                  <input type="date" [(ngModel)]="dep.date" [min]="c.checkDate ?? ''" />
+                  <button type="button" class="btn-sm" [disabled]="!dep.accountId || !dep.date || depSaving()" (click)="saveDeposit()">{{ depSaving() ? 'Saving…' : 'Save deposit' }}</button>
+                </div>
+              </div>
+            }
+
             @if (c.bankLine; as b) {
               <div class="vq-bank" [class.ok]="b.confirmed">
                 <span class="ico">✓</span>
                 <div class="txt">
-                  <span class="strong">{{ b.confirmed ? 'Bank match approved' + (b.confirmedBy ? ' by ' + b.confirmedBy : '') : 'Bank match found — verifying approves it' }}</span>
+                  <span class="strong">{{ b.confirmed ? 'Bank match approved' + (b.confirmedBy ? ' by ' + b.confirmedBy : '') : (c.paymentMode === 'PostDatedCheck' ? 'Bank match found — the CNC Verifier confirms it on the PDC Monitor' : 'Bank match found — verifying approves it') }}</span>
                   <span class="mono">{{ b.account }} · {{ b.txnDate | date:'MM/dd/yyyy' }} · credit {{ b.credit | number:'1.2-2' }}@if (b.reference) { · ref {{ b.reference }} }</span>
                 </div>
                 <button type="button" class="btn-sm" (click)="viewBank()">View in bank statement</button>
@@ -374,10 +388,14 @@ export class CollectionVerifyPageComponent implements OnInit, OnDestroy {
       { key: 'amount', label: 'Amount', value: `₱ ${n.transform(c.amount, '1.2-2')}`, sub: mode, mono: true },
     ];
     if (c.checkNo) items.push({ key: 'check', label: 'Check', value: `${c.bank} #${c.checkNo}`, sub: `Check date ${d.transform(c.checkDate, 'MM/dd/yyyy')}` });
+    const isPdc = c.paymentMode === 'PostDatedCheck';
     if (c.deposit) items.push({ key: 'deposit', label: 'Deposit', value: `${c.deposit.bank}${c.deposit.slipRefNo ? ' slip ' + c.deposit.slipRefNo : ' (no reference)'}`,
       sub: `${d.transform(c.deposit.depositDate, 'MM/dd/yyyy')} · ${!c.bankLine ? 'not yet on the bank statement'
         : `bank credit ${d.transform(c.bankLine.txnDate, 'MM/dd/yyyy')} ₱ ${n.transform(c.bankLine.credit, '1.2-2')}${c.bankLine.reference ? ' ref ' + c.bankLine.reference : ''}`
-          + (c.bankLine.confirmed ? ' (approved)' : ' — verifying approves this match')}` });
+          + (c.bankLine.confirmed ? ' (approved)' : isPdc ? ' — the CNC Verifier confirms it (PDC Monitor)' : ' — verifying approves this match')}` });
+    // A PDC the branch left undeposited (user 2026-11-23): its depository bank; the Finance Verifier enters the deposit.
+    else if (isPdc) items.push({ key: 'deposit', label: 'Deposit', value: `Depository: ${c.depositoryBank ?? '—'}`,
+      sub: `Not yet deposited · ${c.checkDate && c.checkDate > this.todayIso() ? 'matures ' + d.transform(c.checkDate, 'MM/dd/yyyy') : 'matured — enter the deposit below once it is on the slip'}` });
     items.push({ key: 'alloc', label: 'Allocation', value: `₱ ${n.transform(applied, '1.2-2')} to ${c.invoices.length} invoice${c.invoices.length === 1 ? '' : 's'}`,
       sub: `Unapplied ₱ ${n.transform(c.unappliedAmount, '1.2-2')}` });
     items.push({ key: 'attach', label: 'Attachment', value: c.attachments.map(a => a.fileName).join(', ') || 'None attached', sub: 'Readable, signed and stamped' });
@@ -471,12 +489,45 @@ export class CollectionVerifyPageComponent implements OnInit, OnDestroy {
     setTimeout(() => document.getElementById('bl-' + this.col()?.bankLine?.id)?.scrollIntoView({ block: 'center' }));
   }
 
+  // ── deposit of a PDC the branch left blank (Finance Verifier, user 2026-11-23) ──
+  dep: { accountId: number | null; slip: string; date: string } = { accountId: null, slip: '', date: '' };
+  depAccounts = signal<{ id: number; label: string }[]>([]);
+  depSaving = signal(false);
+  protected todayIso() { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; }
+
+  private prepDeposit(c: CollectionDto) {
+    this.dep = { accountId: c.depositoryAccountId, slip: '', date: '' };
+    this.depAccounts.set([]);
+    if (c.paymentMode !== 'PostDatedCheck' || c.deposit || !c.canRecordDeposit) return;
+    this.bank.depositAccounts(c.siteId).subscribe(res => {
+      const list = (res.data ?? []).map(a => ({ id: a.id, label: a.label }));
+      if (c.depositoryAccountId && !list.some(a => a.id === c.depositoryAccountId)) list.push({ id: c.depositoryAccountId, label: c.depositoryBank ?? '' });
+      this.depAccounts.set(list);
+    });
+  }
+
+  saveDeposit() {
+    const c = this.col();
+    if (!c || !this.dep.accountId || !this.dep.date) return;
+    this.depSaving.set(true);
+    this.api.recordDeposit(c.id, { bankAccountId: this.dep.accountId, slipRefNo: this.dep.slip.trim(), depositDate: this.dep.date }).subscribe({
+      next: res => {
+        this.depSaving.set(false);
+        this.col.set(res.data!);
+        this.toast.add({ severity: 'success', summary: 'Deposit', detail: `${c.receiptType} ${c.receiptNo}: deposit recorded.` });
+        this.load();
+      },
+      error: err => { this.depSaving.set(false); this.toast.add({ severity: 'error', summary: 'Deposit', detail: err?.error?.message ?? 'Could not save the deposit.' }); }
+    });
+  }
+
   select(row: CollectionListItemDto) {
     this.returning.set(false); this.reason.set(''); this.note.set('');
     this.pane.set('receipt'); this.bankFor = null; this.bankRows.set([]);
     this.api.get(row.id).subscribe(res => {
       const c = res.data!;
       this.col.set(c);
+      this.prepDeposit(c);
       this.clearPreview();
       const first = c.attachments[0];
       if (first) this.preview(c.id, first.id, first.contentType);
