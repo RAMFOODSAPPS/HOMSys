@@ -148,8 +148,10 @@ export interface CollectionDto {
   missingSiDocs: number; canUpdateDocs: boolean;
   /** PDC: the account it will be deposited into, named at encoding. */
   depositoryAccountId: number | null; depositoryBank: string | null;
-  /** The encoder's full name (createdBy is the username). */
-  createdByName: string | null;
+  /** The encoder's full name (createdBy is the username) and assigned branch(es). */
+  createdByName: string | null; createdByBranch: string | null;
+  /** PDC deposited before verification: the Finance Verifier approves its bank match (verifying); else the CNC Verifier. */
+  pdcMatchByFinance: boolean;
 }
 
 // ── Remittance Advice (NKA chains) ──────────────────────────────────────────

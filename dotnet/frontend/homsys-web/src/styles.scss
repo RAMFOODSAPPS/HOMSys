@@ -774,7 +774,18 @@ body.rc-resizing { cursor: col-resize !important; user-select: none; }
   .prev-tools .sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
   .prev-title { flex-shrink: 0; padding: 10px 16px 0; font-size: 13px; text-align: center; }
   .prev-body { flex: 1; min-height: 0; overflow: auto; padding: 16px; display: flex; align-items: flex-start; justify-content: center; }
-  .prev-body img { max-width: 100%; transform-origin: top center; transition: transform .15s; background: #fff; border: 1px solid var(--line); border-radius: 8px;
+  /* Image preview: zoom = width, drag to scroll with a grab hand (2026-11-23). */
+  .prev-body.img { display: block; cursor: grab; user-select: none; }
+  .prev-body.img.grabbing { cursor: grabbing; }
+  .prev-body.img img { display: block; margin: 0 auto; max-width: none; }
+  .prev-foot { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px 6px 14px;
+               border-top: 1px solid var(--line); background: #fff; min-width: 0; }
+  .prev-foot .prev-name { flex: 1; min-width: 0; font-size: 12px; }
+  .prev-foot .sel.sm { flex: 1; min-width: 0; max-width: none; }
+  .prev-foot .fn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .prev-foot .prev-tools { flex-shrink: 0; }
+  .prev-head .grow { flex: 1; }
+  .prev-body img { max-width: 100%; transform-origin: center; transition: transform .15s; background: #fff; border: 1px solid var(--line); border-radius: 8px;
                    box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 4px 12px rgba(15, 23, 42, .06); }
   .prev-body iframe { width: 100%; height: 100%; border: 0; background: #fff; border-radius: 8px; }
   .empty { padding: 32px 16px; text-align: center; font-size: 13px; color: var(--muted); }

@@ -217,6 +217,8 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
                     l.Reference, l.Description, l.MatchMethod, batch.MatchConfirmedAt != null, batch.MatchConfirmedBy))
                 .FirstOrDefaultAsync()
             : null;
+        var financePdc = await FinanceConfirmsPdcAsync(u, c);
+        var encoder = await EncoderAsync(c.CreatedBy);
         return new CollectionDto(
             c.Id, c.CollectionKey, c.SiteId, c.Site.Code, c.Site.Name,
             c.ReceiptType.ToString(), c.ReceiptNo, c.ReceiptDate, c.CustKey, c.CustName,
@@ -245,7 +247,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             c.History.OrderBy(h => h.Id).Select(h => new CollectionHistoryDto(h.Action, h.FromStatus, h.ToStatus, h.Reason,
                 Utc(h.At), h.By)).ToList(),
             bms, c.MultiCustomer, bankLine,
-            CanConfirmMatch: CanConfirmMatchThis(u, c, bankLine),
+            CanConfirmMatch: CanConfirmMatchThis(u, c, bankLine, financePdc),
             Missing: editable ? Missing(c) : [],
             HomsPostings: postings,
             CanRetryHoms: u.CanManage && postings.Any(p => p.Status is "Held" or "Failed"),
@@ -256,8 +258,8 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             MissingSiDocs: MissingSiDocs(c),
             CanUpdateDocs: MissingSiDocs(c) > 0 && await CanUpdateDocsAsync(u, c),
             DepositoryAccountId: c.DepositoryAccountId, DepositoryBank: c.DepositoryAccount?.Label,
-            CreatedByName: await db.Users.Where(x => x.Username == c.CreatedBy)
-                .Select(x => (x.FirstName + " " + x.LastName).Trim()).FirstOrDefaultAsync());
+            CreatedByName: encoder?.Name, CreatedByBranch: encoder?.Branch,
+            PdcMatchByFinance: financePdc);
     }
 
     /// <summary>Service Invoice deductions still without their scanned copy (they stay out of HOMS's ordeduc2 until then).</summary>
@@ -280,9 +282,33 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
 
     /// <summary>A verified CR whose automatic match is still pending (found after verification).
     /// While it's For Verification, Verify approves the match together with the entry.</summary>
-    private static bool CanConfirmMatchThis(CollectionUser u, Collection c, MatchedLineDto? line) =>
+    private static bool CanConfirmMatchThis(CollectionUser u, Collection c, MatchedLineDto? line, bool financePdc) =>
         u.CanVerify && line is { Confirmed: false } && c.VerificationStatus == VerificationStatus.Verified && c.PdcOutcome is null
-        && c.PaymentMode != PaymentMode.PostDatedCheck;   // a PDC's match is the CNC Verifier's (PDC Monitor)
+        && (c.PaymentMode != PaymentMode.PostDatedCheck || financePdc);   // else a PDC's match is the CNC Verifier's (PDC Monitor)
+
+    /// <summary>
+    /// Who confirms a PDC's bank match (user 2026-11-23): the Finance Verifier when the check was already deposited before
+    /// it was verified (deposit recorded at encoding or in the Verification Queue) — Verify approves it like a CR's, or
+    /// Approve bank match when the credit is found later; the CNC Verifier (PDC Monitor) when it was deposited after
+    /// verification (matured later). Four-eyes: a verifier who recorded the deposit leaves it to the CNC Verifier.
+    /// </summary>
+    private async Task<bool> FinanceConfirmsPdcAsync(CollectionUser u, Collection c)
+    {
+        if (!u.CanVerify || c.PaymentMode != PaymentMode.PostDatedCheck || c.DepositBatch is not { } b) return false;
+        if (c.VerifiedAt is { } verified && b.CreatedAt > verified) return false;
+        var by = (await DepositRecordersAsync([c.Id])).GetValueOrDefault(c.Id) ?? b.CreatedBy;
+        return !string.Equals(by, u.Name, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The encoder's full name and assigned branch(es) (collections branches, else their own site).</summary>
+    private async Task<(string Name, string? Branch)?> EncoderAsync(string username)
+    {
+        var x = await db.Users.Where(x => x.Username == username)
+            .Select(x => new { x.Id, Name = (x.FirstName + " " + x.LastName).Trim(), Site = x.Site != null ? x.Site.Name : null }).FirstOrDefaultAsync();
+        if (x is null) return null;
+        var branches = await db.UserBranches.Where(b => b.UserId == x.Id).OrderBy(b => b.Site.Name).Select(b => b.Site.Name).ToListAsync();
+        return (x.Name, branches.Count > 0 ? string.Join(", ", branches) : x.Site);
+    }
 
     // ── create / update ─────────────────────────────────────────────────────
 
@@ -723,9 +749,13 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         await homs.QueueAsync(c, isPdc ? HomsPostingKind.Rpdc : HomsPostingKind.Or, u.Name);
         if (isPdc)
         {
-            // A matured PDC's match is the CNC Verifier's to confirm; if they already confirmed its slip (another
-            // check on it was verified first), this one's JV follows its RPDC now.
-            if (c.DepositBatch?.MatchConfirmedAt is not null && c.PdcOutcome is null)
+            // Deposited before verification: the Finance Verifier approves its suggested match with Verify, which queues
+            // its JV after the RPDC (user 2026-11-23). Otherwise the match is the CNC Verifier's (PDC Monitor); if they
+            // already confirmed its slip (another check on it was verified first), this one's JV follows its RPDC now.
+            if (c.DepositBatch is { MatchedBankLineId: { } pdcLine, MatchConfirmedAt: null } pb && c.PdcOutcome is null
+                && await FinanceConfirmsPdcAsync(u, c) && await db.BankStatementLines.FindAsync(pdcLine) is { } pl)
+                await matcher.ConfirmAsync(pb, pl, u.Name);
+            else if (c.DepositBatch?.MatchConfirmedAt is not null && c.PdcOutcome is null)
                 await homs.QueueAsync(c, HomsPostingKind.PdcJv, u.Name);
         }
         // The verifier checked the CR against the bank statement: a suggested match is approved with it.
@@ -743,7 +773,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (c.DepositBatch is not { MatchedBankLineId: { } lineId } b || await db.BankStatementLines.FindAsync(lineId) is not { } line)
             return (null, "This collection has no bank match to approve.");
         if (b.MatchConfirmedAt is not null) return (null, "The bank match is already approved.");
-        if (await PdcSlipAsync(b.Id)) return (null, CncOnly);
+        if (await PdcSlipAsync(b.Id) && !await FinanceConfirmsPdcAsync(u, c)) return (null, CncOnly);
         if (c.VerificationStatus != VerificationStatus.Verified) return (null, "Verify the collection — that approves its bank match too.");
         await matcher.ConfirmAsync(b, line, u.Name);
         return await SaveAndReturnAsync(u, c);
@@ -760,7 +790,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (c.DepositBatch is not { MatchedBankLineId: { } lineId } b || await db.BankStatementLines.FindAsync(lineId) is not { } line)
             return (null, "This collection has no bank match to reject.");
         if (b.MatchConfirmedAt is not null) return (null, "The bank match is already approved — finance can unmatch it on the Bank Statement page.");
-        if (await PdcSlipAsync(b.Id)) return (null, CncOnly);
+        if (await PdcSlipAsync(b.Id) && !await FinanceConfirmsPdcAsync(u, c)) return (null, CncOnly);
         reason = reason?.Trim();
         await matcher.UnapplyAsync(b, line, u.Name, string.IsNullOrEmpty(reason) ? "Suggested match rejected by the verifier" : reason[..Math.Min(reason.Length, 400)], byFinance: true);
         return await SaveAndReturnAsync(u, c);

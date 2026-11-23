@@ -192,7 +192,7 @@ const SHORT_MODE: Record<string, string> = { Cash: 'CASH', Check: 'CHEQUE',PostD
             <div class="vq-bank" [class.ok]="b.confirmed">
               <span class="ico">✓</span>
               <div class="txt">
-                <span class="strong">{{ b.confirmed ? 'Bank match approved' + (b.confirmedBy ? ' by ' + b.confirmedBy : '') : (c.paymentMode === 'PostDatedCheck' ? 'Bank match found — the CNC Verifier confirms it on the PDC Monitor' : 'Bank match found — verifying approves it') }}</span>
+                <span class="strong">{{ b.confirmed ? 'Bank match approved' + (b.confirmedBy ? ' by ' + b.confirmedBy : '') : (c.paymentMode === 'PostDatedCheck' && !c.pdcMatchByFinance ? 'Bank match found — the CNC Verifier confirms it on the PDC Monitor' : 'Bank match found — verifying approves it') }}</span>
                 <span class="mono">{{ b.account }} · {{ b.txnDate | date:'MM/dd/yyyy' }} · credit {{ b.credit | number:'1.2-2' }}@if (b.reference) { · ref {{ b.reference }} }</span>
               </div>
               <button type="button" class="btn-sm" (click)="viewBank()">View in bank statement</button>
@@ -210,7 +210,7 @@ const SHORT_MODE: Record<string, string> = { Cash: 'CASH', Check: 'CHEQUE',PostD
               </div>
             }
             <div class="foot-bar">
-              <span class="muted enc">Encoded by {{ c.createdBy }}@if (c.createdByName) { - {{ c.createdByName }} }@if (c.submittedAt) { · submitted {{ c.submittedAt | date:'MM/dd/yyyy hh:mm a' }} }</span>
+              <span class="muted enc">Encoded by {{ c.createdBy }}@if (c.createdByName) { - {{ c.createdByName }} }@if (c.createdByBranch) { · {{ c.createdByBranch }} }@if (c.submittedAt) { · submitted {{ c.submittedAt | date:'MM/dd/yyyy hh:mm a' }} }</span>
               <div class="foot-btns">
                 @if (c.canConfirmMatch) {
                   <button type="button" class="btn btn-ret" [disabled]="busy()" (click)="matchAction(c, false)">Reject bank match</button>
@@ -240,26 +240,8 @@ const SHORT_MODE: Record<string, string> = { Cash: 'CASH', Check: 'CHEQUE',PostD
                 <button type="button" [class.on]="pane() === 'bank'" (click)="viewBank()">Bank statement</button>
               </div>
             }
-            <div class="prev-name">
-              @if (pane() === 'bank') {
-                <span>{{ col()?.bankLine?.account }} · {{ col()?.bankLine?.txnDate | date:'MM/dd/yyyy' }}</span>
-              } @else {
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"></path><path d="M14 3v5h5"></path></svg>
-              @if ((col()?.attachments?.length ?? 0) > 1) {
-                <select class="sel sm" [ngModel]="viewing()" (ngModelChange)="pick($event)">
-                  @for (a of col()!.attachments; track a.id) { <option [ngValue]="a.id">{{ a.fileName }}</option> }
-                </select>
-              } @else { <span>{{ fileName() || 'No soft copy' }}</span> }
-              }
-            </div>
+            <span class="grow"></span>
             <div class="prev-tools">
-              @if (imgUrl() && pane() === 'receipt') {
-                <button type="button" title="Zoom out" (click)="zoomBy(-0.25)">−</button>
-                <span class="mono muted zoom">{{ zoom() * 100 | number:'1.0-0' }}%</span>
-                <button type="button" title="Zoom in" (click)="zoomBy(0.25)">+</button>
-                <button type="button" title="Rotate" (click)="rot.set((rot() + 90) % 360)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 1 1-2.3-5.7"></path><path d="M20 4v5h-5"></path></svg></button>
-                <span class="sep"></span>
-              }
               <button type="button" title="Hide preview" (click)="showPreview.set(false)">×</button>
             </div>
           </div>
@@ -287,12 +269,36 @@ const SHORT_MODE: Record<string, string> = { Cash: 'CASH', Check: 'CHEQUE',PostD
             <!-- What the file is (its supporting-document type) and its note, above the preview (user 2026-11-23). -->
             <div class="prev-title"><span class="strong">{{ kindLabel(a.kind) }}</span>@if (a.note) { <span class="muted"> · {{ a.note }}</span> }</div>
           }
-          <div class="prev-body">
+          <div #pv class="prev-body" [class.img]="!!imgUrl() && !pdfUrl()" [class.grabbing]="dragging()"
+            (mousedown)="imgUrl() && dragStart($event, pv)" (mousemove)="dragMove($event, pv)" (mouseup)="dragEnd()" (mouseleave)="dragEnd()">
             @if (pdfUrl()) { <iframe [src]="pdfUrl()" title="Receipt"></iframe> }
-            @else if (imgUrl()) { <img [src]="imgUrl()" alt="Receipt" [style.transform]="'scale(' + zoom() + ') rotate(' + rot() + 'deg)'" /> }
+            @else if (imgUrl()) { <img [src]="imgUrl()" alt="Receipt" draggable="false" [style.width.%]="zoom() * 100" [style.transform]="'rotate(' + rot() + 'deg)'" /> }
             @else { <span class="muted">{{ col() ? 'No soft copy attached.' : '' }}</span> }
           </div>
           }
+          <!-- File selector and zoom under the preview (moved from the top bar, user 2026-11-23). -->
+          <div class="prev-foot">
+            <div class="prev-name">
+              @if (pane() === 'bank') {
+                <span>{{ col()?.bankLine?.account }} · {{ col()?.bankLine?.txnDate | date:'MM/dd/yyyy' }}</span>
+              } @else {
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"></path><path d="M14 3v5h5"></path></svg>
+              @if ((col()?.attachments?.length ?? 0) > 1) {
+                <select class="sel sm" [ngModel]="viewing()" (ngModelChange)="pick($event)">
+                  @for (a of col()!.attachments; track a.id) { <option [ngValue]="a.id">{{ a.fileName }}</option> }
+                </select>
+              } @else { <span class="fn">{{ fileName() || 'No soft copy' }}</span> }
+              }
+            </div>
+            @if (imgUrl() && pane() === 'receipt') {
+              <div class="prev-tools">
+                <button type="button" title="Zoom out" (click)="zoomBy(-0.25)">−</button>
+                <span class="mono muted zoom">{{ zoom() * 100 | number:'1.0-0' }}%</span>
+                <button type="button" title="Zoom in" (click)="zoomBy(0.25)">+</button>
+                <button type="button" title="Rotate" (click)="rot.set((rot() + 90) % 360)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 1 1-2.3-5.7"></path><path d="M20 4v5h-5"></path></svg></button>
+              </div>
+            }
+          </div>
         </section>
       }
     </div>
@@ -397,7 +403,7 @@ export class CollectionVerifyPageComponent implements OnInit, OnDestroy {
     if (c.deposit) items.push({ key: 'deposit', label: 'Deposit', value: `${c.deposit.bank}${c.deposit.slipRefNo ? ' slip ' + c.deposit.slipRefNo : ' (no reference)'}`,
       sub: `${d.transform(c.deposit.depositDate, 'MM/dd/yyyy')} · ${!c.bankLine ? 'not yet on the bank statement'
         : `bank credit ${d.transform(c.bankLine.txnDate, 'MM/dd/yyyy')} ₱ ${n.transform(c.bankLine.credit, '1.2-2')}${c.bankLine.reference ? ' ref ' + c.bankLine.reference : ''}`
-          + (c.bankLine.confirmed ? ' (approved)' : isPdc ? ' — the CNC Verifier confirms it (PDC Monitor)' : ' — verifying approves this match')}` });
+          + (c.bankLine.confirmed ? ' (approved)' : isPdc && !c.pdcMatchByFinance ? ' — the CNC Verifier confirms it (PDC Monitor)' : ' — verifying approves this match')}` });
     // A PDC the branch left undeposited (user 2026-11-23): its depository bank; the Finance Verifier enters the deposit.
     else if (isPdc) items.push({ key: 'deposit', label: 'Deposit', value: `Depository: ${c.depositoryBank ?? '—'}`,
       sub: `Not yet deposited · ${c.checkDate && c.checkDate > this.todayIso() ? 'matures ' + d.transform(c.checkDate, 'MM/dd/yyyy') : 'matured — enter the deposit below once it is on the slip'}` });
@@ -422,6 +428,22 @@ export class CollectionVerifyPageComponent implements OnInit, OnDestroy {
     if (this.progress().done < this.progress().total) return 'Tick each item to enable Verify.';
     return 'Ready to verify. The next receipt opens automatically.';
   });
+  /** Drag the receipt image to scroll it (grab hand). */
+  private drag: { x: number; y: number; left: number; top: number } | null = null;
+  dragging = signal(false);
+  dragStart(e: MouseEvent, el: HTMLElement) {
+    if (e.button !== 0) return;
+    this.drag = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
+    this.dragging.set(true);
+    e.preventDefault();
+  }
+  dragMove(e: MouseEvent, el: HTMLElement) {
+    if (!this.drag) return;
+    el.scrollLeft = this.drag.left - (e.clientX - this.drag.x);
+    el.scrollTop = this.drag.top - (e.clientY - this.drag.y);
+  }
+  dragEnd() { this.drag = null; this.dragging.set(false); }
+
   /** Supporting-document types, for the title above the preview. */
   docKinds = signal<CollectionDocumentKindDto[]>([]);
   viewed = computed(() => this.col()?.attachments.find(a => a.id === this.viewing()) ?? null);
