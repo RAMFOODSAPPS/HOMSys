@@ -689,18 +689,19 @@ body.rc-resizing { cursor: col-resize !important; user-select: none; }
   .prog .bar div { height: 100%; background: #16a34a; border-radius: 999px; transition: width .15s; }
   .link { border: 0; background: transparent; font: inherit; font-size: 12px; color: #b91c1c; cursor: pointer; padding: 0; }
   .vq-checks { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 4px 12px rgba(15, 23, 42, .06); }
-  .chk { width: 100%; text-align: left; font: inherit; border: 0; border-bottom: 1px solid var(--line-soft); background: #fff; padding: 9px 14px;
-         display: grid; grid-template-columns: 22px 110px minmax(0, 1fr); align-items: start; gap: 12px; cursor: pointer; color: var(--ink); }
+  .chk { width: 100%; text-align: left; font: inherit; border: 0; border-bottom: 1px solid var(--line-soft); background: #fff; padding: 6px 12px;
+         display: grid; grid-template-columns: 20px 92px minmax(0, 1fr); align-items: start; gap: 10px; cursor: pointer; color: var(--ink); }
   .chk:last-child { border-bottom: 0; }
   .chk:hover { background: var(--fill); }
   .chk.on { background: #f0fdf4; }
   .chk:disabled { cursor: default; }
-  .chk .box { width: 18px; height: 18px; margin-top: 1px; border-radius: 5px; border: 1.5px solid #cbd5e1; background: #fff; color: #fff;
+  .chk .box { width: 16px; height: 16px; margin-top: 1px; border-radius: 5px; border: 1.5px solid #cbd5e1; background: #fff; color: #fff;
               display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
   .chk.on .box { border-color: #16a34a; background: #16a34a; }
-  .chk .lbl { font-size: 12px; padding-top: 2px; }
-  .chk .val { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .chk .val > span:first-child { font-size: 14px; font-weight: 500; }
+  .chk .lbl { font-size: 11px; padding-top: 1px; }
+  .chk .val { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .chk .val > span:first-child { font-size: 12.5px; font-weight: 500; }
+  .chk .val > span:last-child { font-size: 11px; }
   .vq-inv { display: flex; flex-direction: column; gap: 8px; }
   .box-tbl { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
   .box-tbl .tbl { font-size: 11px; }
@@ -710,7 +711,9 @@ body.rc-resizing { cursor: col-resize !important; user-select: none; }
   .box-tbl .tbl th:last-child, .box-tbl .tbl td:last-child { padding-right: 14px; }
   .box-tbl .n { width: 28px; }
   .box-tbl .sub { font-size: 10px; color: var(--muted); }
-  .box-tbl .ded { font-family: 'IBM Plex Sans', system-ui, sans-serif; white-space: normal; text-align: right; }
+  /* td.ded: must outrank the nowrap of .box-tbl .tbl td, or long deductions spill into the next column. */
+  .box-tbl .tbl td.ded { font-family: 'IBM Plex Sans', system-ui, sans-serif; white-space: normal; overflow-wrap: anywhere; text-align: right; line-height: 1.35; }
+  .box-tbl .tbl td.ded > div + div { margin-top: 2px; }
   .box-tbl .nil { color: #94a3b8; }
   .inv-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 20px; padding: 9px 14px; border-top: 1px solid var(--line); background: var(--fill); font-size: 12px; color: var(--muted); }
   .inv-foot b { color: var(--ink); }

@@ -162,9 +162,9 @@ const SHORT_MODE: Record<string, string> = { Cash: 'CASH', Check: 'CHEQUE',PostD
                   <!-- Fixed layout: the money columns share one width so they line up evenly. -->
                   <table class="tbl" style="table-layout: fixed">
                     <colgroup>
-                      <col style="width: 40px" /><col style="width: 17%" />
-                      <col style="width: 14%" /><col style="width: 14%" /><col style="width: 14%" />
-                      <col /><col style="width: 14%" />
+                      <col style="width: 36px" /><col style="width: 14%" />
+                      <col style="width: 12%" /><col style="width: 10%" /><col style="width: 12%" />
+                      <col /><col style="width: 12%" />
                     </colgroup>
                     <thead><tr><th class="n">#</th><th>Invoice / date</th><th class="num">Total</th><th class="num">RFC</th><th class="num">Applied</th><th class="num">Deduction</th><th class="num" [pTooltip]="balanceHint(c)" tooltipPosition="top">{{ balanceLabel(c) }}</th></tr></thead>
                     <tbody class="mono">
