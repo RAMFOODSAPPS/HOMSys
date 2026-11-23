@@ -263,9 +263,13 @@ const NEW_KEY = '/collections';
                 </div>
               }
 
-              @if (raw().receiptType === 'CR') {
+              @if (raw().receiptType === 'CR' || !readOnly()) {
                 <div class="sub-box">
-                  <div class="sub-title">Deposit <span class="muted">· bank statement as of {{ asOf() ? (asOf() | date:'MM/dd/yyyy') : '—' }}</span></div>
+                  @if (raw().receiptType === 'CR') {
+                    <div class="sub-title">Deposit <span class="muted">· bank statement as of {{ asOf() ? (asOf() | date:'MM/dd/yyyy') : '—' }}</span></div>
+                  } @else {
+                    <div class="sub-title">Depository bank <span class="muted">· optional: fill in only if the branch already deposited the matured check</span></div>
+                  }
                   <div class="fields auto">
                     <div class="field"><span>Deposited into</span>
                       <p-select formControlName="depAccountId" [options]="depositAccounts()" optionLabel="label" optionValue="id"
@@ -1062,10 +1066,9 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
       bank: this.isCheck() ? v.bank?.trim() || null : null,
       checkNo: this.isCheck() ? v.checkNo?.trim() || null : null,
       checkDate: this.isCheck() ? this.iso(v.checkDate) : null,
-      // A PDC's deposit is recorded separately (Record PDC deposit), keep what is stored.
-      deposit: v.receiptType === 'CR'
-        ? (hasDeposit ? { bankAccountId: v.depAccountId, slipRefNo: v.depSlip?.trim() ?? '', depositDate: this.iso(v.depDate) ?? '' } : null)
-        : this.col()?.deposit ?? null,
+      // A PDC's deposit is optional here: filled in when the branch already deposited the matured check (NAGA
+      // 2026-11-23); otherwise it's recorded later with Record PDC deposit / the PDC Monitor.
+      deposit: hasDeposit ? { bankAccountId: v.depAccountId, slipRefNo: v.depSlip?.trim() ?? '', depositDate: this.iso(v.depDate) ?? '' } : null,
       remarks: v.remarks?.trim() || null,
       invoices: this.lines().map(l => ({ postedInvoiceId: l.postedInvoiceId, amountApplied: l.applied ?? 0 })),
       deductions: this.lines().flatMap(l => l.deds.filter(d => d.type && d.amount)
@@ -1077,6 +1080,10 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
     };
     if (dto.deposit && (!dto.deposit.bankAccountId || !dto.deposit.depositDate)) {
       this.toast.add({ severity: 'warn', summary: 'Validation', detail: 'Complete the deposit: bank account and date (the slip ref. no. is optional).' });
+      return;
+    }
+    if (dto.deposit && dto.paymentMode === 'PostDatedCheck' && dto.checkDate && dto.deposit.depositDate < dto.checkDate) {
+      this.toast.add({ severity: 'warn', summary: 'Validation', detail: "A post-dated check can't be deposited before its check date. Leave the depository bank blank until it matures." });
       return;
     }
     const c = this.col();

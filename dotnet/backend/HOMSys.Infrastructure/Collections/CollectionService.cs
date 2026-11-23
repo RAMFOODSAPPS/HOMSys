@@ -429,7 +429,15 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
 
         // Deposit slip: CR money is deposited before encoding; a PDC only on/after its check date.
         // An RA's CRs share the RA's slip (set by the RA, see AssignRaDepositAsync).
+        var depBefore = (c.DepositBatch, c.DepositBatch?.DepositDate);
         if (!InRemittance(c) && await AssignDepositAsync(c, dto.Deposit, mode, checkDate, u.Name) is { } batchError) return batchError;
+        // A PDC the branch already deposited (matured on arrival) can carry its deposit from encoding (NAGA 2026-11-23);
+        // logged like Record PDC deposit, so the PDC Monitor shows who recorded it (four-eyes on the CNC confirm).
+        if (mode == PaymentMode.PostDatedCheck && c.DepositBatch is { } pdcDep && depBefore != (pdcDep, pdcDep.DepositDate))
+        {
+            var slip = pdcDep.SlipRefNo;
+            History(c, "Deposit recorded", null, null, $"{pdcDep.Bank}{(slip.Length > 0 ? $" slip {slip}" : "")} on {pdcDep.DepositDate:yyyy-MM-dd}", u.Name);
+        }
 
         c.ReceiptType = rt;
         c.ReceiptNo = receiptNo;
