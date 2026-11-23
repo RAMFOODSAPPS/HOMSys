@@ -23,7 +23,7 @@ import { CollectionService } from '../../../core/services/collection.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { BankStatementService } from '../../../core/services/bank-statement.service';
 import {
-  ATTACHMENT_KINDS, attachmentKindLabel, BankAccountOptionDto, CollectionDto, CollectionSiteDto, DEDUCTION_REASONS, DeductionType, deductionName, ewtAccount,
+  CollectionDocumentKindDto, documentKindLabel, BankAccountOptionDto, CollectionDto, CollectionSiteDto, DEDUCTION_REASONS, DeductionType, deductionName, ewtAccount,
   OpenInvoiceDto, PAYMENT_MODES, PaymentMode, RECEIPT_TYPES, ReceiptType, SaveCollectionDto, statusLabel, statusSeverity
 } from '../../../core/models/collection.model';
 import { CollectionStep as Step, collectionSteps } from '../collection-steps';
@@ -504,7 +504,7 @@ const NEW_KEY = '/collections';
                         <a href="" (click)="$event.preventDefault(); view(a.id)">{{ a.fileName }}</a>
                         @if (c.canEdit || c.canUpdateDocs) {
                           <div class="file-kind">
-                            <p-select [ngModel]="a.kind === 'Unspecified' ? null : a.kind" (ngModelChange)="relabel(a.id, $event, a.note)" [options]="attachmentKinds"
+                            <p-select [ngModel]="a.kind === 'Unspecified' ? null : a.kind" (ngModelChange)="relabel(a.id, $event, a.note)" [options]="kindOptionsFor(a.kind)"
                               optionLabel="label" optionValue="value" placeholder="What is it?" appendTo="body" size="small" />
                             <input pInputText #noteIn [value]="a.note ?? ''" maxlength="100" placeholder="Note" class="file-note"
                               (blur)="noteIn.value !== (a.note ?? '') && relabel(a.id, a.kind, noteIn.value)" />
@@ -520,7 +520,7 @@ const NEW_KEY = '/collections';
                   @if (c.canEdit) {
                     <input #file type="file" accept=".pdf,.jpg,.jpeg,.png" multiple hidden (change)="upload(file)" />
                     <div class="upload-row">
-                      <p-select [(ngModel)]="uploadKind" [options]="attachmentKinds" optionLabel="label" optionValue="value" placeholder="What is it?" appendTo="body" size="small" />
+                      <p-select [(ngModel)]="uploadKind" [options]="attachmentKinds()" optionLabel="label" optionValue="value" placeholder="What is it?" appendTo="body" size="small" />
                       <button type="button" class="upload" [disabled]="uploading() || !uploadKind" (click)="file.click()"
                         [title]="uploadKind ? '' : 'Pick what the file is first'">{{ uploading() ? 'Uploading…' : 'Upload file' }}</button>
                     </div>
@@ -532,7 +532,7 @@ const NEW_KEY = '/collections';
                       <div class="file-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"></path><path d="M14 3v5h5"></path></svg></div>
                       <div class="file-txt"><span class="strong">{{ f.file.name }}</span>
                         <div class="file-kind">
-                          <p-select [(ngModel)]="f.kind" [options]="attachmentKinds" optionLabel="label" optionValue="value" appendTo="body" size="small" />
+                          <p-select [(ngModel)]="f.kind" [options]="attachmentKinds()" optionLabel="label" optionValue="value" appendTo="body" size="small" />
                           <input pInputText [(ngModel)]="f.note" maxlength="100" placeholder="Note" class="file-note" />
                         </div>
                         <span>{{ f.file.size / 1024 | number:'1.0-0' }} KB · attached when you save</span></div>
@@ -541,7 +541,7 @@ const NEW_KEY = '/collections';
                   } @empty { <div class="muted">No file attached yet.</div> }
                   <input #newFile type="file" accept=".pdf,.jpg,.jpeg,.png" multiple hidden (change)="upload(newFile)" />
                   <div class="upload-row">
-                    <p-select [(ngModel)]="uploadKind" [options]="attachmentKinds" optionLabel="label" optionValue="value" placeholder="What is it?" appendTo="body" size="small" />
+                    <p-select [(ngModel)]="uploadKind" [options]="attachmentKinds()" optionLabel="label" optionValue="value" placeholder="What is it?" appendTo="body" size="small" />
                     <button type="button" class="upload" [disabled]="!uploadKind" (click)="newFile.click()"
                       [title]="uploadKind ? '' : 'Pick what the file is first'">Upload file</button>
                   </div>
@@ -641,8 +641,23 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
   protected readonly receiptTypes = RECEIPT_TYPES;
   // Finance's full selection list (user 2026-11-21); each sets the type and HOMS's ordeduc2 code.
   protected readonly deductionReasons = DEDUCTION_REASONS;
-  protected readonly attachmentKinds = ATTACHMENT_KINDS;
-  protected readonly kindLabel = attachmentKindLabel;
+  /** Supporting-document types (maintained by the Finance Manager), inactive ones too for older files' labels. */
+  protected docKinds = signal<CollectionDocumentKindDto[]>([]);
+  /** "What is it?" options: active types offered for the selected receipt type, in the maintained order — a CR shows
+   *  Collection Receipt but not the PR / AR copies (user 2026-11-23). */
+  protected attachmentKinds = computed(() => {
+    const rt = this.raw().receiptType ?? '';
+    return this.docKinds().filter(k => k.isActive && (!k.receiptTypes.length || k.receiptTypes.includes(rt)))
+      .map(k => ({ label: k.label, value: k.code }));
+  });
+  /** A saved file's options: also its own type when that isn't offered now (deactivated, or another receipt type). */
+  protected kindOptionsFor(code: string | null) {
+    const opts = this.attachmentKinds();
+    const own = this.docKinds().find(k => k.code === code);
+    return !own || opts.some(o => o.value === code) ? opts : [...opts, { label: own.label, value: own.code }];
+  }
+  protected kindLabel(code: string | null | undefined) { return documentKindLabel(this.docKinds(), code); }
+
   protected readonly statusLabel = statusLabel;
   protected readonly sev = statusSeverity;
   protected dedName(d: { type: DeductionType | null; reason: string | null }) { return d.type ? deductionName(d.type, d.reason) : '—'; }
@@ -765,6 +780,7 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
       this.loadAccounts(this.form.getRawValue().siteId);
     });
     this.bank.asOf().subscribe(res => this.asOf.set(res.data?.asOfDate ?? null));
+    this.api.documentKinds(true).subscribe(res => this.docKinds.set(res.data ?? []));
     this.handleNavState();
     this.navSub = this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => this.handleNavState());
     this.tabBar.registerDirtyChecker(NEW_KEY, () => this.isNewDirty());

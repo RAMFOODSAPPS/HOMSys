@@ -186,18 +186,16 @@ export interface CollectionAttachmentDto {
   id: number; fileName: string; contentType: string; size: number; uploadedAt: string; uploadedBy: string; kind: string; note: string | null;
 }
 
-/** What an uploaded file is (user 2026-11-21). Unspecified = uploaded before kinds existed. */
-export const ATTACHMENT_KINDS: { label: string; value: string }[] = [
-  { label: 'Deposit Slip', value: 'DepositSlip' },
-  { label: 'Customer Slip', value: 'CustomerSlip' },
-  { label: 'Service Invoice', value: 'ServiceInvoice' },
-  { label: '2307', value: 'Form2307' },
-  { label: 'Check', value: 'Check' },
-  { label: 'Remittance Advice', value: 'RemittanceAdvice' },
-  { label: 'Other', value: 'Other' },
-];
-export const attachmentKindLabel = (k: string | null | undefined) =>
-  ATTACHMENT_KINDS.find(x => x.value === k)?.label ?? (k === 'Unspecified' || !k ? 'Unspecified' : k);
+/** What an uploaded file is: the maintained list of supporting-document types (Finance Manager, user 2026-11-23).
+ * receiptTypes: offered only for these (empty = all) — the receipt's own copy shows only for its receipt type.
+ * code is what a file stores; 'Unspecified' = uploaded before types existed. */
+export interface CollectionDocumentKindDto {
+  id: number; code: string; label: string; receiptTypes: string[];
+  sortOrder: number; isActive: boolean; isSystem: boolean; inUse: number;
+}
+export interface SaveDocumentKindDto { label: string; receiptTypes: string[]; sortOrder: number; isActive: boolean; }
+export const documentKindLabel = (kinds: CollectionDocumentKindDto[], k: string | null | undefined) =>
+  kinds.find(x => x.code === k)?.label ?? (k === 'Unspecified' || !k ? 'Unspecified' : k);
 
 export interface RemittanceCrDto {
   id: number; receiptNo: string; dcrNo: number | null; receiptDate: string; desk: number | null; deskLabel: string | null; amount: number;

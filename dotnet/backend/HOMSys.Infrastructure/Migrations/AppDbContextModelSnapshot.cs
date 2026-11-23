@@ -801,6 +801,165 @@ namespace HOMSys.Infrastructure.Migrations
                     b.ToTable("CollectionDeductions");
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.CollectionDocumentKind", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("ReceiptTypes")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("CollectionDocumentKinds");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Code = "CollectionReceipt",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "Collection Receipt (CR)",
+                            ReceiptTypes = "CR",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Code = "ProvisionalReceipt",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "Provisional Receipt (PR)",
+                            ReceiptTypes = "PR",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Code = "AcknowledgementReceipt",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "Acknowledgement Receipt (AR)",
+                            ReceiptTypes = "AR",
+                            SortOrder = 30
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Code = "Dcr",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "DCR (Daily Collection Report)",
+                            ReceiptTypes = "",
+                            SortOrder = 40
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Code = "DepositSlip",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "Deposit Slip",
+                            ReceiptTypes = "",
+                            SortOrder = 50
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Code = "CustomerSlip",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "Customer Slip",
+                            ReceiptTypes = "",
+                            SortOrder = 60
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Code = "ServiceInvoice",
+                            IsActive = true,
+                            IsSystem = true,
+                            Label = "Service Invoice",
+                            ReceiptTypes = "",
+                            SortOrder = 70
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Code = "Form2307",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "2307",
+                            ReceiptTypes = "",
+                            SortOrder = 80
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Code = "Check",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "Check",
+                            ReceiptTypes = "",
+                            SortOrder = 90
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Code = "RemittanceAdvice",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "Remittance Advice",
+                            ReceiptTypes = "",
+                            SortOrder = 100
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Code = "Other",
+                            IsActive = true,
+                            IsSystem = true,
+                            Label = "Other",
+                            ReceiptTypes = "",
+                            SortOrder = 990
+                        });
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.CollectionHistory", b =>
                 {
                     b.Property<int>("Id")

@@ -1,3 +1,4 @@
+import { DocumentKindsDialogComponent } from '../document-kinds-dialog.component';
 import { AfterViewInit, Component, computed, ElementRef, HostListener, inject, OnDestroy, OnInit, signal, ViewChild } from '@angular/core';
 import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -70,9 +71,10 @@ interface Action { label: string; kind: 'primary' | 'secondary' | 'danger'; run:
   standalone: true,
   providers: [MessageService],
   imports: [SelectModule, DatePickerModule, InputTextModule, ToggleSwitchModule, TooltipModule, ToastModule, FormsModule,
-    DatePipe, DecimalPipe, NgTemplateOutlet],
+    DatePipe, DecimalPipe, NgTemplateOutlet, DocumentKindsDialogComponent],
   template: `
     <p-toast position="top-right" />
+    @if (canManage) { <app-document-kinds-dialog [(visible)]="kindsVisible" /> }
     <div class="pdcm cll">
       <section #sec class="pdcm-panel cll-fit" [style.height.px]="view() === 'split' ? secH() : null">
         <div class="pdcm-tabs">
@@ -99,6 +101,7 @@ interface Action { label: string; kind: 'primary' | 'secondary' | 'danger'; run:
           <div class="cll-filter-acts">
             @if (canEncode) { <button type="button" class="pdcm-btn primary" (click)="newCollection()">+ New collection</button> }
             <button type="button" class="pdcm-btn" (click)="exportSvc.exportExcel('Collections', cols, exportRows())">Export</button>
+            @if (canManage) { <button type="button" class="pdcm-btn" (click)="kindsVisible = true" title="Supporting document types">Document types</button> }
           </div>
         </div>
 
@@ -457,6 +460,9 @@ export class CollectionListPageComponent implements OnInit, AfterViewInit, OnDes
   protected readonly min = Math.min;
   protected readonly sizeOpts = [10, 25, 50, 100].map(n => ({ label: `${n} / page`, value: n }));
   protected readonly canEncode = this.auth.hasPermission('collections-encode') || this.auth.isAdmin();
+  /** Finance Manager / Admin: maintains the supporting document types. */
+  protected readonly canManage = this.auth.hasPermission('collections-manage') || this.auth.isAdmin();
+  kindsVisible = false;
 
   all = signal<CollectionListItemDto[]>([]);
   sites = signal<CollectionSiteDto[]>([]);

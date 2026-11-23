@@ -32,5 +32,5 @@ public static class AttachmentKinds
 {
     public const string Unspecified = "Unspecified", DepositSlip = "DepositSlip", CustomerSlip = "CustomerSlip",
         ServiceInvoice = "ServiceInvoice", Form2307 = "Form2307", Check = "Check", RemittanceAdvice = "RemittanceAdvice", Other = "Other";
-    public static readonly string[] All = [DepositSlip, CustomerSlip, ServiceInvoice, Form2307, Check, RemittanceAdvice, Other, Unspecified];
+    /// <summary>The kinds offered are maintained in CollectionDocumentKinds (user 2026-11-23); these are the codes the code itself uses.</summary>
 }

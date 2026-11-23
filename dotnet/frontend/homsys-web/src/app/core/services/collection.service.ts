@@ -6,8 +6,8 @@ import { environment } from '../../../environments/environment';
 import { compressUpload } from '../utils/compress-upload';
 import { ApiResponse } from '../models/auth.model';
 import {
-  BankAccountOptionDto, CollectionDto, CollectionHistoryDto, InvoiceHistoryDto, CollectionListItemDto, CollectionSiteDto, DepositInfoDto, InvoiceSyncRequestStatusDto,
-  LodLetterDto, OpenInvoiceDto, PdcItemDto, SaveCollectionDto, SettlementCandidateDto
+  BankAccountOptionDto, CollectionDocumentKindDto, CollectionDto, CollectionHistoryDto, InvoiceHistoryDto, CollectionListItemDto, CollectionSiteDto, DepositInfoDto, InvoiceSyncRequestStatusDto,
+  LodLetterDto, OpenInvoiceDto, PdcItemDto, SaveCollectionDto, SaveDocumentKindDto, SettlementCandidateDto
 } from '../models/collection.model';
 
 @Injectable({ providedIn: 'root' })
@@ -112,7 +112,17 @@ export class CollectionService {
     return this.http.get<ApiResponse<CollectionHistoryDto[]>>(`${environment.apiUrl}/pdc/${id}/history`);
   }
 
-  /** Photos are shrunk in the browser first (compressUpload); kind = what the file is (ATTACHMENT_KINDS). */
+  /** Supporting-document types; all = also inactive ones (older files' labels, maintenance). */
+  documentKinds(all = false) {
+    return this.http.get<ApiResponse<CollectionDocumentKindDto[]>>(`${environment.apiUrl}/collection-document-kinds`, { params: { all } });
+  }
+  saveDocumentKind(id: number | null, dto: SaveDocumentKindDto) {
+    const url = `${environment.apiUrl}/collection-document-kinds`;
+    return id ? this.http.put<ApiResponse<CollectionDocumentKindDto>>(`${url}/${id}`, dto) : this.http.post<ApiResponse<CollectionDocumentKindDto>>(url, dto);
+  }
+  deleteDocumentKind(id: number) { return this.http.delete<ApiResponse<null>>(`${environment.apiUrl}/collection-document-kinds/${id}`); }
+
+  /** Photos are shrunk in the browser first (compressUpload); kind = what the file is (a document type's code). */
   addAttachment(id: number, file: File, kind?: string | null, note?: string | null) {
     return from(compressUpload(file)).pipe(switchMap(f => {
       const fd = new FormData();

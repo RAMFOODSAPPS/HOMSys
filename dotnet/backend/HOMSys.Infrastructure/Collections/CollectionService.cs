@@ -1159,7 +1159,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (!await CanWriteSiteAsync(u, c.SiteId)) return (null, "You are not assigned to this branch.");
         if (c.VerificationStatus is not (VerificationStatus.Draft or VerificationStatus.Returned))
             return (null, "Attachments can only be changed before the collection is submitted.");
-        if (KindOf(kind) is not { } k) return (null, "Choose what the file is (Deposit Slip, Customer Slip, ...).");
+        if (await KindOfAsync(kind) is not { } k) return (null, "Choose what the file is (Collection Receipt, Deposit Slip, ...).");
 
         var (a, error) = await StoreAttachmentAsync(c, fileName, content, length, u.Name);
         if (a is null) return (null, error);
@@ -1169,9 +1169,15 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         return await SaveAndReturnAsync(u, c);
     }
 
-    /// <summary>A known attachment kind (null/blank = Unspecified), or null when it isn't one.</summary>
-    private static string? KindOf(string? kind) => string.IsNullOrWhiteSpace(kind) ? AttachmentKinds.Unspecified
-        : AttachmentKinds.All.FirstOrDefault(k => k.Equals(kind.Trim(), StringComparison.OrdinalIgnoreCase));
+    /// <summary>An active document type's code (maintained list, CollectionDocumentKinds; null/blank = Unspecified), the
+    /// file's current one even if since deactivated (keep), or null when it isn't one.</summary>
+    private async Task<string?> KindOfAsync(string? kind, string? keep = null)
+    {
+        if (string.IsNullOrWhiteSpace(kind)) return AttachmentKinds.Unspecified;
+        var code = kind.Trim();
+        if (keep is not null && code.Equals(keep, StringComparison.OrdinalIgnoreCase)) return keep;
+        return await db.CollectionDocumentKinds.Where(k => k.IsActive && k.Code == code).Select(k => k.Code).FirstOrDefaultAsync();
+    }
 
     private static string? NoteOf(string? note) => note?.Trim() is { Length: > 0 } n ? n[..Math.Min(n.Length, 100)] : null;
 
@@ -1185,7 +1191,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             return (null, "You can't change this collection's files.");
         var a = c.Attachments.FirstOrDefault(x => x.Id == attachmentId);
         if (a is null) return (null, "Attachment not found.");
-        if (KindOf(dto.Kind) is not { } k) return (null, "Choose what the file is.");
+        if (await KindOfAsync(dto.Kind, a.Kind) is not { } k) return (null, "Choose what the file is.");
         if (k != AttachmentKinds.ServiceInvoice && c.Deductions.Any(d => d.AttachmentId == a.Id))
             return (null, "This file is a Service Invoice deduction's scanned copy — it stays a Service Invoice.");
         a.Kind = k;
