@@ -511,6 +511,9 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<int?>("DepositBatchId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("DepositoryAccountId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("HomsDeptCode")
                         .HasColumnType("int");
 
@@ -674,6 +677,8 @@ namespace HOMSys.Infrastructure.Migrations
 
                     b.HasIndex("DepositBatchId");
 
+                    b.HasIndex("DepositoryAccountId");
+
                     b.HasIndex("RemittanceId");
 
                     b.HasIndex("SettledByCollectionId")
@@ -714,6 +719,17 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Unspecified");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<long>("Size")
                         .HasColumnType("bigint");
 
@@ -747,11 +763,25 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int?>("AttachmentId")
+                        .HasColumnType("int");
+
                     b.Property<int>("CollectionId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("HomsSentAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("PostedInvoiceId")
                         .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<string>("Reference")
                         .HasMaxLength(100)
@@ -767,11 +797,172 @@ namespace HOMSys.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AttachmentId");
+
                     b.HasIndex("CollectionId");
 
                     b.HasIndex("PostedInvoiceId");
 
                     b.ToTable("CollectionDeductions");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.CollectionDocumentKind", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("ReceiptTypes")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("CollectionDocumentKinds");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Code = "CollectionReceipt",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "Collection Receipt (CR)",
+                            ReceiptTypes = "CR",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Code = "ProvisionalReceipt",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "Provisional Receipt (PR)",
+                            ReceiptTypes = "PR",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Code = "AcknowledgementReceipt",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "Acknowledgement Receipt (AR)",
+                            ReceiptTypes = "AR",
+                            SortOrder = 30
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Code = "Dcr",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "DCR (Daily Collection Report)",
+                            ReceiptTypes = "",
+                            SortOrder = 40
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Code = "DepositSlip",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "Deposit Slip",
+                            ReceiptTypes = "",
+                            SortOrder = 50
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Code = "CustomerSlip",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "Customer Slip",
+                            ReceiptTypes = "",
+                            SortOrder = 60
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Code = "ServiceInvoice",
+                            IsActive = true,
+                            IsSystem = true,
+                            Label = "Service Invoice",
+                            ReceiptTypes = "",
+                            SortOrder = 70
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Code = "Form2307",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "2307",
+                            ReceiptTypes = "",
+                            SortOrder = 80
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Code = "Check",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "Check",
+                            ReceiptTypes = "",
+                            SortOrder = 90
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Code = "RemittanceAdvice",
+                            IsActive = true,
+                            IsSystem = false,
+                            Label = "Remittance Advice",
+                            ReceiptTypes = "",
+                            SortOrder = 100
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Code = "Other",
+                            IsActive = true,
+                            IsSystem = true,
+                            Label = "Other",
+                            ReceiptTypes = "",
+                            SortOrder = 990
+                        });
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.CollectionHistory", b =>
@@ -1778,6 +1969,13 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("DeductionIds")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DeductionsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("DocId")
                         .HasColumnType("int");
@@ -8840,6 +9038,11 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasForeignKey("DepositBatchId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("HOMSys.Domain.Entities.BankAccount", "DepositoryAccount")
+                        .WithMany()
+                        .HasForeignKey("DepositoryAccountId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("HOMSys.Domain.Entities.Remittance", "Remittance")
                         .WithMany("Collections")
                         .HasForeignKey("RemittanceId")
@@ -8857,6 +9060,8 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("DepositBatch");
+
+                    b.Navigation("DepositoryAccount");
 
                     b.Navigation("Remittance");
 
@@ -8878,6 +9083,11 @@ namespace HOMSys.Infrastructure.Migrations
 
             modelBuilder.Entity("HOMSys.Domain.Entities.CollectionDeduction", b =>
                 {
+                    b.HasOne("HOMSys.Domain.Entities.CollectionAttachment", "Attachment")
+                        .WithMany()
+                        .HasForeignKey("AttachmentId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("HOMSys.Domain.Entities.Collection", "Collection")
                         .WithMany("Deductions")
                         .HasForeignKey("CollectionId")
@@ -8889,6 +9099,8 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasForeignKey("PostedInvoiceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Attachment");
 
                     b.Navigation("Collection");
 

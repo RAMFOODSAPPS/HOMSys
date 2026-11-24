@@ -5,7 +5,7 @@ export type ReceiptType = 'CR' | 'PR' | 'AR';
  *  Cash and Check stay in the type only for rows saved before that. */
 export type PaymentMode = 'Cash' | 'Check' | 'PostDatedCheck' | 'BankTransfer';
 /** RfcBoRtv: returns / bad orders / RTV a chain deducts on its Remittance Advice (RA CRs only). */
-export type DeductionType = 'Ewt2307' | 'Discount' | 'Penalty' | 'Other' | 'RfcBoRtv';
+export type DeductionType = 'Ewt2307' | 'Discount' | 'Penalty' | 'Other' | 'RfcBoRtv' | 'DisplayAllowance' | 'ServiceInvoice';
 
 export interface CollectionSiteDto { id: number; code: string; name: string; }
 
@@ -71,10 +71,14 @@ export interface SaveCollectionDto {
   checkNo: string | null;
   checkDate: string | null;
   deposit: DepositInfoDto | null;
+  /** PDC: the account it will be deposited into (required); deposit = once it is actually deposited. */
+  depositoryAccountId?: number | null;
   remarks: string | null;
   invoices: { postedInvoiceId: number; amountApplied: number }[];
   /** with2307 / acctNo: EWT only — "2307 att." and the HOMS GL of its CEWT line (10507 with the 2307, else 10508). */
-  deductions: { postedInvoiceId: number; type: DeductionType; amount: number; reference: string | null; with2307: boolean; acctNo: number | null }[];
+  /** description: what an "Other" is (required for Other). attachmentId: a Service Invoice's scanned copy (one of the collection's files). */
+  deductions: { postedInvoiceId: number; type: DeductionType; amount: number; reference: string | null; with2307: boolean; acctNo: number | null;
+    description?: string | null; attachmentId?: number | null; reason?: string | null }[];
   /** Chain account paying several customers' invoices on this one receipt (e.g. SM). */
   multiCustomer?: boolean;
   /** HOMS DCRNO; required. */
@@ -92,6 +96,8 @@ export interface CollectionListItemDto {
   homs: 'Queued' | 'Posted' | 'Held' | 'Failed' | null;
   /** Part of a Remittance Advice: submitted / verified / returned with it. */
   remittanceId: number | null;
+  /** Service Invoice deductions still without their scanned copy (not in HOMS's ordeduc2 yet). */
+  missingSiDocs: number;
 }
 
 /** The BMS posted OR (OH03/OD03 mirror) a collection was found in. */
@@ -116,9 +122,11 @@ export interface CollectionDto {
   createdBy: string; createdAt: string; submittedAt: string | null; verifiedAt: string | null; verifiedBy: string | null;
   canEdit: boolean; canSubmit: boolean; canVoid: boolean; canRecordDeposit: boolean; canVerify: boolean;
   invoices: CollectionInvoiceDto[];
+  /** homsSentAt: when its row went into HOMS's ordeduc2 (never for EWT, an OR line). */
   deductions: { id: number; postedInvoiceId: number; docNo: number; type: DeductionType; amount: number; reference: string | null;
-    with2307: boolean; acctNo: number | null }[];
-  attachments: { id: number; fileName: string; contentType: string; size: number; uploadedAt: string; uploadedBy: string }[];
+    with2307: boolean; acctNo: number | null; description: string | null; attachmentId: number | null; homsSentAt: string | null;
+    reason: string | null }[];
+  attachments: CollectionAttachmentDto[];
   history: CollectionHistoryDto[];
   bms: BmsPostingDto | null;
   multiCustomer: boolean;
@@ -136,6 +144,14 @@ export interface CollectionDto {
   canPulloutPdc: boolean;
   pdcPullout: string | null; pdcPulloutReason: string | null;
   pdcPulloutRequestedAt: string | null; pdcPulloutRequestedBy: string | null;
+  /** Service Invoice deductions without their scanned copy; canUpdateDocs = may upload them ("Update supporting documents"). */
+  missingSiDocs: number; canUpdateDocs: boolean;
+  /** PDC: the account it will be deposited into, named at encoding. */
+  depositoryAccountId: number | null; depositoryBank: string | null;
+  /** The encoder's full name (createdBy is the username) and assigned branch(es). */
+  createdByName: string | null; createdByBranch: string | null;
+  /** PDC deposited before verification: the Finance Verifier approves its bank match (verifying); else the CNC Verifier. */
+  pdcMatchByFinance: boolean;
 }
 
 // ── Remittance Advice (NKA chains) ──────────────────────────────────────────
@@ -173,7 +189,21 @@ export interface RemittanceLineDto {
   rfcs: { rfcNo: number; rfcDate: string | null; amount: number }[] | null;
 }
 
-export interface CollectionAttachmentDto { id: number; fileName: string; contentType: string; size: number; uploadedAt: string; uploadedBy: string; }
+/** kind: what the file is (see ATTACHMENT_KINDS); note: a short label. */
+export interface CollectionAttachmentDto {
+  id: number; fileName: string; contentType: string; size: number; uploadedAt: string; uploadedBy: string; kind: string; note: string | null;
+}
+
+/** What an uploaded file is: the maintained list of supporting-document types (Finance Manager, user 2026-11-23).
+ * receiptTypes: offered only for these (empty = all) — the receipt's own copy shows only for its receipt type.
+ * code is what a file stores; 'Unspecified' = uploaded before types existed. */
+export interface CollectionDocumentKindDto {
+  id: number; code: string; label: string; receiptTypes: string[];
+  sortOrder: number; isActive: boolean; isSystem: boolean; inUse: number;
+}
+export interface SaveDocumentKindDto { label: string; receiptTypes: string[]; sortOrder: number; isActive: boolean; }
+export const documentKindLabel = (kinds: CollectionDocumentKindDto[], k: string | null | undefined) =>
+  kinds.find(x => x.code === k)?.label ?? (k === 'Unspecified' || !k ? 'Unspecified' : k);
 
 export interface RemittanceCrDto {
   id: number; receiptNo: string; dcrNo: number | null; receiptDate: string; desk: number | null; deskLabel: string | null; amount: number;
@@ -221,6 +251,8 @@ export interface PdcItemDto {
   canConfirmMatch: boolean; canRecordDeposit: boolean;
   /** Bounced PDCs only: Letter of Dishonor -> settled by a new CR, or endorsed for legal action. */
   dishonor: PdcDishonorDto | null;
+  /** The account named at encoding (pre-fills the deposit). */
+  depositoryAccountId: number | null; depositoryBank: string | null;
 }
 
 /** One posted invoice's payment history; counts = false for voided receipts and bounced PDCs. */
@@ -286,9 +318,44 @@ export const DEDUCTION_TYPES: { label: string; value: DeductionType }[] = [
   { label: 'EWT (2307)', value: 'Ewt2307' },
   { label: 'Discount', value: 'Discount' },
   { label: 'Penalty', value: 'Penalty' },
-  { label: 'Other', value: 'Other' },
   { label: 'RFC/BO/RTV', value: 'RfcBoRtv' },
+  { label: 'Display Allowance', value: 'DisplayAllowance' },
+  { label: 'Service Invoice', value: 'ServiceInvoice' },
+  { label: 'Other', value: 'Other' },
 ];
+
+/** Finance's deduction selections (user 2026-11-21), same codes as the server's DeductionReasons: each sets the type and
+ *  HOMS's ordeduc2 deduction code (shown as `homs`). EWT (2307) stays an OR line (2307 att. → 10507 / 10508). */
+export interface DeductionReason { value: string; label: string; type: DeductionType; homs: string; }
+export const DEDUCTION_REASONS: DeductionReason[] = [
+  { value: 'EWT', label: 'EWT (2307)', type: 'Ewt2307', homs: 'CEWIT (OR line)' },
+  { value: 'RETURN_CUSTOMER', label: 'Return from customer (RUD/RSR/RFC)', type: 'RfcBoRtv', homs: '11 BO RETURNS' },
+  { value: 'RFC_AMOUNT_DIFF', label: 'RFC amount difference', type: 'RfcBoRtv', homs: '11 BO RETURNS' },
+  { value: 'UNREFLECTED_DISCOUNT', label: 'Unreflected discount (regular, VIP, special, etc.)', type: 'Discount', homs: '1 UNREFLECTED DISCOUNT' },
+  { value: 'REBATES', label: 'Rebates (price roll back, in-store bundling, etc.)', type: 'Discount', homs: '1 UNREFLECTED DISCOUNT' },
+  { value: 'MERCH_PENALTY', label: 'Merchandisers penalty – charge to APEX', type: 'Penalty', homs: '16 SERVICE PENALTY' },
+  { value: 'CUSTOMER_PENALTY', label: 'Customer penalty (confiscated items, late deliveries, etc.)', type: 'Penalty', homs: '16 SERVICE PENALTY' },
+  { value: 'SALESMAN_PENALTY', label: 'Penalty to salesman (no unserved letter, price list, etc.)', type: 'Penalty', homs: '16 SERVICE PENALTY' },
+  { value: 'SHORT_PAYMENT', label: 'Short payment', type: 'Other', homs: '12 SHORT PAYMENT' },
+  { value: 'LISTING_FEE', label: 'Listing fee', type: 'Other', homs: '3 LISTING FEE' },
+  { value: 'MASS_DISPLAY', label: 'Mass display', type: 'Other', homs: '2 MASS DISPLAY' },
+  { value: 'FREIGHT', label: 'Freight charges / allowance', type: 'Other', homs: '9 FREIGHT CHARGES' },
+  { value: 'DISPLAY_RENTAL', label: 'Display rental allowance', type: 'DisplayAllowance', homs: '15 OTHERS' },
+  { value: 'PARKING_FEE', label: 'Parking fee', type: 'Other', homs: '15 OTHERS' },
+  { value: 'ADDBACK', label: 'Addback – unauthorized deductions', type: 'Other', homs: '15 OTHERS' },
+  { value: 'SALARY_WAGE', label: 'Salary wage allowance', type: 'Other', homs: '15 OTHERS' },
+  { value: 'TSAC', label: 'TSAC (AFCES to customer / government customer)', type: 'Other', homs: '15 OTHERS' },
+  { value: 'PRICE_DISCREPANCY', label: 'Price discrepancy', type: 'Other', homs: '15 OTHERS' },
+  { value: 'VENDORS_FEE', label: 'Vendors fee', type: 'Other', homs: '15 OTHERS' },
+  { value: 'SUPPORT', label: 'All kinds of support (opening, promo, anniv., Christmas, etc.)', type: 'Other', homs: '15 OTHERS' },
+  { value: 'PROCESSING_FEE', label: 'Processing fee', type: 'Other', homs: '15 OTHERS' },
+  { value: 'LABOR_CHARGES', label: 'Labor charges', type: 'Other', homs: '15 OTHERS' },
+  { value: 'SERVICE_INVOICE', label: 'Service Invoice (scanned copy required)', type: 'ServiceInvoice', homs: '15 OTHERS' },
+  { value: 'OTHERS', label: 'Others (unspecified) – describe', type: 'Other', homs: '15 OTHERS' },
+];
+/** A saved deduction's selection name (rows from before the list fall back to their type's name). */
+export const deductionName = (type: string | null | undefined, reason?: string | null) =>
+  DEDUCTION_REASONS.find(r => r.value === reason)?.label ?? DEDUCTION_TYPES.find(t => t.value === type)?.label ?? type ?? '—';
 
 /** Tag colour per status (verification, payment or PDC state). */
 export function statusSeverity(s: string | null | undefined): 'success' | 'info' | 'warn' | 'danger' | 'secondary' | 'contrast' {

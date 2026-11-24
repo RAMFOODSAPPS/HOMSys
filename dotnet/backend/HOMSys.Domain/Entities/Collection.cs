@@ -41,6 +41,11 @@ public class Collection
     public int? DepositBatchId { get; set; }
     public DepositBatch? DepositBatch { get; set; }
 
+    /// <summary>PDC: the company account the check will be deposited into, named at encoding (required, user 2026-11-23);
+    /// the deposit itself (date, slip) is recorded once it matures and is deposited, into this account by default.</summary>
+    public int? DepositoryAccountId { get; set; }
+    public BankAccount? DepositoryAccount { get; set; }
+
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Draft;
     public VerificationStatus VerificationStatus { get; set; } = VerificationStatus.Draft;
     public string? ReturnReason { get; set; }
@@ -142,6 +147,20 @@ public class CollectionDeduction
     public bool With2307 { get; set; }
     /// <summary>EWT only: the HOMS GL its CEWT line is debited to. Defaults to 10507 with a 2307, 10508 without; the custodian may type another.</summary>
     public int? AcctNo { get; set; }
+    /// <summary>The selection picked from finance's list (DeductionReasons code, e.g. "PARKING_FEE"); it sets Type and the
+    /// HOMS ordeduc2 DEDCODE. Null on rows saved before the list (they stand for their type's default selection).</summary>
+    public string? Reason { get; set; }
+    /// <summary>What an "Others (unspecified)" deduction is (required for it, user 2026-11-21).</summary>
+    public string? Description { get; set; }
+    /// <summary>Service Invoice only: its scanned copy (one of the collection's Attachments). Without it the row stays out of
+    /// HOMS's ordeduc2, so it shows as a hanging balance in the VFP report (user 2026-11-21).</summary>
+    public int? AttachmentId { get; set; }
+    public CollectionAttachment? Attachment { get; set; }
+    /// <summary>When its row was written into HOMS's ordeduc2 (never for EWT, which is an OR line). Null = not yet.</summary>
+    public DateTime? HomsSentAt { get; set; }
+
+    /// <summary>Goes to ordeduc2 now: not EWT, not sent yet, and a Service Invoice only with its scanned copy.</summary>
+    public bool ReadyForHoms => Type != DeductionType.Ewt2307 && HomsSentAt is null && (Type != DeductionType.ServiceInvoice || AttachmentId is not null);
 
     public static int DefaultEwtAccount(bool with2307) => with2307 ? EwtWith2307Account : EwtWithout2307Account;
 }
@@ -158,6 +177,9 @@ public class CollectionAttachment
     public long Size { get; set; }
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
     public string UploadedBy { get; set; } = string.Empty;
+    /// <summary>See AttachmentKinds (Deposit Slip, Customer Slip, Service Invoice, ...).</summary>
+    public string Kind { get; set; } = AttachmentKinds.Unspecified;
+    public string? Note { get; set; }
 }
 
 /// <summary>Audit trail: every status change, edit, return, void and PDC tag.</summary>

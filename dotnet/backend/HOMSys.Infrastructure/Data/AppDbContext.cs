@@ -77,6 +77,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<CollectionInvoice> CollectionInvoices => Set<CollectionInvoice>();
     public DbSet<CollectionDeduction> CollectionDeductions => Set<CollectionDeduction>();
     public DbSet<CollectionAttachment> CollectionAttachments => Set<CollectionAttachment>();
+    public DbSet<CollectionDocumentKind> CollectionDocumentKinds => Set<CollectionDocumentKind>();
     public DbSet<CollectionHistory> CollectionHistories => Set<CollectionHistory>();
     // Remittance Advice (NKA): one payment holding 1+ CRs filled from the chain's RA Excel.
     public DbSet<Remittance> Remittances => Set<Remittance>();
@@ -819,6 +820,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.PdcPulloutRequestedBy).HasMaxLength(100);
             e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.DepositBatch).WithMany(d => d.Collections).HasForeignKey(x => x.DepositBatchId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.DepositoryAccount).WithMany().HasForeignKey(x => x.DepositoryAccountId).OnDelete(DeleteBehavior.NoAction);
             // One replacement CR settles at most one bounced PDC.
             e.HasOne(x => x.SettledByCollection).WithMany().HasForeignKey(x => x.SettledByCollectionId).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => x.SettledByCollectionId).IsUnique().HasFilter("[SettledByCollectionId] IS NOT NULL");
@@ -885,8 +887,35 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Amount).HasPrecision(18, 2);
             e.Property(x => x.Reference).HasMaxLength(100);
+            e.Property(x => x.Description).HasMaxLength(100);
+            e.Property(x => x.Reason).HasMaxLength(30);
+            e.Ignore(x => x.ReadyForHoms);
+            e.HasOne(x => x.Attachment).WithMany().HasForeignKey(x => x.AttachmentId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(x => x.Collection).WithMany(c => c.Deductions).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.PostedInvoice).WithMany().HasForeignKey(x => x.PostedInvoiceId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Supporting-document types, maintained by the Finance Manager (user 2026-11-23). Seeded with the 2026-11-21 list
+        // plus the receipt's own copy per receipt type (offered only for that type) and the DCR.
+        b.Entity<CollectionDocumentKind>(e =>
+        {
+            e.Property(x => x.Code).HasMaxLength(30).IsRequired();
+            e.Property(x => x.Label).HasMaxLength(60).IsRequired();
+            e.Property(x => x.ReceiptTypes).HasMaxLength(20).IsRequired();
+            e.Property(x => x.UpdatedBy).HasMaxLength(100);
+            e.HasIndex(x => x.Code).IsUnique();
+            e.HasData(
+                new CollectionDocumentKind { Id = 1, Code = "CollectionReceipt", Label = "Collection Receipt (CR)", ReceiptTypes = "CR", SortOrder = 10 },
+                new CollectionDocumentKind { Id = 2, Code = "ProvisionalReceipt", Label = "Provisional Receipt (PR)", ReceiptTypes = "PR", SortOrder = 20 },
+                new CollectionDocumentKind { Id = 3, Code = "AcknowledgementReceipt", Label = "Acknowledgement Receipt (AR)", ReceiptTypes = "AR", SortOrder = 30 },
+                new CollectionDocumentKind { Id = 4, Code = "Dcr", Label = "DCR (Daily Collection Report)", SortOrder = 40 },
+                new CollectionDocumentKind { Id = 5, Code = AttachmentKinds.DepositSlip, Label = "Deposit Slip", SortOrder = 50 },
+                new CollectionDocumentKind { Id = 6, Code = AttachmentKinds.CustomerSlip, Label = "Customer Slip", SortOrder = 60 },
+                new CollectionDocumentKind { Id = 7, Code = AttachmentKinds.ServiceInvoice, Label = "Service Invoice", SortOrder = 70, IsSystem = true },
+                new CollectionDocumentKind { Id = 8, Code = AttachmentKinds.Form2307, Label = "2307", SortOrder = 80 },
+                new CollectionDocumentKind { Id = 9, Code = AttachmentKinds.Check, Label = "Check", SortOrder = 90 },
+                new CollectionDocumentKind { Id = 10, Code = AttachmentKinds.RemittanceAdvice, Label = "Remittance Advice", SortOrder = 100 },
+                new CollectionDocumentKind { Id = 11, Code = AttachmentKinds.Other, Label = "Other", SortOrder = 990, IsSystem = true });
         });
 
         b.Entity<CollectionAttachment>(e =>
@@ -895,6 +924,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.FileName).HasMaxLength(200).IsRequired();
             e.Property(x => x.ContentType).HasMaxLength(100);
             e.Property(x => x.UploadedBy).HasMaxLength(100);
+            e.Property(x => x.Kind).HasMaxLength(30).IsRequired().HasDefaultValue("Unspecified");
+            e.Property(x => x.Note).HasMaxLength(100);
             e.HasOne(x => x.Collection).WithMany(c => c.Attachments).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Cascade);
         });
 

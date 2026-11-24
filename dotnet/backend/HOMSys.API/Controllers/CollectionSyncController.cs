@@ -13,6 +13,7 @@ namespace HOMSys.API.Controllers;
 public class CollectionSyncController(
     PostedInvoiceSyncImporter importer,
     ArofInvoiceSyncImporter arof,
+    ArofMirrorImporter arofMirror,
     InvoiceSyncRequestService requests,
     BmsCollectionImporter bms,
     HomsPostingService postings,
@@ -68,6 +69,38 @@ public class CollectionSyncController(
         var result = await arof.ApplyAsync(request);
         logger.LogInformation("AROF4HO invoice sync: {Result}", result);
         return Ok(new { success = true, data = result.ToString() });
+    }
+
+    /// <summary>The AROF4HO mirror as HOMSys holds it (file header + block fingerprints), for the watcher's compare.</summary>
+    [HttpGet("arof-mirror")]
+    public async Task<IActionResult> ArofMirrorState([FromHeader(Name = "X-Api-Key")] string? apiKey)
+    {
+        if (!KeyOk(apiKey)) return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+        return Ok(new { success = true, data = await arofMirror.GetStateAsync() });
+    }
+
+    /// <summary>Changed / new AROF4HO blocks (whole, by RecNo span) + the file header; rebuilds the invoices they name.</summary>
+    [HttpPost("arof-mirror")]
+    [DisableRequestSizeLimit]
+    public async Task<IActionResult> ArofMirrorPush([FromHeader(Name = "X-Api-Key")] string? apiKey, [FromBody] ArofMirrorPush? request)
+    {
+        if (!KeyOk(apiKey)) return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+        if (request?.File is null) return BadRequest(new { success = false, message = "file is required." });
+        var (result, error) = await arofMirror.ApplyAsync(request);
+        if (error is not null) return BadRequest(new { success = false, message = error });
+        logger.LogInformation("AROF4HO mirror push: {Result}", result);
+        return Ok(new { success = true, data = result!.ToString() });
+    }
+
+    /// <summary>One page of rebuilding the invoices / RFCs from the AROF4HO mirror (after a big push, or as a repair).</summary>
+    [HttpPost("arof-mirror/rebuild")]
+    public async Task<IActionResult> ArofMirrorRebuild([FromHeader(Name = "X-Api-Key")] string? apiKey, [FromBody] ArofRebuildRequest? request)
+    {
+        if (!KeyOk(apiKey)) return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+        if (request is null) return BadRequest(new { success = false, message = "afterNo / take are required." });
+        var result = await arofMirror.RebuildAsync(request.AfterNo, request.Take);
+        logger.LogInformation("AROF4HO invoice rebuild after {After}: {Result}", request.AfterNo, result);
+        return Ok(new { success = true, data = result });
     }
 
     /// <summary>Watcher poll (every minute): verified collections to write into the HOMS ARCHIVES files.</summary>

@@ -22,5 +22,15 @@ public static class DishonorStates
         Overdue = "Overdue", ForLegal = "For Legal Action", Settled = "Settled";
 }
 
-/// <summary>RfcBoRtv: returns / bad orders / RTV a chain deducts on its Remittance Advice (beyond RFCs already posted in BMS).</summary>
-public enum DeductionType { Ewt2307, Discount, Penalty, Other, RfcBoRtv }
+/// <summary>RfcBoRtv: returns / bad orders / RTV (from a Remittance Advice or encoded by hand).
+/// ServiceInvoice: the customer's own bill to RAM that closes a hanging balance; it reaches HOMS (ordeduc2) only once its
+/// scanned copy is attached (user 2026-11-21). Every type but EWT goes to HOMS's ordeduc2, see HomsPostingBuilder.DeductionRows.</summary>
+public enum DeductionType { Ewt2307, Discount, Penalty, Other, RfcBoRtv, DisplayAllowance, ServiceInvoice }
+
+/// <summary>What an uploaded file is (user 2026-11-21). Unspecified = uploaded before kinds existed.</summary>
+public static class AttachmentKinds
+{
+    public const string Unspecified = "Unspecified", DepositSlip = "DepositSlip", CustomerSlip = "CustomerSlip",
+        ServiceInvoice = "ServiceInvoice", Form2307 = "Form2307", Check = "Check", RemittanceAdvice = "RemittanceAdvice", Other = "Other";
+    /// <summary>The kinds offered are maintained in CollectionDocumentKinds (user 2026-11-23); these are the codes the code itself uses.</summary>
+}

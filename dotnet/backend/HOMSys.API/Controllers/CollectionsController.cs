@@ -94,11 +94,27 @@ public class CollectionsController(CollectionService collections) : ControllerBa
 
     [HttpPost("{id:int}/attachments"), Authorize(Policy = "collections-encode")]
     [RequestSizeLimit(CollectionService.MaxAttachmentBytes + 1024 * 1024)]
-    public async Task<IActionResult> AddAttachment(int id, IFormFile? file)
+    public async Task<IActionResult> AddAttachment(int id, IFormFile? file, [FromForm] string? kind, [FromForm] string? note)
     {
         if (file is null) return BadRequest(new { success = false, message = "Choose a file." });
         await using var stream = file.OpenReadStream();
-        return Result(await collections.AddAttachmentAsync(Me, id, file.FileName, stream, file.Length));
+        return Result(await collections.AddAttachmentAsync(Me, id, file.FileName, stream, file.Length, kind, note));
+    }
+
+    /// <summary>Relabel a file: what it is (Deposit Slip, Customer Slip, Service Invoice, ...) and a short note.</summary>
+    [HttpPatch("{id:int}/attachments/{attachmentId:int}")]
+    public async Task<IActionResult> LabelAttachment(int id, int attachmentId, [FromBody] AttachmentLabelDto dto) =>
+        Result(await collections.LabelAttachmentAsync(Me, id, attachmentId, dto));
+
+    /// <summary>"Update supporting documents": a Service Invoice deduction's scanned copy, also after verification
+    /// (the service checks who may). Sends the row to HOMS's ordeduc2 when its OR / RPDC is already there.</summary>
+    [HttpPost("{id:int}/deductions/{deductionId:int}/document")]
+    [RequestSizeLimit(CollectionService.MaxAttachmentBytes + 1024 * 1024)]
+    public async Task<IActionResult> AddDeductionDocument(int id, int deductionId, IFormFile? file)
+    {
+        if (file is null) return BadRequest(new { success = false, message = "Choose a file." });
+        await using var stream = file.OpenReadStream();
+        return Result(await collections.AddDeductionDocumentAsync(Me, id, deductionId, file.FileName, stream, file.Length));
     }
 
     [HttpDelete("{id:int}/attachments/{attachmentId:int}"), Authorize(Policy = "collections-encode")]

@@ -89,7 +89,7 @@ function statusOf(p: PdcItemDto, win: number): StatusKey {
     case 'Bounced': return 'bounced';
     case 'Succeeded': return 'succeeded';
     case 'Deposited': return 'dep_tag';
-    case 'Matured': return !p.depositSlipRef ? 'for_claim' : p.bankLine && !p.bankLine.confirmed ? 'cnc' : 'dep_recorded';
+    case 'Matured': return !p.depositDate ? 'for_claim' : p.bankLine && !p.bankLine.confirmed ? 'cnc' : 'dep_recorded';
     default: return p.daysToMaturity <= win ? 'upcoming' : 'later';
   }
 }
@@ -362,10 +362,10 @@ interface Row { p: PdcItemDto; st: StatusKey; meta: StatusMeta; action: Act | nu
                   <div><small>Customer code</small><span class="pdcm-mono">{{ r.p.custKey }}</span></div>
                   <div><small>Customer</small>{{ r.p.custName }}</div>
                 </div>
-                @if (r.p.depositSlipRef || r.p.outcome || r.p.dishonor) {
+                @if (r.p.depositDate || r.p.outcome || r.p.dishonor) {
                   <div class="cll-sec"><span>Deposit &amp; outcome</span><i></i></div>
                   <div class="cll-fields">
-                    @if (r.p.depositSlipRef) { <div><small>Deposit</small>{{ r.p.depositBank }} {{ r.p.depositSlipRef }} · {{ r.p.depositDate | date:'MM/dd/yyyy' }}</div> }
+                    @if (r.p.depositDate) { <div><small>Deposit</small>{{ r.p.depositBank }} {{ r.p.depositSlipRef }} · {{ r.p.depositDate | date:'MM/dd/yyyy' }}</div> }
                     @if (r.p.bankLine; as b) { <div><small>Bank statement</small>{{ b.confirmed ? 'Confirmed by ' + b.confirmedBy : 'Credit found, awaiting CNC' }} · {{ b.txnDate | date:'MM/dd/yyyy' }}</div> }
                     @if (r.p.outcome) { <div><small>Outcome</small>{{ r.p.outcome }} {{ r.p.outcomeDate | date:'MM/dd/yyyy' }}@if (r.p.outcomeReason) { · {{ r.p.outcomeReason }} }</div> }
                     @if (r.p.dishonor?.lodDueDate; as due) { <div><small>Settle by</small>{{ due | date:'MM/dd/yyyy' }}</div> }
@@ -421,6 +421,7 @@ interface Row { p: PdcItemDto; st: StatusKey; meta: StatusMeta; action: Act | nu
               <dt>Drawee / check no.</dt><dd>{{ p.bank }} #{{ p.checkNo }}</dd>
               <dt>Check date</dt><dd>{{ p.checkDate | date:'MM/dd/yyyy' }}</dd>
               <dt>Amount</dt><dd class="amt">{{ p.amount | number:'1.2-2' }}</dd>
+              <dt>Depository bank</dt><dd>{{ p.depositoryBank || '—' }}</dd>
             </dl>
           </section>
           <section>
@@ -734,8 +735,8 @@ export class PdcPageComponent implements OnInit, OnDestroy {
       { label: 'Received', state: 'done', at: p.receiptDate, dateOnly: true },
       { label: 'Verified', state: p.verificationStatus === 'Verified' ? 'done' : 'todo', tip: p.verificationStatus === 'Verified' ? null : statusLabel(p.verificationStatus) },
       { label: 'Matured', state: p.daysToMaturity <= 0 ? 'done' : 'todo', at: p.checkDate, dateOnly: true, tip: 'Check date' },
-      { label: 'Deposit recorded', state: p.depositSlipRef ? 'done' : 'todo', at: p.depositDate, dateOnly: true,
-        tip: p.depositSlipRef ? `${p.depositBank ?? ''} slip ${p.depositSlipRef}` : null },
+      { label: 'Deposit recorded', state: p.depositDate ? 'done' : 'todo', at: p.depositDate, dateOnly: true,
+        tip: p.depositDate ? `${p.depositBank ?? ''}${p.depositSlipRef ? ' slip ' + p.depositSlipRef : ''}` : null },
       { label: 'Bank credit found', state: p.bankLine ? 'done' : 'todo', at: p.bankLine?.txnDate, dateOnly: true, tip: p.bankLine?.account ?? null },
       { label: 'CNC confirmed', state: p.bankLine?.confirmed || ['Deposited', 'Succeeded'].includes(p.state) ? 'done' : 'todo', tip: p.bankLine?.confirmedBy ?? null },
     ];
@@ -1006,12 +1007,15 @@ export class PdcPageComponent implements OnInit, OnDestroy {
 
   openDeposit(p: PdcItemDto) {
     this.depositing.set(p);
-    this.dep = { accountId: null, slip: '', date: new Date() };
+    this.dep = { accountId: p.depositoryAccountId, slip: '', date: new Date() };
     this.depAccounts.set([]);
     this.api.pdcDepositAccounts(p.siteId).subscribe(res => {
       const list = res.data ?? [];
+      // The depository named at encoding stays offered even if it was since unlinked.
+      if (p.depositoryAccountId && !list.some(a => a.id === p.depositoryAccountId))
+        list.push({ id: p.depositoryAccountId, label: p.depositoryBank ?? '', accountName: '' });
       this.depAccounts.set(list);
-      if (list.length === 1) this.dep.accountId = list[0].id;
+      if (!this.dep.accountId && list.length === 1) this.dep.accountId = list[0].id;
     });
     this.depositVisible = true;
   }

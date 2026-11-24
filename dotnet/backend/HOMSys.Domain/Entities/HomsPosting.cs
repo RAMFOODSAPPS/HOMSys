@@ -3,8 +3,9 @@ namespace HOMSys.Domain.Entities;
 /// <summary>Or = CR into OH03/OD03; Rpdc = PR/AR into GH03/GD03 (DR 10552 / CR 10301);
 /// PdcJv = matured PDC's JV into GH03/GD03 (DR cash in bank + 10507 / CR 10552);
 /// RpdcCancel = a pulled-out / replaced PDC's RPDC cancelled in HOMS the way HOMS cancels one
-/// (header STATUS "3" / STATDESC "Cancelled", header and lines deleted) — LinesJson = the RPDC's lines, to recognise it.</summary>
-public enum HomsPostingKind { Or, Rpdc, PdcJv, RpdcCancel }
+/// (header STATUS "3" / STATDESC "Cancelled", header and lines deleted) — LinesJson = the RPDC's lines, to recognise it.
+/// Deductions = ordeduc2 rows only, for an OR / RPDC already in HOMS (e.g. a Service Invoice whose scanned copy came later).</summary>
+public enum HomsPostingKind { Or, Rpdc, PdcJv, RpdcCancel, Deductions }
 
 /// <summary>Held = needs a fix in HOMSys first (reason in Message); Cancelled = the collection was voided before it was written.</summary>
 public enum HomsPostingStatus { Pending, Processing, Done, Held, Failed, Cancelled }
@@ -33,6 +34,10 @@ public class HomsPosting
 
     public string HeaderJson { get; set; } = "{}";
     public string LinesJson { get; set; } = "[]";
+    /// <summary>Rows for HOMS's ordeduc2 (F:\HOMS\RAM\ordeduc2.DBF): every deduction but EWT (user 2026-11-21).</summary>
+    public string DeductionsJson { get; set; } = "[]";
+    /// <summary>CollectionDeduction ids those rows came from (comma-separated), stamped HomsSentAt when written.</summary>
+    public string? DeductionIds { get; set; }
 
     /// <summary>The file it was written to ("OH031026.dbf").</summary>
     public string? File { get; set; }

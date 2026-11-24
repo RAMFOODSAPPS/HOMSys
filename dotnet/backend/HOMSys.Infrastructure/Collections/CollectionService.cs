@@ -16,7 +16,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
     InvoiceSyncRequestService invoiceRequests, IConfiguration config)
 {
     public const long MaxAttachmentBytes = 10 * 1024 * 1024;
-    private const int MaxAttachments = 10;
+    private const int MaxAttachments = 20;
 
     private static DateOnly Today => AnalyticsService.TodayPh();
     private static DateTime Utc(DateTime d) => DateTime.SpecifyKind(d, DateTimeKind.Utc);
@@ -156,12 +156,14 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
                 : c.HomsPostings.Any(p => p.Status == HomsPostingStatus.Held) ? "Held"
                 : c.HomsPostings.Any(p => p.Status == HomsPostingStatus.Pending || p.Status == HomsPostingStatus.Processing) ? "Queued"
                 : c.HomsPostings.Any(p => p.Status == HomsPostingStatus.Done) ? "Posted" : null,
+            MissingSi = c.VerificationStatus == VerificationStatus.Voided ? 0
+                : c.Deductions.Count(d => d.Type == DeductionType.ServiceInvoice && d.AttachmentId == null),
         }).ToListAsync();
         return rows.Select(c => new CollectionListItemDto(c.Id, c.SiteId, c.SiteCode, c.ReceiptType.ToString(), c.ReceiptNo,
             c.ReceiptDate, c.CustKey, c.CustName, c.PaymentMode.ToString(), c.Amount, c.UnappliedAmount, c.InvoiceCount,
             c.PaymentStatus.ToString(), c.VerificationStatus.ToString(),
             PdcState(c.PaymentMode, c.PaymentStatus, c.CheckDate, c.PdcOutcome, today), c.CheckDate, c.Slip,
-            c.CreatedBy, Utc(c.CreatedAt), c.SubmittedAt is { } s ? Utc(s) : null, c.InBms, c.BankMatch, c.Homs, c.RemittanceId)).ToList();
+            c.CreatedBy, Utc(c.CreatedAt), c.SubmittedAt is { } s ? Utc(s) : null, c.InBms, c.BankMatch, c.Homs, c.RemittanceId, c.MissingSi)).ToList();
     }
 
     /// <summary>Immature / Matured / Deposited / Succeeded / Bounced for PDCs; null otherwise.</summary>
@@ -172,7 +174,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         : checkDate > today ? "Immature" : "Matured";
 
     private Task<Collection?> LoadAsync(int id) => db.Collections
-        .Include(c => c.Site).Include(c => c.DepositBatch)
+        .Include(c => c.Site).Include(c => c.DepositBatch).Include(c => c.DepositoryAccount)
         .Include(c => c.Invoices).ThenInclude(i => i.PostedInvoice)
         .Include(c => c.Deductions).ThenInclude(d => d.PostedInvoice)
         .Include(c => c.Attachments).Include(c => c.History).Include(c => c.RemittanceLines)
@@ -215,6 +217,8 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
                     l.Reference, l.Description, l.MatchMethod, batch.MatchConfirmedAt != null, batch.MatchConfirmedBy))
                 .FirstOrDefaultAsync()
             : null;
+        var financePdc = await FinanceConfirmsPdcAsync(u, c);
+        var encoder = await EncoderAsync(c.CreatedBy);
         return new CollectionDto(
             c.Id, c.CollectionKey, c.SiteId, c.Site.Code, c.Site.Name,
             c.ReceiptType.ToString(), c.ReceiptNo, c.ReceiptDate, c.CustKey, c.CustName,
@@ -236,21 +240,37 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             CanVerify: CanVerifyThis(u, c),
             invoices,
             c.Deductions.OrderBy(d => d.Id).Select(d => new CollectionDeductionDto(d.Id, d.PostedInvoiceId, d.PostedInvoice.DocNo,
-                d.Type.ToString(), d.Amount, d.Reference, d.With2307, d.AcctNo)).ToList(),
+                d.Type.ToString(), d.Amount, d.Reference, d.With2307, d.AcctNo, d.Description, d.AttachmentId,
+                d.HomsSentAt is { } hs ? Utc(hs) : null, DeductionReasons.Of(d).Code)).ToList(),
             c.Attachments.OrderBy(a => a.Id).Select(a => new CollectionAttachmentDto(a.Id, a.FileName, a.ContentType, a.Size,
-                Utc(a.UploadedAt), a.UploadedBy)).ToList(),
+                Utc(a.UploadedAt), a.UploadedBy, a.Kind, a.Note)).ToList(),
             c.History.OrderBy(h => h.Id).Select(h => new CollectionHistoryDto(h.Action, h.FromStatus, h.ToStatus, h.Reason,
                 Utc(h.At), h.By)).ToList(),
             bms, c.MultiCustomer, bankLine,
-            CanConfirmMatch: CanConfirmMatchThis(u, c, bankLine),
+            CanConfirmMatch: CanConfirmMatchThis(u, c, bankLine, financePdc),
             Missing: editable ? Missing(c) : [],
             HomsPostings: postings,
             CanRetryHoms: u.CanManage && postings.Any(p => p.Status is "Held" or "Failed"),
             RemittanceId: c.RemittanceId, HomsDeptCode: c.HomsDeptCode, DcrNo: c.DcrNo,
             CanPulloutPdc: u.CanManage && isPdc && await PulloutGateAsync(c) is null,
             PdcPullout: c.PdcPullout, PdcPulloutReason: c.PdcPulloutReason,
-            PdcPulloutRequestedAt: c.PdcPulloutRequestedAt is { } pr ? Utc(pr) : null, PdcPulloutRequestedBy: c.PdcPulloutRequestedBy);
+            PdcPulloutRequestedAt: c.PdcPulloutRequestedAt is { } pr ? Utc(pr) : null, PdcPulloutRequestedBy: c.PdcPulloutRequestedBy,
+            MissingSiDocs: MissingSiDocs(c),
+            CanUpdateDocs: MissingSiDocs(c) > 0 && await CanUpdateDocsAsync(u, c),
+            DepositoryAccountId: c.DepositoryAccountId, DepositoryBank: c.DepositoryAccount?.Label,
+            CreatedByName: encoder?.Name, CreatedByBranch: encoder?.Branch,
+            PdcMatchByFinance: financePdc);
     }
+
+    /// <summary>Service Invoice deductions still without their scanned copy (they stay out of HOMS's ordeduc2 until then).</summary>
+    private static int MissingSiDocs(Collection c) => c.VerificationStatus == VerificationStatus.Voided ? 0
+        : c.Deductions.Count(d => d.Type == DeductionType.ServiceInvoice && d.AttachmentId is null);
+
+    /// <summary>"Update supporting documents": the branch's custodian, the Custodian Verifier, Finance and admin — in any status
+    /// but voided, so a Service Invoice's copy can follow after the collection is verified and posted (user 2026-11-21).</summary>
+    private async Task<bool> CanUpdateDocsAsync(CollectionUser u, Collection c) =>
+        c.VerificationStatus != VerificationStatus.Voided && c.PdcPulloutRequestedAt is null
+        && (u.CanVerify || u.CanManage || u.CanEncodeRa || await CanWriteSiteAsync(u, c.SiteId));
 
     /// <summary>Finance Manager, after fixing what held it (e.g. the deposit account's GL): build / send it again.</summary>
     public async Task<(CollectionDto? dto, string? error)> RetryHomsAsync(CollectionUser u, int id)
@@ -262,9 +282,33 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
 
     /// <summary>A verified CR whose automatic match is still pending (found after verification).
     /// While it's For Verification, Verify approves the match together with the entry.</summary>
-    private static bool CanConfirmMatchThis(CollectionUser u, Collection c, MatchedLineDto? line) =>
+    private static bool CanConfirmMatchThis(CollectionUser u, Collection c, MatchedLineDto? line, bool financePdc) =>
         u.CanVerify && line is { Confirmed: false } && c.VerificationStatus == VerificationStatus.Verified && c.PdcOutcome is null
-        && c.PaymentMode != PaymentMode.PostDatedCheck;   // a PDC's match is the CNC Verifier's (PDC Monitor)
+        && (c.PaymentMode != PaymentMode.PostDatedCheck || financePdc);   // else a PDC's match is the CNC Verifier's (PDC Monitor)
+
+    /// <summary>
+    /// Who confirms a PDC's bank match (user 2026-11-23): the Finance Verifier when the check was already deposited before
+    /// it was verified (deposit recorded at encoding or in the Verification Queue) — Verify approves it like a CR's, or
+    /// Approve bank match when the credit is found later; the CNC Verifier (PDC Monitor) when it was deposited after
+    /// verification (matured later). Four-eyes: a verifier who recorded the deposit leaves it to the CNC Verifier.
+    /// </summary>
+    private async Task<bool> FinanceConfirmsPdcAsync(CollectionUser u, Collection c)
+    {
+        if (!u.CanVerify || c.PaymentMode != PaymentMode.PostDatedCheck || c.DepositBatch is not { } b) return false;
+        if (c.VerifiedAt is { } verified && b.CreatedAt > verified) return false;
+        var by = (await DepositRecordersAsync([c.Id])).GetValueOrDefault(c.Id) ?? b.CreatedBy;
+        return !string.Equals(by, u.Name, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The encoder's full name and assigned branch(es) (collections branches, else their own site).</summary>
+    private async Task<(string Name, string? Branch)?> EncoderAsync(string username)
+    {
+        var x = await db.Users.Where(x => x.Username == username)
+            .Select(x => new { x.Id, Name = (x.FirstName + " " + x.LastName).Trim(), Site = x.Site != null ? x.Site.Name : null }).FirstOrDefaultAsync();
+        if (x is null) return null;
+        var branches = await db.UserBranches.Where(b => b.UserId == x.Id).OrderBy(b => b.Site.Name).Select(b => b.Site.Name).ToListAsync();
+        return (x.Name, branches.Count > 0 ? string.Join(", ", branches) : x.Site);
+    }
 
     // ── create / update ─────────────────────────────────────────────────────
 
@@ -366,7 +410,12 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         foreach (var d in deds)
         {
             if (!invoices.ContainsKey(d.PostedInvoiceId)) return "A deduction must be on one of the collection's invoices.";
-            if (!Enum.TryParse<DeductionType>(d.Type, true, out var dt)) return "Choose the deduction type.";
+            // The selection from finance's list sets the type; a client without it sends only the type (its default selection).
+            var reason = DeductionReasons.Find(d.Reason);
+            if (reason is null && !string.IsNullOrWhiteSpace(d.Reason)) return $"Unknown deduction \"{d.Reason}\" — refresh the page.";
+            if (reason is null && !Enum.TryParse<DeductionType>(d.Type, true, out _)) return "Choose the deduction.";
+            reason ??= DeductionReasons.ForType(Enum.Parse<DeductionType>(d.Type, true));
+            var dt = reason.Type;
             var amt = Math.Round(d.Amount, 2);
             if (amt <= 0) return "A deduction amount must be more than zero.";
             // EWT: "2307 att." picks the HOMS GL of its CEWT line — 10507 with the 2307, 10508 without — unless one is typed.
@@ -374,11 +423,19 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             var acctNo = ewt ? d.AcctNo ?? CollectionDeduction.DefaultEwtAccount(d.With2307) : (int?)null;
             if (acctNo is <= 0 or > 99_999)
                 return $"Invoice {invoices[d.PostedInvoiceId].DocNo}: the EWT ACCTNO must be a HOMS GL account (5 digits at most).";
+            var invNo = invoices[d.PostedInvoiceId].DocNo;
+            var desc = d.Description?.Trim() is { Length: > 0 } ds ? ds[..Math.Min(ds.Length, 100)] : null;
+            var refText = d.Reference?.Trim() is { Length: > 0 } r ? r[..Math.Min(r.Length, 100)] : null;
+            var others = reason.Code == DeductionReasons.Others;
+            if (others && desc is null) return $"Invoice {invNo}: describe the \"Others (unspecified)\" deduction.";
+            if (dt == DeductionType.ServiceInvoice && refText is null) return $"Invoice {invNo}: enter the Service Invoice no.";
+            // A Service Invoice's scanned copy must be one of this collection's files.
+            int? attId = dt == DeductionType.ServiceInvoice && d.AttachmentId is { } aid && c.Attachments.Any(a => a.Id == aid) ? aid : null;
             newDeds.Add(new CollectionDeduction
             {
-                PostedInvoiceId = d.PostedInvoiceId, Type = dt, Amount = amt,
-                Reference = d.Reference?.Trim() is { Length: > 0 } r ? r[..Math.Min(r.Length, 100)] : null,
+                PostedInvoiceId = d.PostedInvoiceId, Type = dt, Amount = amt, Reference = refText,
                 With2307 = ewt && d.With2307, AcctNo = acctNo,
+                Reason = reason.Code, Description = others ? desc : null, AttachmentId = attId,
             });
         }
 
@@ -401,7 +458,16 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
 
         // Deposit slip: CR money is deposited before encoding; a PDC only on/after its check date.
         // An RA's CRs share the RA's slip (set by the RA, see AssignRaDepositAsync).
+        var depBefore = (c.DepositBatch, c.DepositBatch?.DepositDate);
         if (!InRemittance(c) && await AssignDepositAsync(c, dto.Deposit, mode, checkDate, u.Name) is { } batchError) return batchError;
+        // A PDC the branch already deposited (matured on arrival) can carry its deposit from encoding (NAGA 2026-11-23);
+        // logged like Record PDC deposit, so the PDC Monitor shows who recorded it (four-eyes on the CNC confirm).
+        if (mode == PaymentMode.PostDatedCheck && await DepositoryAsync(c, dto, mode) is { } depositoryError) return depositoryError;
+        if (mode == PaymentMode.PostDatedCheck && c.DepositBatch is { } pdcDep && depBefore != (pdcDep, pdcDep.DepositDate))
+        {
+            var slip = pdcDep.SlipRefNo;
+            History(c, "Deposit recorded", null, null, $"{pdcDep.Bank}{(slip.Length > 0 ? $" slip {slip}" : "")} on {pdcDep.DepositDate:yyyy-MM-dd}", u.Name);
+        }
 
         c.ReceiptType = rt;
         c.ReceiptNo = receiptNo;
@@ -427,6 +493,19 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         db.CollectionDeductions.RemoveRange(c.Deductions);
         c.Invoices = allocs.Select(a => new CollectionInvoice { PostedInvoiceId = a.PostedInvoiceId, AmountApplied = Math.Round(a.AmountApplied, 2) }).ToList();
         c.Deductions = newDeds;
+        return null;
+    }
+
+    /// <summary>A PDC names its depository bank at encoding (required, NAGA / user 2026-11-23): the branch account it will be
+    /// deposited into once it matures. A deposit already recorded (date given) uses that account. Other modes have none.</summary>
+    private async Task<string?> DepositoryAsync(Collection c, SaveCollectionDto dto, PaymentMode mode)
+    {
+        if (mode != PaymentMode.PostDatedCheck) { c.DepositoryAccountId = null; return null; }
+        var id = c.DepositBatch?.BankAccountId ?? dto.DepositoryAccountId;
+        if (id is not { } accountId) return "Choose the depository bank: the company account this check will be deposited into.";
+        if (accountId != c.DepositoryAccountId && !(await DepositAccountsAsync(c.SiteId)).Any(a => a.Id == accountId))
+            return "That depository bank account isn't available for this branch.";
+        c.DepositoryAccountId = accountId;
         return null;
     }
 
@@ -528,6 +607,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (c.Invoices.Count == 0) m.Add("Add the invoice(s) this payment is for.");
         if (c.Attachments.Count == 0) m.Add("Attach the soft copy of the receipt.");
         if (c.ReceiptType == ReceiptType.CR && c.DepositBatch is null) m.Add("Enter the deposit (bank account and date; the reference no. is optional).");
+        if (c.PaymentMode == PaymentMode.PostDatedCheck && c.DepositoryAccountId is null) m.Add("Choose the depository bank.");
         return m;
     }
 
@@ -580,7 +660,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (await db.Collections.Where(x => x.SettledByCollectionId == c.Id).Select(x => new { x.ReceiptType, x.ReceiptNo }).FirstOrDefaultAsync() is { } settles)
             return (null, $"This receipt settles bounced PDC {settles.ReceiptType} {settles.ReceiptNo} — remove that settlement on the PDC Monitor first.");
         // Already written into HOMS → it's cancelled there first; anything still queued is cancelled here.
-        if (await homs.CancelOpenAsync(c.Id, HomsPostingKind.Or, HomsPostingKind.Rpdc, HomsPostingKind.PdcJv) is { } posted)
+        if (await homs.CancelOpenAsync(c.Id, HomsPostingKind.Or, HomsPostingKind.Rpdc, HomsPostingKind.PdcJv, HomsPostingKind.Deductions) is { } posted)
             return (null, posted);
 
         var from = c.VerificationStatus;
@@ -669,9 +749,13 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         await homs.QueueAsync(c, isPdc ? HomsPostingKind.Rpdc : HomsPostingKind.Or, u.Name);
         if (isPdc)
         {
-            // A matured PDC's match is the CNC Verifier's to confirm; if they already confirmed its slip (another
-            // check on it was verified first), this one's JV follows its RPDC now.
-            if (c.DepositBatch?.MatchConfirmedAt is not null && c.PdcOutcome is null)
+            // Deposited before verification: the Finance Verifier approves its suggested match with Verify, which queues
+            // its JV after the RPDC (user 2026-11-23). Otherwise the match is the CNC Verifier's (PDC Monitor); if they
+            // already confirmed its slip (another check on it was verified first), this one's JV follows its RPDC now.
+            if (c.DepositBatch is { MatchedBankLineId: { } pdcLine, MatchConfirmedAt: null } pb && c.PdcOutcome is null
+                && await FinanceConfirmsPdcAsync(u, c) && await db.BankStatementLines.FindAsync(pdcLine) is { } pl)
+                await matcher.ConfirmAsync(pb, pl, u.Name);
+            else if (c.DepositBatch?.MatchConfirmedAt is not null && c.PdcOutcome is null)
                 await homs.QueueAsync(c, HomsPostingKind.PdcJv, u.Name);
         }
         // The verifier checked the CR against the bank statement: a suggested match is approved with it.
@@ -689,7 +773,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (c.DepositBatch is not { MatchedBankLineId: { } lineId } b || await db.BankStatementLines.FindAsync(lineId) is not { } line)
             return (null, "This collection has no bank match to approve.");
         if (b.MatchConfirmedAt is not null) return (null, "The bank match is already approved.");
-        if (await PdcSlipAsync(b.Id)) return (null, CncOnly);
+        if (await PdcSlipAsync(b.Id) && !await FinanceConfirmsPdcAsync(u, c)) return (null, CncOnly);
         if (c.VerificationStatus != VerificationStatus.Verified) return (null, "Verify the collection — that approves its bank match too.");
         await matcher.ConfirmAsync(b, line, u.Name);
         return await SaveAndReturnAsync(u, c);
@@ -706,7 +790,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (c.DepositBatch is not { MatchedBankLineId: { } lineId } b || await db.BankStatementLines.FindAsync(lineId) is not { } line)
             return (null, "This collection has no bank match to reject.");
         if (b.MatchConfirmedAt is not null) return (null, "The bank match is already approved — finance can unmatch it on the Bank Statement page.");
-        if (await PdcSlipAsync(b.Id)) return (null, CncOnly);
+        if (await PdcSlipAsync(b.Id) && !await FinanceConfirmsPdcAsync(u, c)) return (null, CncOnly);
         reason = reason?.Trim();
         await matcher.UnapplyAsync(b, line, u.Name, string.IsNullOrEmpty(reason) ? "Suggested match rejected by the verifier" : reason[..Math.Min(reason.Length, 400)], byFinance: true);
         return await SaveAndReturnAsync(u, c);
@@ -745,7 +829,8 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (siteId is not null) q = q.Where(c => c.SiteId == siteId);
 
         var today = Today;
-        var rows = await q.Include(c => c.Site).Include(c => c.DepositBatch).OrderBy(c => c.CheckDate).Take(5000).ToListAsync();
+        var rows = await q.Include(c => c.Site).Include(c => c.DepositBatch).Include(c => c.DepositoryAccount)
+            .OrderBy(c => c.CheckDate).Take(5000).ToListAsync();
         var ids = rows.Select(c => c.Id).ToList();
         var bms = (await db.BmsPostedCollections.Where(b => b.CollectionId != null && ids.Contains(b.CollectionId.Value) && !b.Removed)
             .Select(b => new { b.CollectionId, b.DocNo, b.Bounced }).ToListAsync())
@@ -784,7 +869,8 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
                 CanRecordDeposit: (canWrite || u.CanVerify || u.CanConfirmPdc) && c.PdcOutcome is null
                                   && checkDate <= today && batch?.MatchedBankLineId is null,
                 Dishonor: Dishonor(u, c, today, c.SettledByCollectionId is { } sid && settles.TryGetValue(sid, out var cr)
-                    ? ($"{cr.ReceiptType} {cr.ReceiptNo}", cr.ReceiptDate) : null));
+                    ? ($"{cr.ReceiptType} {cr.ReceiptNo}", cr.ReceiptDate) : null),
+                DepositoryAccountId: c.DepositoryAccountId, DepositoryBank: c.DepositoryAccount?.Label);
         }).ToList();
     }
 
@@ -887,6 +973,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
 
         var error = await AssignDepositAsync(c, dep, c.PaymentMode, c.CheckDate, u.Name);
         if (error is not null) return (null, error);
+        c.DepositoryAccountId = c.DepositBatch!.BankAccountId;   // where it actually went
         var slip = (dep.SlipRefNo ?? "").Trim();
         History(c, "Deposit recorded", null, null, $"{c.DepositBatch!.Bank}{(slip.Length > 0 ? $" slip {slip}" : "")} on {dep.DepositDate:yyyy-MM-dd}", u.Name);
         return await SaveAndReturnAsync(u, c);
@@ -1115,18 +1202,88 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         [".jpeg"] = ("image/jpeg", [0xFF, 0xD8, 0xFF]),
     };
 
-    public async Task<(CollectionDto? dto, string? error)> AddAttachmentAsync(CollectionUser u, int id, string fileName, Stream content, long length)
+    public async Task<(CollectionDto? dto, string? error)> AddAttachmentAsync(CollectionUser u, int id, string fileName, Stream content, long length,
+        string? kind = null, string? note = null)
     {
         var c = await LoadAsync(id);
         if (c is null || !await CanReadSiteAsync(u, c.SiteId)) return (null, "Collection not found.");
         if (!await CanWriteSiteAsync(u, c.SiteId)) return (null, "You are not assigned to this branch.");
         if (c.VerificationStatus is not (VerificationStatus.Draft or VerificationStatus.Returned))
             return (null, "Attachments can only be changed before the collection is submitted.");
+        if (await KindOfAsync(kind) is not { } k) return (null, "Choose what the file is (Collection Receipt, Deposit Slip, ...).");
 
         var (a, error) = await StoreAttachmentAsync(c, fileName, content, length, u.Name);
         if (a is null) return (null, error);
-        History(c, "Attachment added", null, null, a.FileName, u.Name);
+        a.Kind = k;
+        a.Note = NoteOf(note);
+        History(c, "Attachment added", null, null, $"{a.FileName} ({k})", u.Name);
         return await SaveAndReturnAsync(u, c);
+    }
+
+    /// <summary>An active document type's code (maintained list, CollectionDocumentKinds; null/blank = Unspecified), the
+    /// file's current one even if since deactivated (keep), or null when it isn't one.</summary>
+    private async Task<string?> KindOfAsync(string? kind, string? keep = null)
+    {
+        if (string.IsNullOrWhiteSpace(kind)) return AttachmentKinds.Unspecified;
+        var code = kind.Trim();
+        if (keep is not null && code.Equals(keep, StringComparison.OrdinalIgnoreCase)) return keep;
+        return await db.CollectionDocumentKinds.Where(k => k.IsActive && k.Code == code).Select(k => k.Code).FirstOrDefaultAsync();
+    }
+
+    private static string? NoteOf(string? note) => note?.Trim() is { Length: > 0 } n ? n[..Math.Min(n.Length, 100)] : null;
+
+    /// <summary>Relabels a file (kind / note) — while the collection is editable, or by whoever may update its documents.</summary>
+    public async Task<(CollectionDto? dto, string? error)> LabelAttachmentAsync(CollectionUser u, int id, int attachmentId, AttachmentLabelDto dto)
+    {
+        var c = await LoadAsync(id);
+        if (c is null || !await CanReadSiteAsync(u, c.SiteId)) return (null, "Collection not found.");
+        var editable = c.VerificationStatus is VerificationStatus.Draft or VerificationStatus.Returned;
+        if (!(editable && await CanWriteSiteAsync(u, c.SiteId)) && !await CanUpdateDocsAsync(u, c))
+            return (null, "You can't change this collection's files.");
+        var a = c.Attachments.FirstOrDefault(x => x.Id == attachmentId);
+        if (a is null) return (null, "Attachment not found.");
+        if (await KindOfAsync(dto.Kind, a.Kind) is not { } k) return (null, "Choose what the file is.");
+        if (k != AttachmentKinds.ServiceInvoice && c.Deductions.Any(d => d.AttachmentId == a.Id))
+            return (null, "This file is a Service Invoice deduction's scanned copy — it stays a Service Invoice.");
+        a.Kind = k;
+        a.Note = NoteOf(dto.Note);
+        return await SaveDocsAsync(u, c);
+    }
+
+    /// <summary>
+    /// "Update supporting documents": the scanned copy of one Service Invoice deduction, in any status but voided (user
+    /// 2026-11-21). Stored as a Service Invoice file and linked to the row; if its OR / RPDC is already in HOMS the row is
+    /// queued for HOMS's ordeduc2 now (it was left out, a hanging balance in the VFP report, until this copy came).
+    /// </summary>
+    public async Task<(CollectionDto? dto, string? error)> AddDeductionDocumentAsync(CollectionUser u, int id, int deductionId,
+        string fileName, Stream content, long length)
+    {
+        var c = await LoadAsync(id);
+        if (c is null || !await CanReadSiteAsync(u, c.SiteId)) return (null, "Collection not found.");
+        var editable = c.VerificationStatus is VerificationStatus.Draft or VerificationStatus.Returned;
+        if (!(editable && await CanWriteSiteAsync(u, c.SiteId)) && !await CanUpdateDocsAsync(u, c))
+            return (null, "You can't update this collection's documents.");
+        var d = c.Deductions.FirstOrDefault(x => x.Id == deductionId);
+        if (d is null) return (null, "Deduction not found — refresh the page.");
+        if (d.Type != DeductionType.ServiceInvoice) return (null, "Only a Service Invoice deduction takes a scanned copy here.");
+        if (d.AttachmentId is not null) return (null, "This Service Invoice already has its scanned copy.");
+
+        var (a, error) = await StoreAttachmentAsync(c, fileName, content, length, u.Name);
+        if (a is null) return (null, error);
+        a.Kind = AttachmentKinds.ServiceInvoice;
+        a.Note = NoteOf($"SI {d.Reference}");
+        d.Attachment = a;
+        History(c, "SI document added", null, null, $"inv {d.PostedInvoice.DocNo} SI {d.Reference} {d.Amount:N2}: {a.FileName}", u.Name);
+        await db.SaveChangesAsync();   // the row has its AttachmentId before it is built for HOMS
+        await homs.QueueDeductionsAsync(c, u.Name);
+        return await SaveDocsAsync(u, c);
+    }
+
+    /// <summary>Saves a file-only change (a document or its label) — the money, deposit and bank match are untouched.</summary>
+    private async Task<(CollectionDto? dto, string? error)> SaveDocsAsync(CollectionUser u, Collection c)
+    {
+        await db.SaveChangesAsync();
+        return (await ToDtoAsync(u, (await LoadAsync(c.Id))!), null);
     }
 
     /// <summary>Checks the file (size, type, real signature), stores it and adds it to the collection (not saved yet).</summary>
@@ -1172,6 +1329,11 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         if (a is null) return (null, "Attachment not found.");
         if (c.RemittanceId is not null && IsRaExcel(a))
             return (null, "This is the CR's RA Excel — upload a corrected file on the Remittance Advice instead.");
+        foreach (var d in c.Deductions.Where(d => d.AttachmentId == a.Id))
+        {
+            if (d.HomsSentAt is not null) return (null, "This Service Invoice copy is already in HOMS (ordeduc2) — it can't be removed.");
+            d.AttachmentId = null;
+        }
 
         db.CollectionAttachments.Remove(a);
         History(c, "Attachment removed", null, null, a.FileName, u.Name);

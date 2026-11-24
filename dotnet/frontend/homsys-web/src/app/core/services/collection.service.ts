@@ -1,10 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
+import { from } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { compressUpload } from '../utils/compress-upload';
 import { ApiResponse } from '../models/auth.model';
 import {
-  BankAccountOptionDto, CollectionDto, CollectionHistoryDto, InvoiceHistoryDto, CollectionListItemDto, CollectionSiteDto, DepositInfoDto, InvoiceSyncRequestStatusDto,
-  LodLetterDto, OpenInvoiceDto, PdcItemDto, SaveCollectionDto, SettlementCandidateDto
+  BankAccountOptionDto, CollectionDocumentKindDto, CollectionDto, CollectionHistoryDto, InvoiceHistoryDto, CollectionListItemDto, CollectionSiteDto, DepositInfoDto, InvoiceSyncRequestStatusDto,
+  LodLetterDto, OpenInvoiceDto, PdcItemDto, SaveCollectionDto, SaveDocumentKindDto, SettlementCandidateDto
 } from '../models/collection.model';
 
 @Injectable({ providedIn: 'root' })
@@ -109,10 +112,37 @@ export class CollectionService {
     return this.http.get<ApiResponse<CollectionHistoryDto[]>>(`${environment.apiUrl}/pdc/${id}/history`);
   }
 
-  addAttachment(id: number, file: File) {
-    const fd = new FormData();
-    fd.append('file', file, file.name);
-    return this.http.post<ApiResponse<CollectionDto>>(`${this.base}/${id}/attachments`, fd);
+  /** Supporting-document types; all = also inactive ones (older files' labels, maintenance). */
+  documentKinds(all = false) {
+    return this.http.get<ApiResponse<CollectionDocumentKindDto[]>>(`${environment.apiUrl}/collection-document-kinds`, { params: { all } });
+  }
+  saveDocumentKind(id: number | null, dto: SaveDocumentKindDto) {
+    const url = `${environment.apiUrl}/collection-document-kinds`;
+    return id ? this.http.put<ApiResponse<CollectionDocumentKindDto>>(`${url}/${id}`, dto) : this.http.post<ApiResponse<CollectionDocumentKindDto>>(url, dto);
+  }
+  deleteDocumentKind(id: number) { return this.http.delete<ApiResponse<null>>(`${environment.apiUrl}/collection-document-kinds/${id}`); }
+
+  /** Photos are shrunk in the browser first (compressUpload); kind = what the file is (a document type's code). */
+  addAttachment(id: number, file: File, kind?: string | null, note?: string | null) {
+    return from(compressUpload(file)).pipe(switchMap(f => {
+      const fd = new FormData();
+      fd.append('file', f, f.name);
+      if (kind) fd.append('kind', kind);
+      if (note) fd.append('note', note);
+      return this.http.post<ApiResponse<CollectionDto>>(`${this.base}/${id}/attachments`, fd);
+    }));
+  }
+  /** Relabel a file: its kind and short note. */
+  labelAttachment(id: number, attachmentId: number, kind: string, note: string | null) {
+    return this.http.patch<ApiResponse<CollectionDto>>(`${this.base}/${id}/attachments/${attachmentId}`, { kind, note });
+  }
+  /** "Update supporting documents": a Service Invoice deduction's scanned copy (also after verification). */
+  addDeductionDocument(id: number, deductionId: number, file: File) {
+    return from(compressUpload(file)).pipe(switchMap(f => {
+      const fd = new FormData();
+      fd.append('file', f, f.name);
+      return this.http.post<ApiResponse<CollectionDto>>(`${this.base}/${id}/deductions/${deductionId}/document`, fd);
+    }));
   }
   deleteAttachment(id: number, attachmentId: number) {
     return this.http.delete<ApiResponse<CollectionDto>>(`${this.base}/${id}/attachments/${attachmentId}`);
