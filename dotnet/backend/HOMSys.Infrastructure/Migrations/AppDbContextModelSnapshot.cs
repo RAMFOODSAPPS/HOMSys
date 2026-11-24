@@ -8836,6 +8836,19 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<int?>("SiteId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("TempPasswordExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("TempPasswordFailures")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TempPasswordHash")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("TempPasswordRequestedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -8873,6 +8886,7 @@ namespace HOMSys.Infrastructure.Migrations
                             LastName = "Administrator",
                             MustChangePassword = true,
                             PasswordHash = "$2a$11$HWPtG2hulzuprKTyJrT/cOhS/k.aBx.7jJZJaRYwwVkbs5D5IUvAq",
+                            TempPasswordFailures = 0,
                             Username = "admin"
                         });
                 });

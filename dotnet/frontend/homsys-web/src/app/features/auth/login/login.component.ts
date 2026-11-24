@@ -23,10 +23,17 @@ import { TabBarService } from '../../../core/services/tab-bar.service';
           </div>
         </ng-template>
 
+        @if (!showForgotPassword()) {
         <form [formGroup]="form" (ngSubmit)="onSubmit()">
           @if (errorMessage()) {
             <p-message severity="error" styleClass="w-full mb-3">
               <span>{{ errorMessage() }}</span>
+            </p-message>
+          }
+          <!-- After "Forgot password?": the email was sent — back to signing in. -->
+          @if (infoMessage()) {
+            <p-message severity="success" styleClass="w-full mb-3">
+              <span>{{ infoMessage() }}</span>
             </p-message>
           }
 
@@ -47,15 +54,29 @@ import { TabBarService } from '../../../core/services/tab-bar.service';
             [loading]="loading()" [disabled]="form.invalid" styleClass="w-full mt-2" />
 
           <div class="forgot-password">
-            <a href="javascript:void(0)" (click)="showForgotPassword.set(true)">Forgot password?</a>
+            <a href="javascript:void(0)" (click)="openForgot()">Forgot password?</a>
           </div>
-
-          @if (showForgotPassword()) {
-            <p-message severity="info" styleClass="w-full mt-2">
-              <span>Please contact your system administrator to have your password reset.</span>
-            </p-message>
-          }
         </form>
+        } @else {
+          <!-- Forgot password (replaces the sign-in form): a temporary password is emailed to the user's address. -->
+          <div class="forgot-box">
+            <h3>Forgot password</h3>
+            <p class="forgot-hint">Enter your username and we'll email you a temporary password.</p>
+            <div class="field">
+              <label for="forgotUser">Username (Employee ID)</label>
+              <input id="forgotUser" pInputText [value]="forgotUser()" (input)="forgotUser.set($any($event.target).value)"
+                (keydown.enter)="sendForgot()" placeholder="e.g. 03005185" class="w-full" autocomplete="username" />
+            </div>
+            @if (forgotResult(); as r) {
+              <p-message [severity]="r.ok ? 'success' : 'warn'" styleClass="w-full mb-2"><span>{{ r.text }}</span></p-message>
+            }
+            <p-button label="Email me a temporary password" icon="pi pi-envelope" [loading]="forgotSending()"
+              [disabled]="!forgotUser().trim() || forgotSending()" (onClick)="sendForgot()" styleClass="w-full mt-2" />
+            <div class="forgot-password">
+              <a href="javascript:void(0)" (click)="showForgotPassword.set(false)"><i class="pi pi-arrow-left"></i> Back to sign in</a>
+            </div>
+          </div>
+        }
       </p-card>
     </div>
   `,
@@ -70,6 +91,9 @@ import { TabBarService } from '../../../core/services/tab-bar.service';
     .forgot-password { text-align: center; margin-top: 0.75rem; font-size: 0.875rem; }
     .forgot-password a { color: var(--p-primary-color); text-decoration: none; }
     .forgot-password a:hover { text-decoration: underline; }
+    .forgot-box h3 { margin: 0 0 0.25rem; font-size: 1.05rem; }
+    .forgot-hint { margin: 0 0 1rem; color: var(--p-text-muted-color); font-size: 0.875rem; }
+    .forgot-password i { font-size: 0.75rem; }
   `]
 })
 export class LoginComponent {
@@ -86,11 +110,48 @@ export class LoginComponent {
   protected loading = signal(false);
   protected errorMessage = signal<string | null>(null);
   protected showForgotPassword = signal(false);
+  /** Shown above the form after a temporary password was emailed. */
+  protected infoMessage   = signal<string | null>(null);
+  protected forgotUser    = signal('');
+  protected forgotSending = signal(false);
+  protected forgotResult  = signal<{ ok: boolean; text: string } | null>(null);
+
+  /** Opens the forgot-password box, starting from the username already typed. */
+  openForgot() {
+    this.infoMessage.set(null);
+    this.forgotUser.set(this.form.value.username?.trim() ?? '');
+    this.forgotResult.set(null);
+    this.showForgotPassword.set(true);
+  }
+
+  sendForgot() {
+    const username = this.forgotUser().trim();
+    if (!username || this.forgotSending()) return;
+    this.forgotSending.set(true);
+    this.forgotResult.set(null);
+    this.auth.forgotPassword(username).subscribe({
+      next: res => {
+        this.forgotSending.set(false);
+        if (!res.success) { this.forgotResult.set({ ok: false, text: res.message }); return; }
+        // Sent: close the box and go back to signing in, with the username filled and the password cleared.
+        this.showForgotPassword.set(false);
+        this.errorMessage.set(null);
+        this.infoMessage.set(`${res.message} Sign in below with the temporary password from your email.`);
+        this.form.patchValue({ username, password: '' });
+        setTimeout(() => document.getElementById('password')?.focus());
+      },
+      error: err => {
+        this.forgotSending.set(false);
+        this.forgotResult.set({ ok: false, text: err?.error?.message ?? 'Could not send it. Please try again later.' });
+      }
+    });
+  }
 
   onSubmit() {
     if (this.form.invalid) return;
     this.loading.set(true);
     this.errorMessage.set(null);
+    this.infoMessage.set(null);
     const { username, password } = this.form.value;
     this.auth.login({ username: username!, password: password! }).subscribe({
       next: () => {

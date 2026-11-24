@@ -23,4 +23,9 @@ public interface ITasafRepository
     /// </summary>
     Task SaveWithRefNoAsync(Tasaf tasaf, string? refNoPrefix, bool isNew = false);
     Task DeleteAsync(Tasaf tasaf);
+    /// <summary>
+    /// Who to tell that this TASAF is open for TPARs: active non-Admin users holding `tpar` whose servicing branches (or,
+    /// with none set, their Site) include one of its branches; every such user when it covers an ALL … scope or no branch.
+    /// </summary>
+    Task<List<int>> GetTparRecipientIdsAsync(int tasafId);
 }

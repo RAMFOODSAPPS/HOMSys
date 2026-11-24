@@ -61,6 +61,11 @@ export class AuthService {
     this.router.navigate(['/login']);
   }
 
+  /** Login page: email a temporary password to this username's address (same answer whether or not it exists). */
+  forgotPassword(username: string) {
+    return this.http.post<{ success: boolean; message: string }>(`${environment.apiUrl}/auth/forgot-password`, { username });
+  }
+
   changePassword(request: ChangePasswordRequest) {
     return this.http
       .post<ApiResponse<void>>(`${environment.apiUrl}/auth/change-password`, request)

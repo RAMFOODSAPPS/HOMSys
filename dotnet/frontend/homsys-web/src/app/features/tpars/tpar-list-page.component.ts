@@ -1,7 +1,8 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter, Subscription } from 'rxjs';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ButtonModule } from 'primeng/button';
@@ -160,10 +161,33 @@ export class TparListPageComponent implements OnInit, OnDestroy {
       search:  term => this.term.set(term),
       initialSearch: this.term(),
     });
+    this.openFromNav();
     this.reload();
+    // Already on this page when a notification is clicked: same-URL navigation, so re-read the state.
+    this.navSub = this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
+      if (this.openFromNav()) this.loadTasafs();
+    });
   }
 
-  ngOnDestroy() { this.toolbar.clear(); }
+  ngOnDestroy() { this.toolbar.clear(); this.navSub?.unsubscribe(); }
+
+  private navSub?: Subscription;
+  /** TASAF to pick once the list is loaded (from a "New TASAF for TPAR" notification / email link). */
+  private pendingTasafId: number | null = null;
+
+  /**
+   * Notification state { tparTasafId } or the email link "/tpars/list?id=42": remember the TASAF to select. The email's
+   * ?id is dropped from the address so a refresh doesn't keep re-selecting it.
+   */
+  private openFromNav(): boolean {
+    const qid = Number(new URLSearchParams(location.search).get('id'));
+    const id = (history.state?.['tparTasafId'] as number | undefined) ?? (qid > 0 ? qid : null);
+    if (!id) return false;
+    this.pendingTasafId = id;
+    if (qid > 0) history.replaceState(history.state, '', location.pathname);
+    else history.replaceState({ ...history.state, tparTasafId: undefined }, '');
+    return true;
+  }
 
   tasafSev(status: string) { return TASAF_STATUS_SEVERITY[status] ?? 'info'; }
   tparSev(status: string) { return TPAR_STATUS_SEVERITY[status] ?? 'info'; }
@@ -179,6 +203,15 @@ export class TparListPageComponent implements OnInit, OnDestroy {
         this.loading.set(false);
         const list = res.data ?? [];
         this.tasafs.set(list);
+        const want = this.pendingTasafId;
+        if (want) {
+          const hit = list.find(t => t.id === want);
+          // Not in the Approved list: it may already be Completed — look there once.
+          if (!hit && !this.showCompleted) { this.showCompleted = true; this.loadTasafs(); return; }
+          this.pendingTasafId = null;
+          if (hit) { this.selectTasaf(hit); return; }
+          this.msg.add({ severity: 'info', summary: 'TPAR', detail: 'That TASAF is no longer open for TPARs.', life: 6000 });
+        }
         const id = this.selected()?.id;
         this.selected.set(id ? list.find(t => t.id === id) ?? null : null);
       },

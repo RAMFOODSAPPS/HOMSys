@@ -422,6 +422,16 @@ Logs to `%LOCALAPPDATA%\HOMSys\legacy_master_watcher.log`.
 default 30s was observed failing mid-batch on the ~105k-row `ZoneAddOn`
 truncate+reload under load.
 
+## Forgot password (login page)
+
+"Forgot password?" asks for the username (Employee ID); `POST api/auth/forgot-password` (`AuthService.ForgotPasswordAsync`)
+emails an active user with an email a temporary password (two words + 4 digits), valid 24 h, stored in
+`User.TempPasswordHash` (migration `UserTempPassword`). The current password keeps working until the temporary one is
+used; signing in with it makes it the password and forces a change. 5 wrong tries cancel it; one request per user per
+5 minutes; the answer never reveals whether the username exists. With email off, nothing changes and the page says to
+contact the administrator. Admin Reset Password and Change Password clear a pending one. Login / forgot save through
+`IUserRepository.SavePasswordStateAsync` (the full `UpdateAsync` rewrites roles).
+
 ## Products / Customers pages (read-only master data)
 
 `/products` (`ProductCatalogService`, permission `products` 19) and `/customers`
@@ -560,7 +570,7 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   **TPARs** (Trade Promo Analysis Report, the workbook's "TPAR current" sheet; user decision 2026-11-24, migration
   `TasafTpars`, replacing the single header `Tasaf.TparNo`): **several TPARs per TASAF, made by different BAs**, entered
   on the **New TPAR** form (`/tpars`; each opened TPAR in its own tab `/tpars#id`) and the **TPAR List** (`/tpars/list`: Approved TASAFs with totals / balance + the TPARs) (permission `tpar` 30, `TparService` / `TparsController` `api/tpars`, `TasafTpars` table:
-  TparNo + **Branch** + Amount + Remarks + Status + who / when; Branch = `SiteId` + `BranchName` snapshot, required on save, one of the TASAF's branches or any active Site when the TASAF covers an ALL … scope, defaulting to the user's own branch, migration `TasafTparBranch`). **Servicing branches** (Users page multi-select, `UserServicingBranches`, `api/users/{id}/servicing-branches`, migration `UserServicingBranches`; separate from Collection branches): a non-Admin with any picks only those of the TASAF's branches (TASAFs with none of them are not offered); none set = any of the TASAF's branches; an existing TPAR keeps an unchanged branch. Migration `SeedBranchBaUsers` (data only) seeds the 20 branch BAs from Sheet1 of `RAM BRANCHES ACTIVECUSTOMER LIST 2.xlsx` (username = Employee ID, BRANCH ADMINISTRATOR, own branch as Site / servicing branch, no usable password: an Admin clicks Reset Password on the live Users page for each BA, must change at first login; skips any username / email that already exists) and gives BRANCH ADMINISTRATOR `tpar`. Only against an **Approved** TASAF. Each TPAR: **Draft → Submitted →
+  TparNo + **Branch** + Amount + Remarks + Status + who / when; Branch = `SiteId` + `BranchName` snapshot, required on save, one of the TASAF's branches or any active Site when the TASAF covers an ALL … scope, defaulting to the user's own branch, migration `TasafTparBranch`). **Servicing branches** (Users page multi-select, `UserServicingBranches`, `api/users/{id}/servicing-branches`, migration `UserServicingBranches`; separate from Collection branches): a non-Admin with any picks only those of the TASAF's branches (TASAFs with none of them are not offered); none set = any of the TASAF's branches; an existing TPAR keeps an unchanged branch. Migration `SeedBranchBaUsers` (data only) seeds the 20 branch BAs from Sheet1 of `RAM BRANCHES ACTIVECUSTOMER LIST 2.xlsx` (username = Employee ID, BRANCH ADMINISTRATOR, own branch as Site / servicing branch, no usable password: an Admin clicks Reset Password on the live Users page for each BA, must change at first login; skips any username / email that already exists) and gives BRANCH ADMINISTRATOR `tpar`. **"New TASAF for TPAR"** (`TasafService.NotifyTparEncodersAsync`, at final approval): bell + email to active non-Admin `tpar` users whose servicing branches (else Site) match the TASAF's branches, all of them for an ALL … scope / no branch (`TasafRepository.GetTparRecipientIdsAsync`); opens TPAR List on that TASAF (state `tparTasafId`, email `/tpars/list?id=`); a failure never undoes the approval. Only against an **Approved** TASAF. Each TPAR: **Draft → Submitted →
   Approved**, or **Cancelled** (kept; frees its amount and its number); **Revert** (reason required) sends a Submitted / Approved TPAR back to Draft so it can be changed — **for now the encoder who entered it (or an
   Admin) does every step** (user decision 2026-11-24; no separate approver yet). Only a Draft can be changed. The page is
   a form (picked TPAR or a new one) whose The form uses the Form Designer (form key `tpar`, `tpars/tpar-layout.ts`) and shows Created By / Created Date / Updated By / Updated Date (every step stamps Updated). toolbar ALWAYS shows Save / Submit / Approve / Revert / Cancel, greyed out when they

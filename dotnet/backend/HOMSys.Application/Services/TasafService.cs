@@ -701,6 +701,7 @@ public class TasafService(
                     await repo.UpdateAsync(t);
                     await notifications.SendAsync([t.ProponentUserId, .. signed], "TASAF approved",
                         $"{head} is fully approved (final sign-off by {myName}, {step.RoleCode}): \"{comment}\".", "/tasafs", "tasaf", t.Id, emailRef: t.RefNo);
+                    await NotifyTparEncodersAsync(t, head);
                 }
                 break;
 
@@ -935,6 +936,29 @@ public class TasafService(
     private static decimal PaymentTotal(Tasaf t) =>
         t.PayInvDeductionAp + t.PayInvDeductionSalesman + t.PayCheckAp + t.PayCheckSalesman
         + t.PayFreeGoodsAp + t.PayFreeGoodsSalesman + t.PayOffInvoiceAp + t.PayOffInvoiceSalesman;
+
+    /// <summary>
+    /// "New TASAF for TPAR" (user request 2026-11-24): once a TASAF is fully approved, tell the TPAR encoders (BAs) of its
+    /// branches — `tpar` users whose servicing branches (or Site) match, everyone for an ALL … scope — so they can enter
+    /// their TPARs. Opens the TPAR List on that TASAF. A failure here never undoes the approval.
+    /// </summary>
+    private async Task NotifyTparEncodersAsync(Tasaf t, string head)
+    {
+        try
+        {
+            var ids = await repo.GetTparRecipientIdsAsync(t.Id);
+            if (ids.Count == 0) return;
+            var branches = string.Join(", ", t.Branches.OrderBy(b => b.LineNo).Select(b => b.Name).Where(n => n.Length > 0));
+            await notifications.SendAsync(ids.Select(i => (int?)i), "New TASAF for TPAR",
+                $"{head} is approved ({t.TotalCost:N2}){(branches.Length > 0 ? " for " + branches : "")}. "
+                + "You can now enter your TPAR on the TPAR page.",
+                "/tpars/list", "tparTasaf", t.Id, emailRef: t.RefNo);
+        }
+        catch (Exception)
+        {
+            // The approval is already saved; a missed heads-up is not worth failing it.
+        }
+    }
 
     private TasafAction NewAction(string action, string from, string to, string role, string comment, string byName) => new()
     {

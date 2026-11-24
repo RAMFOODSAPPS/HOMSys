@@ -104,6 +104,22 @@ public class TasafRepository(AppDbContext db) : ITasafRepository
         return id is int i ? await GetByIdAsync(i) : null;
     }
 
+    public async Task<List<int>> GetTparRecipientIdsAsync(int tasafId)
+    {
+        var branchSites = await db.TasafBranches.AsNoTracking().Where(b => b.TasafId == tasafId).Select(b => b.SiteId).ToListAsync();
+        var everyBranch = branchSites.Count == 0 || branchSites.Any(s => s == null);
+        var siteIds = branchSites.Where(s => s != null).Select(s => s!.Value).Distinct().ToList();
+
+        var q = db.Users.AsNoTracking().Where(u => u.IsActive
+            && db.UserRoles.Any(ur => ur.UserId == u.Id
+                && db.RolePermissions.Any(rp => rp.RoleId == ur.RoleId && rp.Permission.Key == "tpar"))
+            && !db.UserRoles.Any(ur => ur.UserId == u.Id && ur.Role.Name == "Admin"));
+        if (!everyBranch)
+            q = q.Where(u => db.UserServicingBranches.Any(b => b.UserId == u.Id && siteIds.Contains(b.SiteId))
+                || (!db.UserServicingBranches.Any(b => b.UserId == u.Id) && u.SiteId != null && siteIds.Contains(u.SiteId.Value)));
+        return await q.Select(u => u.Id).ToListAsync();
+    }
+
     public async Task DeleteAsync(Tasaf tasaf)
     {
         db.Tasafs.Remove(tasaf);

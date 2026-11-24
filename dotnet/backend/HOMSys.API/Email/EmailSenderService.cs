@@ -32,6 +32,8 @@ public class EmailQueue(IOptions<EmailOptions> options) : IEmailQueue
 
     public ChannelReader<NotificationEmail> Reader => channel.Reader;
 
+    public bool IsEnabled => options.Value.IsConfigured;
+
     public void Enqueue(NotificationEmail message)
     {
         if (!options.Value.IsConfigured) return;

@@ -215,6 +215,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         // Not unique: several logins may share one email. Username stays unique (the login).
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Email);
+        modelBuilder.Entity<User>()
+            .Property(u => u.TempPasswordHash).HasMaxLength(100);
 
         modelBuilder.Entity<Role>()
             .HasIndex(r => r.Name).IsUnique();

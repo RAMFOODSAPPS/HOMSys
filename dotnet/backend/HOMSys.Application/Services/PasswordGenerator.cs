@@ -18,4 +18,12 @@ public static class PasswordGenerator
         var number = RandomNumberGenerator.GetInt32(0, 10000);
         return $"{word}{number:D4}";
     }
+
+    /// <summary>Two words + 4 digits (~10 million combinations): temporary passwords sent by email (forgot password).</summary>
+    public static string GenerateStrong()
+    {
+        var a = Words[RandomNumberGenerator.GetInt32(Words.Length)];
+        var b = Words[RandomNumberGenerator.GetInt32(Words.Length)];
+        return $"{a}{b}{RandomNumberGenerator.GetInt32(0, 10000):D4}";
+    }
 }
