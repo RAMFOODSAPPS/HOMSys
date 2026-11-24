@@ -186,13 +186,13 @@ export function buildTasafPdf(t: TasafDto, logo?: string | null): jsPDF {
     const v = (s: string | null | undefined) => s || '-';
     if (w.type === 'NearEx') {
       table(['Sales Group', 'Account / Store', 'Category'], [[v(w.salesGroup), v(w.account), v(w.category)]], []);
-      table(['Prod No.', 'SKU', 'LSP / Case', 'LSP / Pc', 'Pcs/Cs', 'Expiry', 'Invty Cs',
+      table(['Prod No.', 'SKU', 'Price / Pc', 'Expiry',
              'Invty Pcs', 'Total Pcs', 'Total Value', 'Moveout Scheme', 'Discount', 'Moveout Cost'],
-        w.nearExLines.map(l => [l.prodNo, l.sku, n2(l.lspPerCase), n2(l.lspPerPc), int(l.pcsPerCase),
-          l.expiry ? l.expiry.slice(0, 7) : '-', int(l.invCases), int(l.invPieces), int(l.totalPcs), n2(l.totalValue),
+        w.nearExLines.map(l => [l.prodNo, l.sku, n2(l.lspPerPc),
+          l.expiry ? l.expiry.slice(0, 7) : '-', int(l.invPieces), int(l.totalPcs), n2(l.totalValue),
           l.moveoutScheme, l.discount == null ? '-' : pct(l.discount), n2(l.moveoutCost)]),
-        [2, 3, 4, 6, 7, 8, 9, 11, 12],
-        ['Total', '', '', '', '', '', '', '', int(w.nearExLines.reduce((s, l) => s + l.totalPcs, 0)),
+        [2, 4, 5, 6, 8, 9],
+        ['Total', '', '', '', '', int(w.nearExLines.reduce((s, l) => s + l.totalPcs, 0)),
          n2(w.nearExLines.reduce((s, l) => s + l.totalValue, 0)), '', '', n2(w.total)]);
     } else {
       table(['Sales Group', 'Channel', 'Account / Store', 'Category'], [[v(w.salesGroup), v(w.channel), v(w.account), v(w.category)]], []);

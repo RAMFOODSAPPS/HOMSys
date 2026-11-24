@@ -158,8 +158,8 @@ type Draft = SaveTasafWorksheet & Partial<TasafWorksheet> & { id: number };
         } @else {
           <table class="ws-grid">
             <thead><tr>
-              <th class="c-md">Prod No. <span class="req">*</span></th><th class="c-xl">SKU <span class="req">*</span></th><th class="num c-num">LSP per Case <span class="req">*</span></th>
-              <th class="num c-num">LSP per Pc <span class="req">*</span></th><th class="num c-sm">Pcs/Cs <span class="req">*</span></th><th class="c-md">Expiry (Month-Year) <span class="req">*</span></th><th class="num c-sm">Invty in Cases <span class="req">*</span></th>
+              <th class="c-md">Prod No. <span class="req">*</span></th><th class="c-xl">SKU <span class="req">*</span></th>
+              <th class="num c-num">Price per Pc <span class="req">*</span></th><th class="c-md">Expiry (Month-Year) <span class="req">*</span></th>
               <th class="num c-sm">Invty in Pieces <span class="req">*</span></th><th class="num">Total in Pcs</th><th class="num">Total Value</th><th class="c-lg">Moveout Scheme <span class="req">*</span></th>
               <th class="num c-sm">Discount / Rebate <span class="req">*</span></th><th class="num">Moveout Cost</th><th></th>
             </tr></thead>
@@ -168,12 +168,9 @@ type Draft = SaveTasafWorksheet & Partial<TasafWorksheet> & { id: number };
                 <tr>
                   <td [title]="l.sku" [class.cell-miss]="miss(l.prodNo)"><p-select [options]="prodOpts(w.category, l.prodNo, l.sku)" [ngModel]="l.prodNo || null" (ngModelChange)="onProd(l, $event)" optionLabel="label" optionValue="value" [showClear]="true" [filter]="true" filterBy="label" placeholder="Select" appendTo="body" styleClass="ws-sel" [panelStyle]="{ width: '26rem' }" [disabled]="!editable()"><ng-template let-o pTemplate="selectedItem">{{ o.value }}</ng-template></p-select></td>
                   <td [title]="l.sku" [class.cell-miss]="miss(l.sku)"><textarea class="p-inputtext wrap" rows="1" [(ngModel)]="l.sku" maxlength="100" [disabled]="!editable()"></textarea></td>
-                  <td [class.cell-miss]="missN(l.lspPerCase)"><p-inputNumber [(ngModel)]="l.lspPerCase" (ngModelChange)="calcNe(l)" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="!editable()" /></td>
                   <td [class.cell-miss]="missN(l.lspPerPc)"><p-inputNumber [(ngModel)]="l.lspPerPc" (ngModelChange)="calcNe(l)" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="numin" [disabled]="!editable()" /></td>
-                  <td [class.cell-miss]="missN(l.pcsPerCase)"><p-inputNumber [(ngModel)]="l.pcsPerCase" (ngModelChange)="calcNe(l)" [min]="0" inputStyleClass="numin sm" [disabled]="!editable()" /></td>
                   <td [class.cell-miss]="miss(l.expiry)"><input type="month" class="p-inputtext" [ngModel]="monthOf(l)" (ngModelChange)="setMonth(l, $event)" [disabled]="!editable()" /></td>
-                  <td [class.cell-miss]="missN(l.invCases) && missN(l.invPieces)"><p-inputNumber [(ngModel)]="l.invCases" (ngModelChange)="calcNe(l)" [min]="0" inputStyleClass="numin sm" [disabled]="!editable()" /></td>
-                  <td [class.cell-miss]="missN(l.invCases) && missN(l.invPieces)"><p-inputNumber [(ngModel)]="l.invPieces" (ngModelChange)="calcNe(l)" [min]="0" inputStyleClass="numin sm" [disabled]="!editable()" /></td>
+                  <td [class.cell-miss]="missN(l.invPieces)"><p-inputNumber [(ngModel)]="l.invPieces" (ngModelChange)="calcNe(l)" [min]="0" inputStyleClass="numin sm" [disabled]="!editable()" /></td>
                   <td class="num calc">{{ l.totalPcs | number }}</td>
                   <td class="num calc">{{ l.totalValue | number:'1.2-2' }}</td>
                   <td [title]="l.moveoutScheme" [class.cell-miss]="miss(l.moveoutScheme)"><input pInputText [(ngModel)]="l.moveoutScheme" [disabled]="!editable()" /></td>
@@ -184,7 +181,7 @@ type Draft = SaveTasafWorksheet & Partial<TasafWorksheet> & { id: number };
               }
             </tbody>
             <tfoot><tr>
-              <td colspan="8" class="num"><strong>Total</strong></td>
+              <td colspan="5" class="num"><strong>Total</strong></td>
               <td class="num"><strong>{{ nePcs() | number }}</strong></td>
               <td class="num"><strong>{{ neValue() | number:'1.2-2' }}</strong></td><td colspan="2"></td>
               <td class="num"><strong>{{ neCost() | number:'1.2-2' }}</strong></td><td></td>
@@ -195,7 +192,7 @@ type Draft = SaveTasafWorksheet & Partial<TasafWorksheet> & { id: number };
       @if (editable()) { <p-button label="Add Row" icon="pi pi-plus" size="small" [text]="true" (onClick)="addRow()" /> }
       <p class="muted small">
         @if (w.type === 'ListingFee') { TOTAL = LF/SKU × # of Doors (package for all SKUs) or × # of SKUs (package for all doors); CTS = TOTAL ÷ Projected Annual Sales. }
-        @else { Total in Pcs = Cases × Pcs/Cs + Pieces · Total Value = Cases × LSP per Case + Pieces × LSP per Pc · Moveout Cost = Total Value × Discount / Rebate. }
+        @else { Total in Pcs = Invty in Pieces · Total Value = Price per Pc × Invty in Pieces · Moveout Cost = Total Value × Discount / Rebate. }
       </p>
     }
   `,
@@ -501,11 +498,10 @@ export class TasafWorksheetPageComponent implements OnInit, OnDestroy {
                      ['# of SKUs', l.skuCount != null], ['# of Doors', l.doorCount != null],
                      ['Projected Annual Sales', l.projectedAnnualSales != null]])
       : w.nearExLines
-          .filter(l => has(l.prodNo) || has(l.sku) || l.lspPerCase != null || l.lspPerPc != null || l.pcsPerCase != null
-                    || !!l.expiry || l.invCases != null || l.invPieces != null || has(l.moveoutScheme) || l.discount != null)
-          .map(l => [['Prod No.', has(l.prodNo)], ['SKU', has(l.sku)], ['LSP per Case', l.lspPerCase != null],
-                     ['LSP per Pc', l.lspPerPc != null], ['Pcs/Cs', l.pcsPerCase != null], ['Expiry', !!l.expiry],
-                     ['Invty in Cases or Pieces', l.invCases != null || l.invPieces != null],
+          .filter(l => has(l.prodNo) || has(l.sku) || l.lspPerPc != null
+                    || !!l.expiry || l.invPieces != null || has(l.moveoutScheme) || l.discount != null)
+          .map(l => [['Prod No.', has(l.prodNo)], ['SKU', has(l.sku)],
+                     ['Price per Pc', l.lspPerPc != null], ['Expiry', !!l.expiry], ['Invty in Pieces', l.invPieces != null],
                      ['Moveout Scheme', has(l.moveoutScheme)], ['Discount / Rebate', l.discount != null]]);
     if (!rows.length) return 'Add at least one product row.';
     for (const [i, cells] of rows.entries()) {

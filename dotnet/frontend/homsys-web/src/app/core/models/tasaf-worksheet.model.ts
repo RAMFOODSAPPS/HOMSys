@@ -126,10 +126,10 @@ export function computeListingFee(l: TasafListingFeeLine) {
   l.cts = l.projectedAnnualSales && l.projectedAnnualSales > 0 ? l.total / l.projectedAnnualSales : null;
 }
 
-/** Near Ex: Total in Pcs = Cases × Pcs/Cs + Pieces; Total Value = Cases × LSP/Case + Pieces × LSP/Pc; Moveout Cost = Value × Discount. */
+/** Near Ex, pieces only (2026-11-24): Total in Pcs = Pieces; Total Value = Price per Pc × Pieces; Moveout Cost = Value × Discount. */
 export function computeNearEx(l: TasafNearExLine) {
-  const cases = l.invCases ?? 0, pieces = l.invPieces ?? 0;
-  l.totalPcs = cases * (l.pcsPerCase ?? 0) + pieces;
-  l.totalValue = round2(cases * (l.lspPerCase ?? 0) + pieces * (l.lspPerPc ?? 0));
+  const pieces = l.invPieces ?? 0;
+  l.totalPcs = pieces;
+  l.totalValue = round2(pieces * (l.lspPerPc ?? 0));
   l.moveoutCost = round2(l.totalValue * (l.discount ?? 0));
 }
