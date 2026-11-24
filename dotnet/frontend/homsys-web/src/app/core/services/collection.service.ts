@@ -7,7 +7,7 @@ import { compressUpload } from '../utils/compress-upload';
 import { ApiResponse } from '../models/auth.model';
 import {
   BankAccountOptionDto, CollectionDocumentKindDto, CollectionDto, CollectionHistoryDto, InvoiceHistoryDto, CollectionListItemDto, CollectionSiteDto, DepositInfoDto, InvoiceSyncRequestStatusDto,
-  LodLetterDto, OpenInvoiceDto, PdcItemDto, SaveCollectionDto, SaveDocumentKindDto, SettlementCandidateDto
+  LodLetterDto, OpenInvoiceDto, PdcItemDto, RfcFollowUpDto, SaveCollectionDto, SaveDocumentKindDto, SettlementCandidateDto
 } from '../models/collection.model';
 
 @Injectable({ providedIn: 'root' })
@@ -74,6 +74,16 @@ export class CollectionService {
   }
   recordPdcDeposit(id: number, dep: { bankAccountId: number | null; slipRefNo: string; depositDate: string }) {
     return this.http.post<ApiResponse<CollectionDto>>(`${environment.apiUrl}/pdc/${id}/deposit`, dep);
+  }
+  /** Returns awaiting their RFC (CNC Verifier / Finance Manager); linkedDays > 0 also lists recently linked ones. */
+  rfcFollowUp(linkedDays = 0) {
+    return this.http.get<ApiResponse<RfcFollowUpDto[]>>(`${environment.apiUrl}/rfc-follow-up`, { params: new HttpParams().set('linkedDays', linkedDays) });
+  }
+  linkRfc(deductionId: number, rfcNo: number) {
+    return this.http.post<ApiResponse<unknown>>(`${environment.apiUrl}/rfc-follow-up/${deductionId}/link`, { rfcNo });
+  }
+  autoLinkRfcs() {
+    return this.http.post<ApiResponse<number>>(`${environment.apiUrl}/rfc-follow-up/auto-link`, {});
   }
   pdcSites() {
     return this.http.get<ApiResponse<CollectionSiteDto[]>>(`${environment.apiUrl}/pdc/sites`);

@@ -15,7 +15,8 @@ public record CollectionSiteDto(int Id, string Code, string Name);
 /// HomsBalance = HOMS's own open balance (AROF4HO DOCBAL), which also counts ORs posted in HOMS outside HOMSys; null = unknown.
 public record OpenInvoiceDto(
     int Id, int DocNo, DateOnly DocDate, string CustKey, string CustName, int Term, string? PoNum,
-    decimal Total, decimal RfcTotal, decimal Paid, decimal Balance, decimal? HomsBalance = null);
+    decimal Total, decimal RfcTotal, decimal Paid, decimal Balance, decimal? HomsBalance = null,
+    List<RfcCandidateDto>? FreeRfcs = null);   // RFCs no receipt has taken yet: pre-encoded as returns when it's put on one
 
 /// <summary>Deposit slip. BankAccountId picks the company account; Bank is its label (read-only, filled by the server).</summary>
 public record DepositInfoDto(int? BankAccountId, string? Bank, string SlipRefNo, DateOnly DepositDate);
@@ -26,7 +27,8 @@ public record SaveAllocationDto(int PostedInvoiceId, decimal AmountApplied);
 /// Description: what an "Other" is (required for Other). AttachmentId: a Service Invoice's scanned copy (one of the collection's files).</summary>
 /// Reason: the selection from finance's list (DeductionReasons code); it sets Type. Without it, Type's default selection.
 public record SaveDeductionDto(int PostedInvoiceId, string Type, decimal Amount, string? Reference, bool With2307 = false, int? AcctNo = null,
-    string? Description = null, int? AttachmentId = null, string? Reason = null);
+    string? Description = null, int? AttachmentId = null, string? Reason = null,
+    int? RfcNo = null);   // a "Return from customer" pre-encoded from an RFC already posted on the invoice (amount = the RFC's)
 
 /// <summary>Create / update a Draft (or Returned) collection. Enums travel as their names.</summary>
 public record SaveCollectionDto(
@@ -68,7 +70,8 @@ public record CollectionInvoiceDto(
 /// <summary>HomsSentAt = when its row went into HOMS's ordeduc2 (never for EWT, an OR line).</summary>
 public record CollectionDeductionDto(int Id, int PostedInvoiceId, int DocNo, string Type, decimal Amount, string? Reference,
     bool With2307 = false, int? AcctNo = null, string? Description = null, int? AttachmentId = null, DateTime? HomsSentAt = null,
-    string? Reason = null);
+    string? Reason = null,
+    bool IsReturn = false, int? RfcNo = null, DateTime? RfcLinkedAt = null, string? RfcLinkedBy = null);   // return → its RFC (CNC follow-up)
 
 /// <summary>Kind: see AttachmentKinds (DepositSlip, CustomerSlip, ServiceInvoice, ...); Note: a short label.</summary>
 public record CollectionAttachmentDto(int Id, string FileName, string ContentType, long Size, DateTime UploadedAt, string UploadedBy,

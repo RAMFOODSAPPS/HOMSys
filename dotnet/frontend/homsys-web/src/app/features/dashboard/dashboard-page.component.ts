@@ -68,7 +68,8 @@ const GROUPS: DashboardGroup[] = [
       { label: 'Verification Queue', icon: 'pi-check-square', route: '/collections/verify', permission: 'collections-verify' },
       { label: 'Bank Statements', icon: 'pi-building-columns', route: '/collections/bank', permission: ['collections-manage', 'collections-verify'] },
       { label: 'Collections Dashboard', icon: 'pi-chart-bar', route: '/collections/dashboard', permission: 'collections-manage' },
-      { label: 'PDC Monitor', icon: 'pi-calendar-clock', route: '/pdc', permission: ['pdc-view', 'pdc-tag'] }
+      { label: 'PDC Monitor', icon: 'pi-calendar-clock', route: '/pdc', permission: ['pdc-view', 'pdc-tag'] },
+      { label: 'Returns awaiting RFC', icon: 'pi-replay', route: '/pdc/rfc-follow-up', permission: ['pdc-confirm', 'collections-manage'] }
     ]
   },
   {

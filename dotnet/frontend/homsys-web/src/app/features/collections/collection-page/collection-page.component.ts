@@ -44,6 +44,8 @@ interface Ded {
   reason: string | null;
   type: DeductionType | null; amount: number | null; ref: string; with2307: boolean; acctNo: number | null;
   desc: string; attachmentId: number | null; homsSentAt: string | null; docFile: File | null;
+  /** Saved "Return from customer" rows: the RFC linked to it (CNC follow-up, user 2026-11-24). */
+  id?: number; isReturn?: boolean; rfcNo?: number | null; rfcLinkedAt?: string | null; rfcLinkedBy?: string | null;
 }
 
 /** A file picked on a new collection, uploaded right after the first Save. */
@@ -426,9 +428,28 @@ const NEW_KEY = '/collections';
                     @if (d.type === 'ServiceInvoice') { <span class="muted">SI </span> }
                     {{ d.ref || (d.reason === 'OTHERS' && d.desc ? '' : '—') }}
                     <ng-container *ngTemplateOutlet="siDoc; context: { $implicit: d }" />
+                    <!-- A return holds the receipt's OR / RPDC until the CNC Verifier links its RFC (user 2026-11-24). -->
+                    @if (d.isReturn && d.id) {
+                      @if (d.rfcNo) {
+                        <span class="si-doc ok" [pTooltip]="'Linked ' + (d.rfcLinkedAt | date:'MM/dd/yy hh:mm a') + (d.rfcLinkedBy === 'auto' ? ' automatically (same amount)' : d.rfcLinkedBy === 'pre-encoded' ? ' — pre-encoded from the RFC posted on the invoice' : ' by ' + d.rfcLinkedBy)">
+                          <i class="pi pi-check-circle"></i>RFC {{ d.rfcNo }}</span>
+                      } @else {
+                        <span class="si-doc miss" pTooltip="Waiting for its RFC in HOMS A/R — the receipt goes to HOMS once the CNC Verifier links it">
+                          <i class="pi pi-clock"></i>Awaiting RFC</span>
+                      }
+                    }
                   </td>
+                } @else if (d.rfcNo) {
+                  <!-- Pre-encoded from the RFC already posted on the invoice (user 2026-11-24): amount and RFC come from HOMS A/R. -->
+                  <td class="sans num ded-name">{{ dedName(d) }}</td>
+                  @if (hasEwt()) { <td></td><td></td> }
+                  <td class="num">{{ (d.amount ?? 0) | number:'1.2-2' }}</td>
+                  <td class="ded-ref">RFC {{ d.rfcNo }}
+                    <span class="si-doc ok" pTooltip="Pre-encoded: this RFC is already posted on the invoice in HOMS A/R, so it is deducted once, here. Remove it only if it was already applied on another OR in HOMS.">
+                      <i class="pi pi-lock"></i>Pre-encoded</span>
+                    <p-button icon="pi pi-times" [text]="true" size="small" severity="secondary" pTooltip="Remove (already applied on another OR in HOMS)" (onClick)="removeDed(l, d)" /></td>
                 } @else {
-                  <td class="sans num"><p-select [ngModel]="d.reason" (ngModelChange)="onDedReason(d, $event)" [options]="deductionReasons" optionLabel="label" optionValue="value"
+                  <td class="sans num"><p-select [ngModel]="d.reason" (ngModelChange)="onDedReason(d, $event); onDedChange(l)" [options]="deductionReasons" optionLabel="label" optionValue="value"
                     placeholder="Deduction" appendTo="body" [filter]="true" filterBy="label" styleClass="ded-pick" [panelStyle]="{ maxWidth: '30rem' }">
                     <ng-template let-r pTemplate="item"><div class="ded-opt"><span>{{ r.label }}</span><small>{{ r.homs }}</small></div></ng-template>
                   </p-select></td>
@@ -439,7 +460,7 @@ const NEW_KEY = '/collections';
                         pTooltip="HOMS GL: 10507 with the 2307, 10508 without" tooltipPosition="top" inputStyleClass="col-acct mono" /></td>
                     } @else { <td></td><td></td> }
                   }
-                  <td class="num"><p-inputnumber [(ngModel)]="d.amount" (ngModelChange)="touchLines()" mode="decimal" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="col-num mono" /></td>
+                  <td class="num"><p-inputnumber [(ngModel)]="d.amount" (ngModelChange)="onDedChange(l)" mode="decimal" [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" inputStyleClass="col-num mono" /></td>
                   <td class="ded-ref">
                     @if (d.reason === 'OTHERS') {
                       <input pInputText [(ngModel)]="d.desc" (ngModelChange)="touchLines()" maxlength="100" class="col-desc" placeholder="Description (required)" />
@@ -855,7 +876,8 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
         postedInvoiceId: i.postedInvoiceId, docNo: i.docNo, docDate: i.docDate, custKey: i.custKey, custName: i.custName,
         total: i.total, rfcTotal: i.rfcTotal, available: i.availableBalance, applied: i.amountApplied,
         deds: ded.map(d => ({ reason: d.reason, type: d.type, amount: d.amount, ref: d.reference ?? '', with2307: d.with2307, acctNo: d.acctNo,
-          desc: d.description ?? '', attachmentId: d.attachmentId, homsSentAt: d.homsSentAt, docFile: null })),
+          desc: d.description ?? '', attachmentId: d.attachmentId, homsSentAt: d.homsSentAt, docFile: null,
+          id: d.id, isReturn: d.isReturn, rfcNo: d.rfcNo, rfcLinkedAt: d.rfcLinkedAt, rfcLinkedBy: d.rfcLinkedBy })),
       };
     }));
     // Branch and type are fixed once saved; everything is fixed once submitted.
@@ -995,11 +1017,17 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
       return;
     }
     const left = Math.max(0, this.unapplied());
+    // RFCs already posted on it come in as "Return from customer" rows (user 2026-11-24): the open balance is already net
+    // of them, so the line starts from the balance before them and deducts each RFC once, as a row.
+    const rfcs = i.freeRfcs ?? [];
+    const rfcDeds: Ded[] = rfcs.map(r => ({ reason: 'RETURN_CUSTOMER', type: 'RfcBoRtv' as DeductionType, amount: r.amount, ref: `RFC ${r.rfcNo}`,
+      with2307: false, acctNo: null, desc: '', attachmentId: null, homsSentAt: null, docFile: null, isReturn: true, rfcNo: r.rfcNo }));
     this.lines.update(ls => [...ls, {
       postedInvoiceId: i.id, docNo: i.docNo, docDate: i.docDate, custKey: i.custKey, custName: i.custName,
-      total: i.total, rfcTotal: i.rfcTotal, available: i.balance,
-      applied: this.round(Math.min(left, i.balance)) || null, deds: [],
+      total: i.total, rfcTotal: i.rfcTotal, available: this.round(i.balance + rfcs.reduce((t, r) => t + r.amount, 0)),
+      applied: this.round(Math.min(left, i.balance)) || null, deds: rfcDeds,
     }]);
+    if (rfcs.length) this.toast.add({ severity: 'info', summary: 'RFC', detail: `Invoice ${i.docNo}: RFC ${rfcs.map(r => r.rfcNo).join(', ')} pre-encoded as return${rfcs.length > 1 ? 's' : ''} — no need to add ${rfcs.length > 1 ? 'them' : 'it'}.` });
     // The receipt's customer follows its invoices (the first one sets it; a chain payment keeps the first).
     if (this.lines().length === 1 || !this.multiCustomer()) { if (this.form.controls.custKey.value !== i.custKey) this.form.patchValue({ custKey: i.custKey }); }
     this.form.markAsDirty();
@@ -1038,7 +1066,31 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
     d.docFile = f;
     this.touchLines();
   }
-  removeDed(l: Line, d: Ded) { l.deds = l.deds.filter(x => x !== d); this.lines.update(ls => [...ls]); this.touchLines(); }
+  removeDed(l: Line, d: Ded) {
+    if (d.rfcNo) l.available = this.round(l.available - (d.amount ?? 0));   // the RFC still reduces the invoice
+    l.deds = l.deds.filter(x => x !== d);
+    this.recalcApplied(l);
+    this.lines.update(ls => [...ls]); this.touchLines();
+  }
+
+  /** A deduction's amount or selection changed: the invoice's applied amount follows it. */
+  onDedChange(l: Line) { this.recalcApplied(l); this.touchLines(); }
+
+  /**
+   * Applied follows the deductions (user 2026-11-24): applied = the invoice's available amount − every deduction on it,
+   * but never more than what is left of the amount received (a partial payment). Typing Applied by hand still works;
+   * it's recomputed only when a deduction changes.
+   */
+  private recalcApplied(l: Line) {
+    const deds = l.deds.reduce((t, d) => t + (d.type ? d.amount ?? 0 : 0), 0);
+    let applied = Math.max(0, this.round(l.available - deds));
+    const received = this.form.controls.amount.value;
+    if (received) {
+      const others = this.lines().filter(x => x.postedInvoiceId !== l.postedInvoiceId).reduce((t, x) => t + (x.applied ?? 0), 0);
+      applied = Math.min(applied, Math.max(0, this.round(received - others)));
+    }
+    l.applied = this.round(applied) || null;
+  }
 
   /** Picking a selection sets its type. A new EWT starts with 2307 att. unticked, so ACCTNO 10508 (user 2026-11-12). */
   onDedReason(d: Ded, code: string | null) {
@@ -1102,7 +1154,7 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
         .map(d => ({ postedInvoiceId: l.postedInvoiceId, type: d.type!, amount: d.amount!, reference: d.ref?.trim() || null,
           with2307: d.type === 'Ewt2307' && !!d.with2307, acctNo: d.type === 'Ewt2307' ? d.acctNo : null,
           description: d.reason === 'OTHERS' ? d.desc?.trim() || null : null, reason: d.reason,
-          attachmentId: d.type === 'ServiceInvoice' ? d.attachmentId : null }))),
+          attachmentId: d.type === 'ServiceInvoice' ? d.attachmentId : null, rfcNo: d.rfcNo ?? null }))),
       multiCustomer: this.multiCustomer(),
     };
     if (isPdc && !dto.depositoryAccountId) {

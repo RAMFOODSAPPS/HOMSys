@@ -137,7 +137,7 @@ const SHORT_MODE: Record<string, string> = { Cash: 'CASH', Check: 'CHEQUE',PostD
                       <span class="cap">Deductions</span>
                       @for (d of dedOf(c, i.postedInvoiceId); track d.id) {
                         <div class="ded-row">
-                          <span>{{ dedLabel(d.type, d.reason) }}@if (d.type === 'Ewt2307') { <span class="muted"> · {{ d.with2307 ? '2307 att.' : 'no 2307' }} · {{ d.acctNo }}</span> }@if (d.reference) { <span class="muted"> · {{ d.reference }}</span> }</span>
+                          <span>{{ dedLabel(d.type, d.reason) }}@if (d.type === 'Ewt2307') { <span class="muted"> · {{ d.with2307 ? '2307 att.' : 'no 2307' }} · {{ d.acctNo }}</span> }@if (d.reference) { <span class="muted"> · {{ d.reference }}</span> }@if (d.isReturn) { @if (d.rfcNo) { <span class="rfc-ok"> · RFC {{ d.rfcNo }}</span> } @else { <span class="rfc-wait" pTooltip="Its OR / RPDC is held until the RFC is posted in HOMS A/R and linked (CNC Verifier, PDC › Returns awaiting RFC)"> · awaiting RFC</span> } }</span>
                           <span class="mono">{{ d.amount | number:'1.2-2' }}</span>
                         </div>
                       } @empty { <span class="muted">None</span> }

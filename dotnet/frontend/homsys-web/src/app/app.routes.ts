@@ -106,6 +106,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/pdc/pdc-page.component').then(m => m.PdcPageComponent)
       },
+      {
+        path: 'pdc/rfc-follow-up',
+        data: { permission: ['pdc-confirm', 'collections-manage'] },
+        loadComponent: () =>
+          import('./features/pdc/rfc-follow-up-page.component').then(m => m.RfcFollowUpPageComponent)
+      },
       // Replaced by the Data Analytics module ("Sales Overview" system dashboard on /home).
       { path: 'sales-order-analytics', redirectTo: 'home', pathMatch: 'full' },
       {

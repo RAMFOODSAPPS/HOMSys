@@ -72,6 +72,7 @@ public static class DependencyInjection
         services.AddScoped<ArofMirrorImporter>();
         services.AddScoped<InvoiceSyncRequestService>();
         services.AddScoped<HomsPostingService>();
+        services.AddScoped<RfcFollowUpService>();
         services.AddScoped<BankMatchService>();
         services.AddScoped<CollectionService>();
         services.AddScoped<CollectionDocumentKindService>();

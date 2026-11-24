@@ -890,6 +890,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Description).HasMaxLength(100);
             e.Property(x => x.Reason).HasMaxLength(30);
             e.Ignore(x => x.ReadyForHoms);
+            e.Ignore(x => x.IsReturn); e.Ignore(x => x.AwaitingRfc); e.Ignore(x => x.CountsAsPaid);
+            e.Property(x => x.RfcLinkedBy).HasMaxLength(100);
+            e.HasIndex(x => x.RfcNo);
             e.HasOne(x => x.Attachment).WithMany().HasForeignKey(x => x.AttachmentId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(x => x.Collection).WithMany(c => c.Deductions).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.PostedInvoice).WithMany().HasForeignKey(x => x.PostedInvoiceId).OnDelete(DeleteBehavior.Restrict);
