@@ -26,7 +26,7 @@ import {
   CollectionDocumentKindDto, documentKindLabel, BankAccountOptionDto, CollectionDto, CollectionSiteDto, DEDUCTION_REASONS, DeductionType, deductionName, ewtAccount,
   OpenInvoiceDto, PAYMENT_MODES, PaymentMode, RECEIPT_TYPES, ReceiptType, SaveCollectionDto, statusLabel, statusSeverity
 } from '../../../core/models/collection.model';
-import { CollectionStep as Step, collectionSteps } from '../collection-steps';
+import { CollectionGuide, CollectionStep as Step, collectionGuide, collectionSteps } from '../collection-steps';
 
 /** One invoice the collection is applied to, as edited in the grid. */
 interface Line {
@@ -135,9 +135,19 @@ const NEW_KEY = '/collections';
                     }
                     @if (s.by) { <span>{{ s.by }}</span> }
                   </div>
+                  @if (s.docs) { <span class="cs-docs">@for (x of s.docs; track $index) { <span class="cs-doc" [attr.data-tone]="x.tone" [pTooltip]="x.tip"><b>{{ x.text }}</b><small>{{ x.state }}</small></span> }</span> }
                 </div>
               }
             </div>
+            @if (guide(); as g) {
+              <div class="cs-guide" [attr.data-tone]="g.tone">
+                <div class="cs-guide-st"><small>Status</small><b>{{ g.status }}</b></div>
+                @if (g.next.length) {
+                  <div class="cs-guide-nx"><small>Next step{{ g.next.length === 1 ? '' : 's' }}</small>
+                    <ol>@for (n of g.next; track $index) { <li>{{ n }}</li> }</ol></div>
+                }
+              </div>
+            }
           </section>
           @if (c.remittanceId) {
             <p-message severity="info" styleClass="w-full">
@@ -756,6 +766,7 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
   protected appliedTotal = computed(() => { this.formTick(); return this.round(this.lines().reduce((s, l) => s + (l.applied ?? 0), 0)); });
   /** Status tracker (shared with the Collections list preview): see collectionSteps. */
   protected steps = computed<Step[]>(() => { const c = this.col(); return c ? collectionSteps(c) : []; });
+  protected guide = computed<CollectionGuide | null>(() => { const c = this.col(); return c ? collectionGuide(c) : null; });
 
   /** Invoice balance after this receipt (live while editing): open balance − applied − deductions. A voided receipt
    *  or bounced PDC doesn't count, so its invoices keep their open balance. */

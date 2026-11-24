@@ -19,7 +19,7 @@ import { ApiResponse } from '../../../core/models/auth.model';
 import {
   CollectionDto, CollectionListItemDto, CollectionSiteDto, deductionName, inDateRange, InvoiceHistoryDto, isoDay, PAYMENT_MODES, RECEIPT_TYPES, statusLabel
 } from '../../../core/models/collection.model';
-import { collectionSteps } from '../collection-steps';
+import { collectionGuide, collectionSteps } from '../collection-steps';
 
 const EXPORT_COLS: ExportColumn[] = [
   { header: 'Branch', field: 'siteCode' },
@@ -258,10 +258,20 @@ interface Action { label: string; kind: 'primary' | 'secondary' | 'danger'; run:
                         @if (s.at) { {{ s.at | date:'MM/dd/yy' }}@if (!s.dateOnly) {<br>{{ s.at | date:'hh:mm a' }}} }
                         @if (s.by) {<br>{{ s.by }}}
                       </span>
+                      @if (s.docs) { <span class="cs-docs">@for (x of s.docs; track $index) { <span class="cs-doc" [attr.data-tone]="x.tone" [pTooltip]="x.tip"><b>{{ x.text }}</b><small>{{ x.state }}</small></span> }</span> }
                     </div>
                   }
                 </div>
               </div>
+              @if (guide(d); as g) {
+              <div class="cs-guide" [attr.data-tone]="g.tone">
+                <div class="cs-guide-st"><small>Status</small><b>{{ g.status }}</b></div>
+                @if (g.next.length) {
+                  <div class="cs-guide-nx"><small>Next step{{ g.next.length === 1 ? '' : 's' }}</small>
+                    <ol>@for (n of g.next; track $index) { <li>{{ n }}</li> }</ol></div>
+                }
+              </div>
+            }
             </div>
 
             <div class="cll-card-box">
@@ -657,6 +667,7 @@ export class CollectionListPageComponent implements OnInit, AfterViewInit, OnDes
   }
 
   steps(d: CollectionDto) { return collectionSteps(d); }
+  guide(d: CollectionDto) { return collectionGuide(d); }
   applied(d: CollectionDto) { return d.invoices.reduce((s, i) => s + i.amountApplied, 0); }
   // ── invoice payment history (side panel over the preview) ──
 
