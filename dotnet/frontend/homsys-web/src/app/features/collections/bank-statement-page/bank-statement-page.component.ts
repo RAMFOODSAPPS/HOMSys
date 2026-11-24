@@ -126,11 +126,12 @@ type SortKey = 'date' | 'debit' | 'credit';
                     <td class="num mono nowrap">{{ l.credit ? (l.credit | number:'1.2-2') : '' }}</td>
                     <td class="nowrap"><div class="slip">
                       @if (l.credit > 0) {
-                        @if (l.matchedSlip) {
+                        @if (l.matchedDepositBatchId) {
+                          <!-- matched on the batch id: a deposit encoded without a slip no. yet has an empty slip (2026-11-24) -->
                           @if (l.matchConfirmed) {
-                            <span class="pill pill-success">{{ l.matchedSiteCode }} · {{ l.matchedSlip }}</span>
+                            <span class="pill pill-success">{{ l.matchedSiteCode }} · {{ l.matchedSlip || 'no slip no.' }}</span>
                           } @else {
-                            <span class="pill pill-info" pTooltip="Automatic match — counts once the Finance Verifier approves it">Pending · {{ l.matchedSiteCode }} · {{ l.matchedSlip }}</span>
+                            <span class="pill pill-info" pTooltip="Automatic match — counts once the Finance Verifier approves it">Pending · {{ l.matchedSiteCode }} · {{ l.matchedSlip || 'no slip no.' }}</span>
                           }
                           @if (canManage) { <a href="" (click)="$event.preventDefault(); unmatch(l)">Unmatch</a> }
                         } @else {
