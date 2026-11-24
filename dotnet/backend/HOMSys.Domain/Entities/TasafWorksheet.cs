@@ -96,16 +96,20 @@ public class TasafNearExLine
     /// <summary>Product master ProdNo (picked); Sku = its description, editable.</summary>
     public string ProdNo { get; set; } = string.Empty;
     public string Sku { get; set; } = string.Empty;
+    /// <summary>No longer entered (pieces only since 2026-11-24); kept for older worksheets, saved as null.</summary>
     public decimal? LspPerCase { get; set; }
+    /// <summary>"Price per Pc" on the form.</summary>
     public decimal? LspPerPc { get; set; }
+    /// <summary>No longer entered (pieces only since 2026-11-24); saved as null.</summary>
     public int? PcsPerCase { get; set; }
     /// <summary>EXPIRY (Month-Year): stored as the 1st of the month.</summary>
     public DateOnly? Expiry { get; set; }
+    /// <summary>No longer entered (pieces only since 2026-11-24); saved as null.</summary>
     public int? InvCases { get; set; }
     public int? InvPieces { get; set; }
-    /// <summary>Computed: Cases × Pcs/Cs + Pieces.</summary>
+    /// <summary>Computed: = Invty in Pieces.</summary>
     public int TotalPcs { get; set; }
-    /// <summary>Computed: Cases × LSP per Case + Pieces × LSP per Pc.</summary>
+    /// <summary>Computed: Price per Pc × Invty in Pieces.</summary>
     public decimal TotalValue { get; set; }
     public string MoveoutScheme { get; set; } = string.Empty;
     /// <summary>Discount / Rebate as a fraction (0.5 = 50%).</summary>

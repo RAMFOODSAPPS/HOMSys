@@ -214,16 +214,16 @@ public static class TasafEmailRenderer
             null));
         if (nearEx)
             sb.Append(Table(
-                ["Prod No.", "SKU", "LSP / Case", "LSP / Pc", "Pcs/Cs", "Expiry",
-                 "Invty Cases", "Invty Pcs", "Total Pcs", "Total Value", "Moveout Scheme", "Discount / Rebate", "Moveout Cost"],
-                [false, false, true, true, true, false, true, true, true, true, false, true, true],
+                ["Prod No.", "SKU", "Price / Pc", "Expiry",
+                 "Invty Pcs", "Total Pcs", "Total Value", "Moveout Scheme", "Discount / Rebate", "Moveout Cost"],
+                [false, false, true, false, true, true, true, false, true, true],
                 w.NearExLines.Select(l => new[]
                 {
-                    l.ProdNo, l.Sku, Num(l.LspPerCase), Num(l.LspPerPc), Int(l.PcsPerCase),
-                    l.Expiry?.ToString("MMM-yy", En) ?? "—", Int(l.InvCases), Int(l.InvPieces), l.TotalPcs.ToString("N0", En),
+                    l.ProdNo, l.Sku, Num(l.LspPerPc),
+                    l.Expiry?.ToString("MMM-yy", En) ?? "—", Int(l.InvPieces), l.TotalPcs.ToString("N0", En),
                     Num(l.TotalValue), l.MoveoutScheme, l.Discount is decimal dc ? dc.ToString("P0", En) : "—", Num(l.MoveoutCost)
                 }).ToList(),
-                ["Total", "", "", "", "", "", "", "", w.NearExLines.Sum(l => l.TotalPcs).ToString("N0", En),
+                ["Total", "", "", "", "", w.NearExLines.Sum(l => l.TotalPcs).ToString("N0", En),
                  Num(w.NearExLines.Sum(l => l.TotalValue)), "", "", Num(w.Total)]));
         else
             sb.Append(Table(

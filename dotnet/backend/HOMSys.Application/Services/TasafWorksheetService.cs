@@ -223,19 +223,19 @@ public class TasafWorksheetService(
             var lines = new List<TasafNearExLine>();
             foreach (var (l, i) in rows.Select((l, i) => (l, i)))
             {
-                if (RowMissing(i, ("Prod No.", Has(l.ProdNo)), ("SKU", Has(l.Sku)), ("LSP per Case", l.LspPerCase is not null),
-                        ("LSP per Pc", l.LspPerPc is not null), ("Pcs/Cs", l.PcsPerCase is not null), ("Expiry", l.Expiry is not null),
-                        ("Invty in Cases or Pieces", l.InvCases is not null || l.InvPieces is not null),
+                if (RowMissing(i, ("Prod No.", Has(l.ProdNo)), ("SKU", Has(l.Sku)), ("Price per Pc", l.LspPerPc is not null),
+                        ("Expiry", l.Expiry is not null), ("Invty in Pieces", l.InvPieces is not null),
                         ("Moveout Scheme", Has(l.MoveoutScheme)), ("Discount / Rebate", l.Discount is not null)) is { } miss) return miss;
-                if (l.LspPerCase is < 0 || l.LspPerPc is < 0 || l.PcsPerCase is < 0 || l.InvCases is < 0 || l.InvPieces is < 0)
+                if (l.LspPerPc is < 0 || l.InvPieces is < 0)
                     return $"Row {i + 1}: prices and quantities can't be negative.";
                 if (l.Discount is < 0 or > 1) return $"Row {i + 1}: Discount / Rebate must be between 0% and 100%.";
                 var line = new TasafNearExLine
                 {
                     LineNo = i + 1, SalesGroup = w.SalesGroup, Account = w.Account, Category = w.Category,
-                    ProdNo = Clip(l.ProdNo, 20), Sku = Clip(l.Sku), LspPerCase = l.LspPerCase, LspPerPc = l.LspPerPc, PcsPerCase = l.PcsPerCase,
+                    ProdNo = Clip(l.ProdNo, 20), Sku = Clip(l.Sku), LspPerPc = l.LspPerPc,
+                    // Case columns (LspPerCase / PcsPerCase / InvCases) dropped 2026-11-24: pieces only, left null.
                     Expiry = l.Expiry is DateOnly e ? new DateOnly(e.Year, e.Month, 1) : null,
-                    InvCases = l.InvCases, InvPieces = l.InvPieces, MoveoutScheme = Clip(l.MoveoutScheme), Discount = l.Discount
+                    InvPieces = l.InvPieces, MoveoutScheme = Clip(l.MoveoutScheme), Discount = l.Discount
                 };
                 Compute(line);
                 lines.Add(line);
@@ -254,13 +254,13 @@ public class TasafWorksheetService(
         l.Cts = l.ProjectedAnnualSales is > 0 and var sales ? Math.Round(l.Total / sales, 6) : null;
     }
 
-    /// <summary>Near Ex: Total in Pcs = Cases × Pcs/Cs + Pieces (=(J*H)+K); Total Value = Cases × LSP/Case + Pieces × LSP/Pc
-    /// (=(J*F)+(G*K)); Moveout Cost = Total Value × Discount (=M*O).</summary>
+    /// <summary>Near Ex, pieces only (user decision 2026-11-24, the workbook's case columns dropped): Total in Pcs = Invty in
+    /// Pieces; Total Value = Price per Pc (LspPerPc) × Pieces; Moveout Cost = Total Value × Discount.</summary>
     public static void Compute(TasafNearExLine l)
     {
-        int cases = l.InvCases ?? 0, pieces = l.InvPieces ?? 0;
-        l.TotalPcs    = cases * (l.PcsPerCase ?? 0) + pieces;
-        l.TotalValue  = Math.Round(cases * (l.LspPerCase ?? 0) + pieces * (l.LspPerPc ?? 0), 2);
+        var pieces = l.InvPieces ?? 0;
+        l.TotalPcs    = pieces;
+        l.TotalValue  = Math.Round(pieces * (l.LspPerPc ?? 0), 2);
         l.MoveoutCost = Math.Round(l.TotalValue * (l.Discount ?? 0), 2);
     }
 

@@ -583,14 +583,15 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   approval of its own, never required to submit, never feeds Cost Details). Delete only when detached. Locked (no edit / detach / delete) while
   the TASAF is past Draft / Returned. Typed columns stay typed (user decision 2026-10-30); computed ones = the
   workbook formulas: LF TOTAL = LF/SKU × Doors ("AllSkus", package for all SKUs) or × SKUs ("AllDoors", package for
-  all doors) — the sheet itself uses both, per row — CTS = TOTAL ÷ Projected Annual Sales; Near Ex Total in Pcs =
-  Cases × Pcs/Cs + Pieces, Total Value = Cases × LSP/Case + Pieces × LSP/Pc, Moveout Cost = Value × Discount.
+  all doors) — the sheet itself uses both, per row — CTS = TOTAL ÷ Projected Annual Sales; Near Ex is **pieces only**
+  (user decision 2026-11-24: LSP per Case, Pcs/Cs and Invty in Cases removed; their columns stay, saved as null):
+  Total in Pcs = Invty in Pieces, Total Value = Price per Pc (`LspPerPc`) × Pieces, Moveout Cost = Value × Discount.
   **Header / rows** (user decision 2026-11-09; migration `TasafWorksheetHeader`, backfilled from each sheet's first row):
   Sales Group, Channel (Listing Fee only), Account / Store and Category are entered ONCE per worksheet
   (`TasafWorksheet.SalesGroup/…`) above the grid, all REQUIRED to save (page + `TasafWorksheetService.Apply`); the rows
   are the products (Prod No. onward). The table is required too: at least one row, and per row LF = Prod No., SKU, LF / SKU,
-  # of SKUs, # of Doors, Projected Annual Sales (Remarks optional); Near Ex = Prod No., SKU, LSP per Case / Pc, Pcs/Cs,
-  Expiry, Invty Cases OR Pieces, Moveout Scheme, Discount (`RowMissing`; untouched rows are dropped). Each line still gets a copy
+  # of SKUs, # of Doors, Projected Annual Sales (Remarks optional); Near Ex = Prod No., SKU, Price per Pc,
+  Expiry, Invty in Pieces, Moveout Scheme, Discount (`RowMissing`; untouched rows are dropped). Each line still gets a copy
   of the header in its own columns on save; the lines' own values are ignored on input. Sales Group / Channel / Category
   are dropdowns of the TASAF lists (stored as names); Account / Store = the Customer / Chain list, editable (a store name
   can be typed); Prod No. = active SKUs of the header's Category (`tasafs/product-options`), filling SKU (editable). Unattached = only its creator sees it (user decision 2026-10-30); attached = also the TASAF's proponent / approvers and View All. Attached ones are in `TasafDto.Worksheets`
