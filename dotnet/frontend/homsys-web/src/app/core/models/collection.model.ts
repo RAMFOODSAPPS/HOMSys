@@ -14,6 +14,8 @@ export interface OpenInvoiceDto {
   total: number; rfcTotal: number; paid: number; balance: number;
   /** HOMS's own balance (AROF4HO DOCBAL): also counts ORs posted in HOMS outside HOMSys; null = unknown. */
   homsBalance?: number | null;
+  /** RFCs posted on it in HOMS A/R that no receipt has taken: pre-encoded as "Return from customer" rows (user 2026-11-24). */
+  freeRfcs?: RfcCandidateDto[] | null;
 }
 
 /** bankAccountId = company account deposited into; bank is its label (set by the server). */
@@ -78,7 +80,9 @@ export interface SaveCollectionDto {
   /** with2307 / acctNo: EWT only — "2307 att." and the HOMS GL of its CEWT line (10507 with the 2307, else 10508). */
   /** description: what an "Other" is (required for Other). attachmentId: a Service Invoice's scanned copy (one of the collection's files). */
   deductions: { postedInvoiceId: number; type: DeductionType; amount: number; reference: string | null; with2307: boolean; acctNo: number | null;
-    description?: string | null; attachmentId?: number | null; reason?: string | null }[];
+    description?: string | null; attachmentId?: number | null; reason?: string | null;
+    /** A return pre-encoded from the RFC already posted on the invoice (its amount comes from HOMS A/R). */
+    rfcNo?: number | null }[];
   /** Chain account paying several customers' invoices on this one receipt (e.g. SM). */
   multiCustomer?: boolean;
   /** HOMS DCRNO; required. */
@@ -125,7 +129,9 @@ export interface CollectionDto {
   /** homsSentAt: when its row went into HOMS's ordeduc2 (never for EWT, an OR line). */
   deductions: { id: number; postedInvoiceId: number; docNo: number; type: DeductionType; amount: number; reference: string | null;
     with2307: boolean; acctNo: number | null; description: string | null; attachmentId: number | null; homsSentAt: string | null;
-    reason: string | null }[];
+    reason: string | null;
+    /** "Return from customer": the RFC it's linked to (its OR / RPDC waits until every return has one). */
+    isReturn: boolean; rfcNo: number | null; rfcLinkedAt: string | null; rfcLinkedBy: string | null }[];
   attachments: CollectionAttachmentDto[];
   history: CollectionHistoryDto[];
   bms: BmsPostingDto | null;
@@ -383,4 +389,12 @@ export function inDateRange(value: string | null | undefined, from: string | nul
   if (!from && !to) return true;
   const d = (value ?? '').slice(0, 10);
   return !!d && (!from || d >= from) && (!to || d <= to);
+}
+/** PDC › Returns awaiting RFC (CNC follow-up, user 2026-11-24). linkedTo: the receipt another return took the RFC for. */
+export interface RfcCandidateDto { rfcNo: number; rfcDate: string | null; amount: number; linkedTo: string | null; }
+export interface RfcFollowUpDto {
+  deductionId: number; collectionId: number; branch: string; receiptType: string; receiptNo: string; receiptDate: string;
+  custKey: string; custName: string; invoiceNo: number; invoiceDate: string; amount: number; reference: string | null;
+  status: string; since: string; daysWaiting: number; posting: string | null;
+  rfcNo: number | null; rfcLinkedAt: string | null; rfcLinkedBy: string | null; rfcs: RfcCandidateDto[];
 }

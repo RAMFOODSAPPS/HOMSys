@@ -154,6 +154,30 @@ public class HomsPostingService(AppDbContext db)
         });
     }
 
+    /// <summary>
+    /// After a return's RFC was linked (not saved): an OR / RPDC held only for its returns is rebuilt and goes to HOMS once
+    /// every return on the receipt has its RFC (user 2026-11-24: the whole receipt waits). Returns true when one was released.
+    /// </summary>
+    public async Task<bool> ReleaseRfcHoldAsync(Collection c, string user)
+    {
+        await LoadForBuildAsync(c);
+        if (HomsPostingBuilder.AwaitingRfcNote(c) is not null) return false;
+        var held = await db.HomsPostings.Where(p => p.CollectionId == c.Id && p.Status == HomsPostingStatus.Held
+            && (p.Kind == HomsPostingKind.Or || p.Kind == HomsPostingKind.Rpdc)).ToListAsync();
+        var released = false;
+        foreach (var p in held)
+        {
+            Fill(p, c, p.CreatedBy);   // USERNAME stays the verifier who posted it, not whoever linked the RFC
+            c.History.Add(new CollectionHistory
+            {
+                Action = p.Status == HomsPostingStatus.Held ? $"HOMS {Label(p.Kind)} still on hold" : $"Queued for HOMS ({Label(p.Kind)})",
+                Reason = Cut(p.Status == HomsPostingStatus.Held ? p.Message : $"Every return has its RFC. {p.Message}".Trim()), By = user,
+            });
+            released |= p.Status == HomsPostingStatus.Pending;
+        }
+        return released;
+    }
+
     /// <summary>PDC pulled out / replaced (not saved). Its RPDC never reached HOMS → cancelled here, the PDC can be voided
     /// now (viaHoms false). Written, or tried already (an interrupted run may have left part of it) → an RpdcCancel is
     /// queued: the watcher cancels whatever HOMS has of it, then <see cref="CompleteAsync"/> voids the PDC (viaHoms true).</summary>

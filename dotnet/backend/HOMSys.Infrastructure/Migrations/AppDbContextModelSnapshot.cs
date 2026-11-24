@@ -787,6 +787,16 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<DateTime?>("RfcLinkedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RfcLinkedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("RfcNo")
+                        .HasColumnType("int");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -802,6 +812,8 @@ namespace HOMSys.Infrastructure.Migrations
                     b.HasIndex("CollectionId");
 
                     b.HasIndex("PostedInvoiceId");
+
+                    b.HasIndex("RfcNo");
 
                     b.ToTable("CollectionDeductions");
                 });

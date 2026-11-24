@@ -297,7 +297,7 @@ public static class AnalyticsCatalog
              WHERE ci.PostedInvoiceId = pi.Id AND c.VerificationStatus <> 'Voided' AND ISNULL(c.PdcOutcome, '') <> 'Bounced'
             UNION ALL
             SELECT d.Amount FROM CollectionDeductions d JOIN Collections c ON c.Id = d.CollectionId
-             WHERE d.PostedInvoiceId = pi.Id AND c.VerificationStatus <> 'Voided' AND ISNULL(c.PdcOutcome, '') <> 'Bounced') x) pd
+             WHERE d.PostedInvoiceId = pi.Id AND d.RfcNo IS NULL AND c.VerificationStatus <> 'Voided' AND ISNULL(c.PdcOutcome, '') <> 'Bounced') x) pd
         """;
 
     private const string InvBalance = "(pi.Total + pi.RfcTotal - ISNULL(pd.Paid, 0))";

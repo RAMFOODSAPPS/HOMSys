@@ -711,6 +711,8 @@ body.rc-resizing { cursor: col-resize !important; user-select: none; }
   .vq-invc-deds .ded-row { display: flex; justify-content: space-between; gap: 10px; }
   .vq-invc-deds .ded-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
   .vq-invc-deds .ded-row > .mono { flex-shrink: 0; }
+  .vq-invc-deds .rfc-ok { color: #1f6b3e; }
+  .vq-invc-deds .rfc-wait { color: #b45309; }
   .vq-sum { display: grid; grid-template-columns: 1fr auto; row-gap: 6px; padding: 12px 14px; background: #f7f7f7; border: 1px solid #e5e5e5; border-radius: 6px; }
   .vq-sum span { color: #555; }
   .vq-sum b { font-weight: 400; text-align: right; }

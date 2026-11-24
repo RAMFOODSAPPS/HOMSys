@@ -156,7 +156,8 @@ export class ModulebarComponent {
       label: 'PDC',
       icon: 'pi-calendar-clock',
       items: [
-        { label: 'PDC Monitor', icon: 'pi pi-calendar-clock', routerLink: '/pdc', permission: ['pdc-view', 'pdc-tag'] }
+        { label: 'PDC Monitor', icon: 'pi pi-calendar-clock', routerLink: '/pdc', permission: ['pdc-view', 'pdc-tag'] },
+        { label: 'Returns awaiting RFC', icon: 'pi pi-replay', routerLink: '/pdc/rfc-follow-up', permission: ['pdc-confirm', 'collections-manage'] }
       ]
     },
     {

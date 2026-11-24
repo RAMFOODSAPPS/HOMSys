@@ -13,7 +13,7 @@ namespace HOMSys.Infrastructure.Collections;
 /// Invoice balances are computed here from the SL-mirrored PostedInvoices — never from arof4win.
 /// </summary>
 public partial class CollectionService(AppDbContext db, IAttachmentStore store, BankMatchService matcher, HomsPostingService homs,
-    InvoiceSyncRequestService invoiceRequests, IConfiguration config)
+    InvoiceSyncRequestService invoiceRequests, IConfiguration config, RfcFollowUpService rfcLinks)
 {
     public const long MaxAttachmentBytes = 10 * 1024 * 1024;
     private const int MaxAttachments = 20;
@@ -57,8 +57,9 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             .Where(x => invoiceIds.Contains(x.PostedInvoiceId) && x.CollectionId != excludeCollectionId
                         && x.Collection.VerificationStatus != VerificationStatus.Voided && x.Collection.PdcOutcome != PdcOutcome.Bounced)
             .GroupBy(x => x.PostedInvoiceId).Select(g => new { g.Key, Sum = g.Sum(x => x.AmountApplied) }).ToListAsync();
+        // A return linked to its RFC counts through the RFC (in RfcTotal), not as a deduction (user 2026-11-24).
         var deducted = await db.CollectionDeductions
-            .Where(x => invoiceIds.Contains(x.PostedInvoiceId) && x.CollectionId != excludeCollectionId
+            .Where(x => invoiceIds.Contains(x.PostedInvoiceId) && x.CollectionId != excludeCollectionId && x.RfcNo == null
                         && x.Collection.VerificationStatus != VerificationStatus.Voided && x.Collection.PdcOutcome != PdcOutcome.Bounced)
             .GroupBy(x => x.PostedInvoiceId).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync();
         foreach (var a in applied) paid[a.Key] = a.Sum;
@@ -127,8 +128,10 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         var invoices = await q.OrderBy(i => i.DocDate).ThenBy(i => i.DocNo).Take(500).ToListAsync();
 
         var paid = await PaidAsync(invoices.Select(i => i.Id).ToList());
+        var free = await rfcLinks.FreeRfcsAsync(invoices.Select(i => i.DocNo).ToList());
         var rows = invoices.Select(i => new OpenInvoiceDto(i.Id, i.DocNo, i.DocDate, i.CustKey, i.CustName, i.Term, i.PoNum,
-            i.Total, i.RfcTotal, paid.GetValueOrDefault(i.Id), Balance(i, paid.GetValueOrDefault(i.Id)), i.HomsBalance));
+            i.Total, i.RfcTotal, paid.GetValueOrDefault(i.Id), Balance(i, paid.GetValueOrDefault(i.Id)), i.HomsBalance,
+            free.GetValueOrDefault(i.DocNo) ?? []));
         return ((openOnly ? rows.Where(r => r.Balance != 0) : rows).ToList(), null);
     }
 
@@ -194,13 +197,15 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         var single = c.RemittanceId is null;   // an RA's CR is edited / submitted / voided through its RA
         var live = c.VerificationStatus != VerificationStatus.Voided && c.PdcOutcome != PdcOutcome.Bounced;
         var paid = await PaidAsync(c.Invoices.Select(i => i.PostedInvoiceId).ToList());
-        var dedByInv = c.Deductions.GroupBy(d => d.PostedInvoiceId).ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
+        var dedByInv = c.Deductions.Where(d => d.CountsAsPaid).GroupBy(d => d.PostedInvoiceId).ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
         var today = Today;
 
         var invoices = c.Invoices.OrderBy(i => i.PostedInvoice.DocNo).Select(i =>
         {
             var bal = Balance(i.PostedInvoice, paid.GetValueOrDefault(i.PostedInvoiceId));
             var own = live ? i.AmountApplied + dedByInv.GetValueOrDefault(i.PostedInvoiceId) : 0;
+            // Its RFC returns are listed as deductions, so the page's balance after = available - applied - every row.
+            if (live) own += c.Deductions.Where(d => d.PostedInvoiceId == i.PostedInvoiceId && !d.CountsAsPaid).Sum(d => d.Amount);
             return new CollectionInvoiceDto(i.PostedInvoiceId, i.PostedInvoice.DocNo, i.PostedInvoice.DocDate, i.PostedInvoice.CustKey,
                 i.PostedInvoice.CustName, i.PostedInvoice.Total, i.PostedInvoice.RfcTotal, i.AmountApplied, bal, bal + own);
         }).ToList();
@@ -241,7 +246,8 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             invoices,
             c.Deductions.OrderBy(d => d.Id).Select(d => new CollectionDeductionDto(d.Id, d.PostedInvoiceId, d.PostedInvoice.DocNo,
                 d.Type.ToString(), d.Amount, d.Reference, d.With2307, d.AcctNo, d.Description, d.AttachmentId,
-                d.HomsSentAt is { } hs ? Utc(hs) : null, DeductionReasons.Of(d).Code)).ToList(),
+                d.HomsSentAt is { } hs ? Utc(hs) : null, DeductionReasons.Of(d).Code, d.IsReturn, d.RfcNo,
+                d.RfcLinkedAt is { } rl ? Utc(rl) : null, d.RfcLinkedBy)).ToList(),
             c.Attachments.OrderBy(a => a.Id).Select(a => new CollectionAttachmentDto(a.Id, a.FileName, a.ContentType, a.Size,
                 Utc(a.UploadedAt), a.UploadedBy, a.Kind, a.Note)).ToList(),
             c.History.OrderBy(h => h.Id).Select(h => new CollectionHistoryDto(h.Action, h.FromStatus, h.ToStatus, h.Reason,
@@ -407,6 +413,11 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             return $"Invoice {other.DocNo} is for customer {other.CustKey}, not {custKey} — one receipt covers one customer only.";
 
         var newDeds = new List<CollectionDeduction>();
+        // RFCs already posted on the invoices: a return pre-encoded from one carries its RFC no. and its amount (user
+        // 2026-11-24). Checked here: on the invoice, not taken by another receipt, once per receipt.
+        var freeRfcs = deds.Any(d => d.RfcNo is not null)
+            ? await rfcLinks.FreeRfcsAsync(invoices.Values.Select(i => i.DocNo).ToList(), c.Id == 0 ? null : c.Id)
+            : [];
         foreach (var d in deds)
         {
             if (!invoices.ContainsKey(d.PostedInvoiceId)) return "A deduction must be on one of the collection's invoices.";
@@ -431,20 +442,37 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             if (dt == DeductionType.ServiceInvoice && refText is null) return $"Invoice {invNo}: enter the Service Invoice no.";
             // A Service Invoice's scanned copy must be one of this collection's files.
             int? attId = dt == DeductionType.ServiceInvoice && d.AttachmentId is { } aid && c.Attachments.Any(a => a.Id == aid) ? aid : null;
+            if (d.RfcNo is { } rfcNo)
+            {
+                if (reason.Code != "RETURN_CUSTOMER") return $"Invoice {invNo}: RFC {rfcNo} can only be a \"Return from customer\".";
+                if ((freeRfcs.GetValueOrDefault(invNo) ?? []).FirstOrDefault(r => r.RfcNo == rfcNo) is not { } posted)
+                    return $"Invoice {invNo}: RFC {rfcNo} isn't posted on it, or another receipt already has it. Fetch the invoice again.";
+                if (newDeds.Any(x => x.RfcNo == rfcNo)) return $"Invoice {invNo}: RFC {rfcNo} is listed twice.";
+                amt = posted.Amount;
+                refText ??= $"RFC {rfcNo}";
+            }
             newDeds.Add(new CollectionDeduction
             {
                 PostedInvoiceId = d.PostedInvoiceId, Type = dt, Amount = amt, Reference = refText,
                 With2307 = ewt && d.With2307, AcctNo = acctNo,
                 Reason = reason.Code, Description = others ? desc : null, AttachmentId = attId,
+                RfcNo = d.RfcNo, RfcLinkedAt = d.RfcNo is null ? null : DateTime.UtcNow,
+                RfcLinkedBy = d.RfcNo is null ? null : RfcFollowUpService.PreEncoded,
             });
         }
+        // The double the user saw: a return typed by hand for an RFC that's already pre-encoded on the invoice.
+        foreach (var manual in newDeds.Where(x => x.IsReturn && x.RfcNo is null))
+            if (newDeds.FirstOrDefault(x => x.RfcNo is not null && x.PostedInvoiceId == manual.PostedInvoiceId && x.Amount == manual.Amount) is { } pre)
+                return $"Invoice {invoices[manual.PostedInvoiceId].DocNo}: RFC {pre.RfcNo} ({pre.Amount:N2}) is already on it as a return. "
+                       + "Remove the return you added, or it is deducted twice.";
 
         var paid = await PaidAsync(ids, c.Id == 0 ? null : c.Id);
         decimal appliedTotal = 0;
         foreach (var a in allocs)
         {
             var applied = Math.Round(a.AmountApplied, 2);
-            var deducted = newDeds.Where(x => x.PostedInvoiceId == a.PostedInvoiceId).Sum(x => x.Amount);
+            // A return linked to its RFC isn't counted: the RFC already reduced the open balance.
+            var deducted = newDeds.Where(x => x.PostedInvoiceId == a.PostedInvoiceId && x.CountsAsPaid).Sum(x => x.Amount);
             var inv = invoices[a.PostedInvoiceId];
             if (applied < 0) return $"Invoice {inv.DocNo}: the applied amount can't be negative.";
             if (applied + deducted <= 0) return $"Invoice {inv.DocNo}: enter the amount applied (or a deduction).";
@@ -740,6 +768,8 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
     /// <summary>Verified = posted: marks it, queues its HOMS document and approves its suggested bank match (not saved).</summary>
     private async Task VerifyCoreAsync(CollectionUser u, Collection c)
     {
+        // A return whose RFC is already in HOMS A/R (one of the same amount) is linked first, so its OR / RPDC isn't held.
+        if (c.Deductions.Any(d => d.AwaitingRfc)) await rfcLinks.AutoLinkAsync(c.Id, save: false);
         c.VerificationStatus = VerificationStatus.Verified;
         c.VerifiedAt = DateTime.UtcNow;
         c.VerifiedBy = u.Name;

@@ -159,6 +159,22 @@ public class CollectionDeduction
     /// <summary>When its row was written into HOMS's ordeduc2 (never for EWT, which is an OR line). Null = not yet.</summary>
     public DateTime? HomsSentAt { get; set; }
 
+    /// <summary>"Return from customer": the RFC posted in HOMS A/R for it (its DOCNO). The receipt's OR / RPDC is held until
+    /// every return on it has one (user 2026-11-24: "We cannot download in AR unless the RFC for this has been posted") — the
+    /// CNC Verifier follows up. Linked automatically when the invoice has exactly one free RFC of the same amount, else
+    /// picked by the CNC Verifier. Once linked the RFC (in the invoice's RfcTotal) reduces the balance, not this row.</summary>
+    public int? RfcNo { get; set; }
+    public DateTime? RfcLinkedAt { get; set; }
+    /// <summary>Who linked the RFC ("auto" when matched automatically).</summary>
+    public string? RfcLinkedBy { get; set; }
+
+    /// <summary>A "Return from customer" (RETURN_CUSTOMER; a RFC/BO/RTV row saved before the list stands for it too).</summary>
+    public bool IsReturn => Type == DeductionType.RfcBoRtv && (Reason ?? "RETURN_CUSTOMER") == "RETURN_CUSTOMER";
+    /// <summary>A return still without its RFC: its receipt can't go to HOMS yet.</summary>
+    public bool AwaitingRfc => IsReturn && RfcNo is null && Amount > 0;
+    /// <summary>Counts toward the invoice's paid amount: everything but a return whose RFC is linked (the RFC counts instead).</summary>
+    public bool CountsAsPaid => !(IsReturn && RfcNo is not null);
+
     /// <summary>Goes to ordeduc2 now: not EWT, not sent yet, and a Service Invoice only with its scanned copy.</summary>
     public bool ReadyForHoms => Type != DeductionType.Ewt2307 && HomsSentAt is null && (Type != DeductionType.ServiceInvoice || AttachmentId is not null);
 

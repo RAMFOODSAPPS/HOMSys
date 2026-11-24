@@ -312,6 +312,14 @@ import { LayoutService } from '../../core/services/layout.service';
             </a>
           </li>
         }
+        @if (auth.isAdmin() || auth.hasPermission('pdc-confirm') || auth.hasPermission('collections-manage')) {
+          <li>
+            <a routerLink="/pdc/rfc-follow-up" routerLinkActive="active" (click)="onNavClick()">
+              <i class="pi pi-replay"></i>
+              <span>Returns awaiting RFC</span>
+            </a>
+          </li>
+        }
 
         @if (auth.isAdmin() || auth.hasPermission('users') || auth.hasPermission('roles') || auth.hasPermission('authorization')) {
           <li class="menu-group">User Management</li>

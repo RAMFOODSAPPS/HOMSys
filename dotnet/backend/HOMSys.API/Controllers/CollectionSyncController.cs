@@ -17,9 +17,22 @@ public class CollectionSyncController(
     InvoiceSyncRequestService requests,
     BmsCollectionImporter bms,
     HomsPostingService postings,
+    RfcFollowUpService rfcLinks,
     IConfiguration config,
     ILogger<CollectionSyncController> logger) : ControllerBase
 {
+    /// <summary>After RFCs came in from AROF4HO: links returns now matched by exactly one RFC of the same amount and
+    /// releases their held OR / RPDC (user 2026-11-24). Never fails the sync itself.</summary>
+    private async Task LinkReturnsAsync()
+    {
+        try
+        {
+            var n = await rfcLinks.AutoLinkAsync();
+            if (n > 0) logger.LogInformation("RFC follow-up: {Count} return(s) linked to their RFC after the AROF4HO sync", n);
+        }
+        catch (Exception ex) { logger.LogWarning(ex, "RFC follow-up auto-link after the AROF4HO sync failed"); }
+    }
+
     private bool KeyOk(string? apiKey)
     {
         var expected = config["HeadlessApiKey"];
@@ -68,6 +81,7 @@ public class CollectionSyncController(
         if (request is null) return BadRequest(new { success = false, message = "groups / removed are required." });
         var result = await arof.ApplyAsync(request);
         logger.LogInformation("AROF4HO invoice sync: {Result}", result);
+        await LinkReturnsAsync();
         return Ok(new { success = true, data = result.ToString() });
     }
 
@@ -89,6 +103,7 @@ public class CollectionSyncController(
         var (result, error) = await arofMirror.ApplyAsync(request);
         if (error is not null) return BadRequest(new { success = false, message = error });
         logger.LogInformation("AROF4HO mirror push: {Result}", result);
+        await LinkReturnsAsync();
         return Ok(new { success = true, data = result!.ToString() });
     }
 
@@ -100,6 +115,7 @@ public class CollectionSyncController(
         if (request is null) return BadRequest(new { success = false, message = "afterNo / take are required." });
         var result = await arofMirror.RebuildAsync(request.AfterNo, request.Take);
         logger.LogInformation("AROF4HO invoice rebuild after {After}: {Result}", request.AfterNo, result);
+        await LinkReturnsAsync();
         return Ok(new { success = true, data = result });
     }
 

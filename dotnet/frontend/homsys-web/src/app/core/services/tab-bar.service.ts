@@ -34,6 +34,7 @@ const ROUTE_META: Record<string, { label: string; icon: string }> = {
   '/collections/bank':  { label: 'Bank Statements',  icon: 'pi-building-columns' },
   '/collections/dashboard': { label: 'Collections Dashboard', icon: 'pi-chart-bar' },
   '/pdc':               { label: 'PDC Monitor',      icon: 'pi-calendar-clock' },
+  '/pdc/rfc-follow-up': { label: 'Returns awaiting RFC', icon: 'pi-replay' },
   '/analytics':           { label: 'Data Analytics',   icon: 'pi-chart-bar' },
   '/analytics/report':    { label: 'New Report',       icon: 'pi-chart-bar' },
   '/analytics/dashboard': { label: 'New Dashboard',    icon: 'pi-th-large' },

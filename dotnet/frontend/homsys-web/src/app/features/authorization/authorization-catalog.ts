@@ -61,13 +61,13 @@ export const AUTH_MODULES: AuthModule[] = [
     pages: [
       { key: 'collections-encode',    icon: 'pi-wallet',        pages: ['New Collection', 'Collections'] },
       { key: 'collections-verify',    icon: 'pi-check-square',  pages: ['Verification Queue'] },
-      { key: 'collections-manage',    icon: 'pi-building-columns', pages: ['Bank Statements', 'Collections Dashboard'] },
+      { key: 'collections-manage',    icon: 'pi-building-columns', pages: ['Bank Statements', 'Collections Dashboard', 'Returns awaiting RFC'] },
       { key: 'collections-ra-encode', icon: 'pi-file-import',   pages: ['Remittance Advice'] },
       { key: 'pdc-view',              icon: 'pi-calendar-clock', pages: ['PDC Monitor'] },
+      { key: 'pdc-confirm',           icon: 'pi-verified',      pages: ['Returns awaiting RFC'] },
     ],
     actions: [
       { key: 'pdc-tag',     icon: 'pi-tag' },
-      { key: 'pdc-confirm', icon: 'pi-verified' },
     ],
   },
   {

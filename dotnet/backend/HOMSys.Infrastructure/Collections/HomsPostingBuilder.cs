@@ -54,6 +54,7 @@ public static class HomsPostingBuilder
         if (c.Invoices.Count == 0) return (null, "No invoice applied — an on-account receipt has no GL account in HOMS yet.");
         if (c.UnappliedAmount != 0) return (null, $"Unapplied (on-account) {c.UnappliedAmount:N2} has no GL account in HOMS yet.");
         if (HomsDocMap.Prefix(c.Site.Code) is not { } prefix) return (null, $"Branch {c.Site.Code} has no HOMS document prefix.");
+        if (kind is HomsPostingKind.Or or HomsPostingKind.Rpdc && AwaitingRfcNote(c) is { } waiting) return (null, waiting);
         var digits = new string(c.ReceiptNo.Where(char.IsDigit).ToArray());
         if (digits.Length == 0 || digits.Length > 8 || !int.TryParse(digits, out var printed))
             return (null, $"Receipt no. {c.ReceiptNo} isn't a printed receipt number HOMS can use.");
@@ -222,13 +223,16 @@ public static class HomsPostingBuilder
             if (!invs.TryGetValue(d.PostedInvoiceId, out var inv)) continue;
             var reason = DeductionReasons.Of(d);
             var (code, text) = (reason.DedCode, reason.DedType);
-            var rfc = code == 11;   // BO RETURNS rows reference the RFC, as HOMS's own do
+            // BO RETURNS: a return references its RFC (REFID 6 / "RFC" / REFNO = RFC no., APPLYDOC = the invoice — 150k of
+            // HOMS's own rows); a code-11 row with no RFC (RFC amount difference) references the invoice, as HOMS's recent
+            // rows without one do (REFTYPE "INV", REFNO = invoice).
+            var rfc = code == 11 && d.RfcNo is > 0;
             var cust = Cust(inv);
             rows.Add(new()
             {
                 ["DOCID"] = docId, ["DOCNO"] = docNo, ["WHSENO"] = cust["WHSENO"], ["CKEY"] = cust["CKEY"], ["CUSTKEY"] = cust["CUSTKEY"],
                 ["DOCDATE"] = D(c.ReceiptDate), ["DEDCODE"] = code, ["DEDTYPE"] = text, ["DEALCODE"] = 0,
-                ["REFID"] = rfc ? 6 : 1, ["REFTYPE"] = rfc ? "RFC" : "INV", ["REFNO"] = inv.DocNo,
+                ["REFID"] = code == 11 ? 6 : 1, ["REFTYPE"] = rfc ? "RFC" : "INV", ["REFNO"] = rfc ? d.RfcNo : inv.DocNo,
                 ["AMOUNT"] = d.Amount, ["PAYMENTID"] = PaymentId(inv.DocDate, 1, inv.DocNo), ["REMARKS"] = DedRemarks(d),
                 ["FORAUTODN"] = false, ["POSTED"] = D(posted), ["SALESMAN"] = inv.Salesman, ["EMPNO"] = inv.EmpNo,
                 ["APPLYID"] = 1, ["APPLYDOC"] = inv.DocNo, ["APPDOCDATE"] = D(inv.DocDate),
@@ -237,6 +241,22 @@ public static class HomsPostingBuilder
             ids.Add(d.Id);
         }
         return (rows, ids);
+    }
+
+    /// <summary>
+    /// Why the OR / RPDC waits (user 2026-11-24): a "Return from customer" can't be downloaded to HOMS A/R until its RFC is
+    /// posted there and linked, e.g. "Waiting for the RFC: inv 94021551 return 14,570.09 — not yet posted in HOMS A/R.
+    /// The CNC Verifier links it (PDC › Returns awaiting RFC)." Null when every return has its RFC.
+    /// </summary>
+    public static string? AwaitingRfcNote(Collection c)
+    {
+        var waiting = c.Deductions.Where(d => d.AwaitingRfc).ToList();
+        if (waiting.Count == 0) return null;
+        var nos = c.Invoices.Where(i => i.PostedInvoice is not null).ToDictionary(i => i.PostedInvoiceId, i => i.PostedInvoice.DocNo);
+        var list = string.Join("; ", waiting.Select(d =>
+            $"inv {(nos.TryGetValue(d.PostedInvoiceId, out var no) ? no : d.PostedInvoice?.DocNo)} return {d.Amount:N2}"));
+        var text = $"Waiting for the RFC: {list} — not yet posted in HOMS A/R. The CNC Verifier links it (PDC › Returns awaiting RFC).";
+        return text.Length > 500 ? text[..500] : text;
     }
 
     /// <summary>Short name of a deduction's selection for notes ("Parking fee", "Others: freight to Naga").</summary>
@@ -260,7 +280,8 @@ public static class HomsPostingBuilder
             .Select(g => $"inv {(nos.TryGetValue(g.Key, out var no) ? no : g.First().PostedInvoice?.DocNo)} "
                          + string.Join(", ", g.Select(d => d.Type == DeductionType.ServiceInvoice
                              ? $"SI {d.Reference} {d.Amount:N2}"
-                             : $"{Label(d)} {d.Amount:N2}" + (d.Reference is { Length: > 0 } r ? $" ({r})" : "")))));
+                             : $"{Label(d)} {d.Amount:N2}" + (d.RfcNo is > 0 ? $" RFC {d.RfcNo}" : "")
+                               + (d.Reference is { Length: > 0 } r && r != $"RFC {d.RfcNo}" ? $" ({r})" : "")))));
         var other = c.Deductions.Where(d => d.Type != DeductionType.Ewt2307 && d.Amount != 0).ToList();
         var waiting = other.Where(d => d.Type == DeductionType.ServiceInvoice && d.AttachmentId is null).ToList();
         var sent = other.Except(waiting).ToList();
