@@ -67,7 +67,8 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("pdc-tag", p => p.RequireClaim("permission", "pdc-tag"))
     .AddPolicy("pdc-confirm", p => p.RequireClaim("permission", "pdc-confirm"))
     .AddPolicy("rdp-uba", p => p.RequireClaim("permission", "rdp-uba"))
-    .AddPolicy("rdp-upload", p => p.RequireClaim("permission", "rdp-upload"));
+    .AddPolicy("rdp-upload", p => p.RequireClaim("permission", "rdp-upload"))
+    .AddPolicy("tpar", p => p.RequireClaim("permission", "tpar"));
 
 // CORS — allow specific origins and credentials (required for HttpOnly cookie)
 builder.Services.AddCors(options =>

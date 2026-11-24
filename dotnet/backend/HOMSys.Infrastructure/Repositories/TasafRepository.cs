@@ -21,6 +21,7 @@ public class TasafRepository(AppDbContext db) : ITasafRepository
             .Include(t => t.Chains).ThenInclude(c => c.Chain)
             .Include(t => t.ProgramType)
             .Include(t => t.Steps)
+            .Include(t => t.Tpars)
             .Include(t => t.Customers.OrderBy(c => c.LineNo))
             .AsSplitQuery()
             .AsQueryable();
@@ -42,6 +43,7 @@ public class TasafRepository(AppDbContext db) : ITasafRepository
             .Include(t => t.Costs.OrderBy(c => c.LineNo)).ThenInclude(c => c.CostType)
             .Include(t => t.Actions.OrderBy(a => a.Id))
             .Include(t => t.Steps.OrderBy(s => s.Seq))
+            .Include(t => t.Tpars.OrderBy(p => p.Id))
             .Include(t => t.Worksheets.OrderBy(w => w.Id)).ThenInclude(w => w.ListingFeeLines.OrderBy(l => l.LineNo))
             .Include(t => t.Worksheets).ThenInclude(w => w.NearExLines.OrderBy(l => l.LineNo))
             .AsSplitQuery()

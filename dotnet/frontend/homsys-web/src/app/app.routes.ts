@@ -186,6 +186,14 @@ export const routes: Routes = [
         data: { permission: 'tasaf-masters' },
         loadComponent: () =>
           import('./features/tasaf-setup/tasaf-setup-page.component').then(m => m.TasafSetupPageComponent)
+      },
+      {
+        path: 'tpars',
+        data: { permission: 'tpar' },
+        children: [
+          { path: '',     loadComponent: () => import('./features/tpars/tpar-page.component').then(m => m.TparPageComponent) },
+          { path: 'list', loadComponent: () => import('./features/tpars/tpar-list-page.component').then(m => m.TparListPageComponent) }
+        ]
       }
     ]
   },

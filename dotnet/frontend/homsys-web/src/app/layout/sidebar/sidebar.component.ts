@@ -209,7 +209,7 @@ import { LayoutService } from '../../core/services/layout.service';
           </li>
         }
 
-        @if (auth.isAdmin() || auth.hasPermission('tasaf') || auth.hasPermission('tasaf-masters')) {
+        @if (auth.isAdmin() || auth.hasPermission('tasaf') || auth.hasPermission('tpar') || auth.hasPermission('tasaf-masters')) {
           <li class="menu-group">Trade Marketing</li>
         }
         @if (auth.isAdmin() || auth.hasPermission('tasaf')) {
@@ -229,6 +229,20 @@ import { LayoutService } from '../../core/services/layout.service';
             <a routerLink="/tasafs/worksheets" routerLinkActive="active" (click)="onNavClick()">
               <i class="pi pi-table"></i>
               <span>Worksheets</span>
+            </a>
+          </li>
+        }
+        @if (auth.isAdmin() || auth.hasPermission('tpar')) {
+          <li>
+            <a routerLink="/tpars" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" (click)="onNavClick()">
+              <i class="pi pi-receipt"></i>
+              <span>New TPAR</span>
+            </a>
+          </li>
+          <li>
+            <a routerLink="/tpars/list" routerLinkActive="active" (click)="onNavClick()">
+              <i class="pi pi-list"></i>
+              <span>TPAR List</span>
             </a>
           </li>
         }

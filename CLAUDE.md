@@ -557,15 +557,26 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   requires exactly one payment type, payment total = TotalCost and
   CTS ≤ the program type's `MaxCtsPercent` (8% on PROMO- types) — or, when over it, a `CtsJustification`
   (textarea under Computation, shown to approvers; migration `TasafCtsJustification`).
-  **TPAR No.** (`Tasaf.TparNo`, migration `TasafTparNo`): the document no. of the workbook's "TPAR current" sheet (Trade Promo
-  Analysis Report, which refers back to the TASA Ref Number). **Free text, no link** (there is no TPAR record yet),
-  **set only once Approved** (user decision 2026-11-09: the TPAR is made after approval; the form is locked by then): the
-  header pencil lets the proponent or an Admin set it (`PUT tasafs/{id}/tpar-no`, logged in the history); never part of
-  the form save (`TparNo` lives on `TasafDto`, not `SaveTasafDto`). Shown in the list, email / print and PDF.
-  **Entering it CLOSES the TASAF** (status `Closed`, user decision 2026-11-20; the pencil asks to confirm first): logged
-  "Closed"; no delete / cancel. Once Closed the TPAR No. is LOCKED for everyone, Admin included — the only way back is
-  an Admin **Revert** (Closed → Returned), which clears the TPAR No. (noted in the revert comment). Migration `TasafClosedByTparNo` closed the Approved TASAFs
-  that already had one. A future TPAR record linked to a TASAF should close it the same way (`SetTparNoAsync`).
+  **TPARs** (Trade Promo Analysis Report, the workbook's "TPAR current" sheet; user decision 2026-11-24, migration
+  `TasafTpars`, replacing the single header `Tasaf.TparNo`): **several TPARs per TASAF, made by different BAs**, entered
+  on the **New TPAR** form (`/tpars`; each opened TPAR in its own tab `/tpars#id`) and the **TPAR List** (`/tpars/list`: Approved TASAFs with totals / balance + the TPARs) (permission `tpar` 30, `TparService` / `TparsController` `api/tpars`, `TasafTpars` table:
+  TparNo + **Branch** + Amount + Remarks + Status + who / when; Branch = `SiteId` + `BranchName` snapshot, required on save, one of the TASAF's branches or any active Site when the TASAF covers an ALL … scope, defaulting to the user's own branch, migration `TasafTparBranch`). **Servicing branches** (Users page multi-select, `UserServicingBranches`, `api/users/{id}/servicing-branches`, migration `UserServicingBranches`; separate from Collection branches): a non-Admin with any picks only those of the TASAF's branches (TASAFs with none of them are not offered); none set = any of the TASAF's branches; an existing TPAR keeps an unchanged branch. Migration `SeedBranchBaUsers` (data only) seeds the 20 branch BAs from Sheet1 of `RAM BRANCHES ACTIVECUSTOMER LIST 2.xlsx` (username = Employee ID, BRANCH ADMINISTRATOR, own branch as Site / servicing branch, no usable password: an Admin clicks Reset Password on the live Users page for each BA, must change at first login; skips any username / email that already exists) and gives BRANCH ADMINISTRATOR `tpar`. Only against an **Approved** TASAF. Each TPAR: **Draft → Submitted →
+  Approved**, or **Cancelled** (kept; frees its amount and its number); **Revert** (reason required) sends a Submitted / Approved TPAR back to Draft so it can be changed — **for now the encoder who entered it (or an
+  Admin) does every step** (user decision 2026-11-24; no separate approver yet). Only a Draft can be changed. The page is
+  a form (picked TPAR or a new one) whose The form uses the Form Designer (form key `tpar`, `tpars/tpar-layout.ts`) and shows Created By / Created Date / Updated By / Updated Date (every step stamps Updated). toolbar ALWAYS shows Save / Submit / Approve / Revert / Cancel, greyed out when they
+  don't apply (`disabled` signals). **Every TPAR but a Cancelled one holds its amount** — their total can't exceed the
+  approved `TotalCost` (checked under an UPDLOCK on the TASAF row, `TparRepository.InTasafLockAsync`); the TPAR No. is
+  unique among non-cancelled TPARs (filtered unique index). Every step is a `TasafAction` ("TPAR added / changed /
+  submitted / approved / cancelled"); the proponent is notified of each approval.
+  The TASAF form shows them **read-only** (a TPAR section below Approval: list with status, held total, approved total,
+  approved amount, balance; not in the header any more); `TasafDto.TparNo` / the list's TPAR No. column = the
+  non-cancelled numbers joined. Also on email / print / PDF.
+  **Completed** (was "Closed"; the migration renamed the status and history): set **automatically** when the **Approved**
+  TPARs reach the approved amount, or by the proponent / an Admin with **Complete** (needs ≥ 1 Approved TPAR and none
+  Draft / Submitted, reason required, logs the unused balance; `POST tasafs/{id}/complete`). An Admin can **Reopen**
+  (Completed → Approved, reason, `POST {id}/reopen`) to fix TPARs. No delete / cancel / revert while Completed. The
+  migration turned each old TPAR No. into an Approved TPAR with Amount 0 (remark "Entered before TPAR amounts were kept";
+  a number already used gets " (#id)").
   RefNo `YEAR-SG-INITIALS-NN` (workbook GUIDE sheet, e.g. `2025-RKA-ER-03`) assigned on the FIRST
   SAVE that has a Sales Group (user decision 2026-10-14; was first submit) and kept for good
   (`TasafService.PrepareRefNoAsync` → `TasafRepository.SaveWithRefNoAsync`, retries on the
@@ -602,9 +613,10 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   **Delete is Admin-only** (`[Authorize(Roles = "Admin")]` + `TasafService.CanDelete`), and
   **Approved / Cancelled are never deleted** (kept for the record). Mistakes are fixed with:
   - **Revert** (`POST {id}/revert`, reason required) → Returned to the proponent; signed steps stay as history,
-    resubmit rebuilds the chain. Admin: For Approval / Approved / Closed / Rejected. **The proponent** on their own
-    TASAF: For Approval / Approved / Closed — changes needed after approval (user decision 2026-11-20; not Rejected).
-    History: "Reverted" (role Admin / Proponent, reason), a separate "TPAR No." row when it clears one, and the step
+    resubmit rebuilds the chain. Admin: For Approval / Approved / Rejected. **The proponent** on their own
+    TASAF: For Approval / Approved — changes needed after approval (user decision 2026-11-20; not Rejected). **Never
+    while it has TPARs** (cancel them on the TPAR page first; a Completed one must be reopened first).
+    History: "Reverted" (role Admin / Proponent, reason), and the step
     that was waiting becomes Skipped "Not reached — reverted by …". The waiting approver and everyone who signed are
     notified. Toolbar icons: Revert = `pi-replay`, Return = `pi-reply`.
   - **Cancel** (proponent or Admin, `POST {id}/cancel`, reason required): any status except
