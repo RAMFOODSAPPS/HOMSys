@@ -34,7 +34,7 @@ const EXPORT_COLS: ExportColumn[] = [
   { header: 'Match', field: 'matchMethod' },
 ];
 
-type LineTab = 'all' | 'unmatched' | 'credits' | 'debits';
+type LineTab = 'all' | 'unmatched' | 'matched' | 'credits' | 'debits';
 type SortKey = 'date' | 'debit' | 'credit';
 
 /**
@@ -312,6 +312,7 @@ export class BankStatementPageComponent implements OnInit, OnDestroy {
   protected readonly bankCodes = BANK_CODES;
   protected readonly lineTabs: { label: string; value: LineTab }[] = [
     { label: 'All lines', value: 'all' }, { label: 'Unmatched credits', value: 'unmatched' },
+    { label: 'Matched', value: 'matched' },   // lines matched to a deposit slip (put back 2026-11-24, user)
     { label: 'Credits', value: 'credits' }, { label: 'Debits', value: 'debits' },
   ];
   protected readonly min = Math.min;
@@ -361,7 +362,7 @@ export class BankStatementPageComponent implements OnInit, OnDestroy {
   /** The account holder, when every account is in the same name. */
   companyName = computed(() => { const n = [...new Set(this.activeAccounts().map(a => a.accountName))]; return n.length === 1 ? n[0] : ''; });
 
-  /** Tab (credits/debits client-side; unmatched is a server filter) + search, sorted. */
+  /** Tab (credits/debits client-side; unmatched / matched are server filters) + search, sorted. */
   sorted = computed(() => {
     const t = this.q().toLowerCase().trim(), tab = this.tab(), key = this.sortKey(), dir = this.sortDir();
     const rows = this.lines().filter(l => (tab !== 'credits' || l.credit > 0) && (tab !== 'debits' || l.debit > 0)
@@ -395,7 +396,7 @@ export class BankStatementPageComponent implements OnInit, OnDestroy {
 
   load() {
     this.loading.set(true);
-    this.api.lines(this.accountId(), this.from(), this.to(), this.tab() === 'unmatched' ? 'unmatched' : 'all').subscribe({
+    this.api.lines(this.accountId(), this.from(), this.to(), this.serverFilter(this.tab())).subscribe({
       next: res => { this.lines.set(res.data ?? []); this.page.set(0); this.loading.set(false); },
       error: () => this.loading.set(false)
     });
@@ -403,8 +404,11 @@ export class BankStatementPageComponent implements OnInit, OnDestroy {
 
   selectAccount(id: number | null) { this.accountId.set(id); this.load(); }
 
+  /** The tabs the API filters (the rest are cut client-side from all lines). */
+  private serverFilter(t: LineTab) { return t === 'unmatched' || t === 'matched' ? t : 'all'; }
+
   setTab(t: LineTab) {
-    const reload = (t === 'unmatched') !== (this.tab() === 'unmatched');
+    const reload = this.serverFilter(t) !== this.serverFilter(this.tab());
     this.tab.set(t);
     this.page.set(0);
     if (reload) this.load();
