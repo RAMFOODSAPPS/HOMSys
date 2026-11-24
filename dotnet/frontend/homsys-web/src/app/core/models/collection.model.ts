@@ -158,6 +158,8 @@ export interface CollectionDto {
   createdByName: string | null; createdByBranch: string | null;
   /** PDC deposited before verification: the Finance Verifier approves its bank match (verifying); else the CNC Verifier. */
   pdcMatchByFinance: boolean;
+  /** username → full name of everyone in its history (the tracker shows names). */
+  userNames?: Record<string, string> | null;
 }
 
 // ── Remittance Advice (NKA chains) ──────────────────────────────────────────

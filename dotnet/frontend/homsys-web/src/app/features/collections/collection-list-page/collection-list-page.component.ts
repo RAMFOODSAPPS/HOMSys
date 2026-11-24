@@ -19,7 +19,7 @@ import { ApiResponse } from '../../../core/models/auth.model';
 import {
   CollectionDto, CollectionListItemDto, CollectionSiteDto, deductionName, inDateRange, InvoiceHistoryDto, isoDay, PAYMENT_MODES, RECEIPT_TYPES, statusLabel
 } from '../../../core/models/collection.model';
-import { collectionGuide, collectionSteps } from '../collection-steps';
+import { collectionGuide, collectionSteps, homsDocs } from '../collection-steps';
 
 const EXPORT_COLS: ExportColumn[] = [
   { header: 'Branch', field: 'siteCode' },
@@ -256,7 +256,7 @@ interface Action { label: string; kind: 'primary' | 'secondary' | 'danger'; run:
                       <span class="cll-step-lbl">{{ s.label }}</span>
                       <span class="cll-step-meta">
                         @if (s.at) { {{ s.at | date:'MM/dd/yy' }}@if (!s.dateOnly) {<br>{{ s.at | date:'hh:mm a' }}} }
-                        @if (s.by) {<br>{{ s.by }}}
+                        @if (s.by) {<br><span class="cs-by">{{ s.by }}</span>}
                       </span>
                       @if (s.docs) { <span class="cs-docs">@for (x of s.docs; track $index) { <span class="cs-doc" [attr.data-tone]="x.tone" [pTooltip]="x.tip"><b>{{ x.text }}</b><small>{{ x.state }}</small></span> }</span> }
                     </div>
@@ -264,12 +264,27 @@ interface Action { label: string; kind: 'primary' | 'secondary' | 'danger'; run:
                 </div>
               </div>
               @if (guide(d); as g) {
+              <div class="cs-foot">
               <div class="cs-guide" [attr.data-tone]="g.tone">
                 <div class="cs-guide-st"><small>Status</small><b>{{ g.status }}</b></div>
                 @if (g.next.length) {
                   <div class="cs-guide-nx"><small>Next step{{ g.next.length === 1 ? '' : 's' }}</small>
                     <ol>@for (n of g.next; track $index) { <li>{{ n }}</li> }</ol></div>
                 }
+              </div>
+              <div class="cs-hdocs">
+                <small>HOMS (FoxPro) documents</small>
+                @if (hdocs(d); as hd) {
+                  @if (hd.length) {
+                    <table>
+                      @for (x of hd; track $index) {
+                        <tr [pTooltip]="x.tip"><td class="mono"><b>{{ x.text }}</b></td><td><span class="cs-doc-st" [attr.data-tone]="x.tone">{{ x.state }}</span></td>
+                          <td class="dim">{{ x.step }}</td><td class="dim nowrap">{{ x.at | date:'MM/dd/yy hh:mm a' }}</td></tr>
+                      }
+                    </table>
+                  } @else { <p class="dim">None yet — generated when the receipt is verified.</p> }
+                }
+              </div>
               </div>
             }
             </div>
@@ -345,6 +360,11 @@ interface Action { label: string; kind: 'primary' | 'secondary' | 'danger'; run:
                   }
                   <div class="cll-sec"><span>Deposit</span><i></i></div>
                   <div class="cll-fields">
+                    <!-- PDC: the account named at encoding, shown before the check is deposited (user 2026-11-24) -->
+                    @if (d.paymentMode === 'PostDatedCheck') {
+                      <div><small>Depository bank</small>{{ d.depositoryBank || '—' }}
+                        @if (!d.deposit && d.depositoryBank) { <span class="pdcm-sub">expected — not yet deposited</span> }</div>
+                    }
                     <div><small>Deposited into</small>{{ d.deposit?.bank || '—' }}</div>
                     <div><small>Slip / transfer ref. no.</small><span class="pdcm-mono">{{ d.deposit?.slipRefNo || '—' }}</span></div>
                     <div><small>Deposit date</small><span class="pdcm-mono">{{ (d.deposit?.depositDate | date:'MM/dd/yyyy') || '—' }}</span></div>
@@ -668,6 +688,7 @@ export class CollectionListPageComponent implements OnInit, AfterViewInit, OnDes
 
   steps(d: CollectionDto) { return collectionSteps(d); }
   guide(d: CollectionDto) { return collectionGuide(d); }
+  hdocs(d: CollectionDto) { return homsDocs(d); }
   applied(d: CollectionDto) { return d.invoices.reduce((s, i) => s + i.amountApplied, 0); }
   // ── invoice payment history (side panel over the preview) ──
 

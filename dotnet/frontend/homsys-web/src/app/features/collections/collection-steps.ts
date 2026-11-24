@@ -113,7 +113,20 @@ export function collectionSteps(c: CollectionDto): CollectionStep[] {
   out[cur].current = true;
   out.forEach((x, i) => x.linked = i > 0 && i <= cur);
   attachDocs(c, out);
+  // Names, not usernames (user 2026-11-24); "watcher" and users not found stay as they are.
+  const names = c.userNames ?? {};
+  const nameOf = (u: string) => names[u] ?? Object.entries(names).find(([k]) => k.toLowerCase() === u.toLowerCase())?.[1] ?? u;
+  out.forEach(x => { if (x.by) x.by = nameOf(x.by); });
   return out;
+}
+
+/** The HOMS (FoxPro) documents the collection generated, oldest first, with the step that generated each. */
+export interface HomsDocRow extends StepDoc { step: string; at: string | null; }
+
+export function homsDocs(c: CollectionDto): HomsDocRow[] {
+  const step = (k: string) => k === 'JV' ? 'Bank matched' : k === 'RPDC-CANCEL' ? 'Voided' : 'Verified';
+  return [...c.homsPostings].sort((a, b) => a.id - b.id)
+    .map(p => ({ ...stepDoc(p), step: step(p.kind), at: p.completedAt ?? p.createdAt }));
 }
 
 /** Where the collection stands and what happens next (who does it, where). */
