@@ -50,6 +50,7 @@ export const AUTH_MODULES: AuthModule[] = [
     pages: [
       { key: 'tasaf',         icon: 'pi-file-check', pages: ['New TASAF', 'TASAF List'] },
       { key: 'tasaf-masters', icon: 'pi-cog',        pages: ['TASAF Setup', 'Product Categories'] },
+      { key: 'tpar',          icon: 'pi-receipt',    pages: ['New TPAR', 'TPAR List'] },
     ],
     actions: [
       { key: 'tasaf-view-all', icon: 'pi-eye' },

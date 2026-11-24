@@ -157,11 +157,20 @@ public class TasafDto : SaveTasafDto
     public bool CanRevert { get; set; }
     /// <summary>Proponent or Admin: withdraw it (any status but Approved / Cancelled).</summary>
     public bool CanCancel { get; set; }
-    /// <summary>TPAR (Trade Promo Analysis Report) document no. — free text, no link. Set only once Approved
-    /// (PUT tasafs/{id}/tpar-no); never part of the form save.</summary>
+    /// <summary>Its TPAR Nos., comma-separated (null when none) — entered on the TPAR page, never part of the form save.</summary>
     public string? TparNo { get; set; }
-    /// <summary>Proponent or Admin, only while Approved.</summary>
-    public bool CanSetTparNo { get; set; }
+    /// <summary>TPARs entered against it (TPAR page), read-only here.</summary>
+    public List<TparDto> Tpars { get; set; } = [];
+    /// <summary>Every TPAR but Cancelled ones.</summary>
+    public decimal TparTotal { get; set; }
+    /// <summary>Approved TPARs only.</summary>
+    public decimal TparApprovedTotal { get; set; }
+    /// <summary>TotalCost − TparTotal.</summary>
+    public decimal TparBalance { get; set; }
+    /// <summary>Proponent or Admin: mark an Approved TASAF with TPARs as Completed.</summary>
+    public bool CanComplete { get; set; }
+    /// <summary>Admin: Completed → Approved.</summary>
+    public bool CanReopen { get; set; }
     /// <summary>"approve" when the current step is waiting on the caller, else null.</summary>
     public string? MyAction { get; set; }
     /// <summary>Admin: may Approve / Return / Reject the current step on behalf of its approver.</summary>
@@ -219,11 +228,6 @@ public class TasafDecisionDto
 public class TasafCommentDto
 {
     public string Comment { get; set; } = string.Empty;
-}
-
-public class TasafTparNoDto
-{
-    public string? TparNo { get; set; }
 }
 
 /// <summary>List-page row.</summary>

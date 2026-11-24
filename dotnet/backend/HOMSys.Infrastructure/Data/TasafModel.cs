@@ -78,7 +78,6 @@ internal static class TasafModel
         mb.Entity<Tasaf>(e =>
         {
             e.Property(x => x.RefNo).HasMaxLength(30);
-            e.Property(x => x.TparNo).HasMaxLength(50);
             e.HasIndex(x => x.RefNo).IsUnique().HasFilter("[RefNo] IS NOT NULL");
             e.HasIndex(x => x.RefSeq).IsUnique().HasFilter("[RefSeq] IS NOT NULL");
             e.Property(x => x.Status).HasMaxLength(20).IsRequired();
@@ -115,6 +114,7 @@ internal static class TasafModel
             e.HasMany(x => x.Products).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Costs).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Actions).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Tpars).WithOne(p => p.Tasaf).HasForeignKey(p => p.TasafId).OnDelete(DeleteBehavior.Cascade);
 
             e.HasMany(x => x.Steps).WithOne().HasForeignKey(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => x.CurrentApproverUserId);
@@ -143,6 +143,23 @@ internal static class TasafModel
             e.Property(x => x.ByName).HasMaxLength(150);
             e.Property(x => x.Role).HasMaxLength(150);
             e.Property(x => x.Comment).HasMaxLength(1000);
+        });
+
+        // TPAR page: several TPARs per TASAF; a TPAR No. is used only once (any TASAF) — a Cancelled one frees it.
+        mb.Entity<TasafTpar>(e =>
+        {
+            e.Property(x => x.TparNo).HasMaxLength(50).IsRequired();
+            e.HasIndex(x => x.TparNo).IsUnique().HasFilter("[Status] <> N'Cancelled'");
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.ApprovedBy).HasMaxLength(150);
+            e.Property(x => x.CancelledBy).HasMaxLength(150);
+            e.HasIndex(x => x.TasafId);
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.Property(x => x.Remarks).HasMaxLength(500);
+            e.Property(x => x.CreatedByName).HasMaxLength(150);
+            e.Property(x => x.BranchName).HasMaxLength(150);
+            e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Restrict);
+            e.Property(x => x.UpdatedBy).HasMaxLength(100);
         });
 
         mb.Entity<Notification>(e =>

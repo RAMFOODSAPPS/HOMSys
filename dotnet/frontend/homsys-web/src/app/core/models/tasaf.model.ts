@@ -1,4 +1,5 @@
 import { TasafWorksheet } from './tasaf-worksheet.model';
+import { Tpar } from './tpar.model';
 /** A participating store from the customer master. */
 export interface TasafCustomerRef {
   custKey: string;
@@ -119,10 +120,19 @@ export interface TasafDto extends SaveTasafDto {
   canRevert: boolean;
   /** Proponent or Admin: withdraw (any status but Approved / Cancelled). */
   canCancel: boolean;
-  /** TPAR (Trade Promo Analysis Report) document no. — free text, no link; set with tasafApi.setTparNo once Approved. */
+  /** Its TPAR Nos., comma-separated (null when none) — entered on the TPAR page. */
   tparNo: string | null;
-  /** Proponent or Admin, only while Approved. */
-  canSetTparNo: boolean;
+  /** TPARs entered against it on the TPAR page — read-only on the TASAF. */
+  tpars: Tpar[];
+  tparTotal: number;
+  /** Approved TPARs only. */
+  tparApprovedTotal: number;
+  /** Total cost − TPAR total. */
+  tparBalance: number;
+  /** Proponent or Admin: mark an Approved TASAF that has TPARs as Completed. */
+  canComplete: boolean;
+  /** Admin: Completed → Approved. */
+  canReopen: boolean;
   /** 'approve' when the current step is the caller's. */
   myAction: 'approve' | null;
   /** Admin: may Approve / Return / Reject the current step on behalf of its approver. */
@@ -165,8 +175,8 @@ export interface TasafAction {
 }
 
 export type TasafDecision = 'approve' | 'return' | 'reject';
-/** Everything the comment dialog can do: approver decisions + Admin revert + cancel. */
-export type TasafDialogAction = TasafDecision | 'revert' | 'cancel';
+/** Everything the comment dialog can do: approver decisions + revert + cancel + complete / reopen. */
+export type TasafDialogAction = TasafDecision | 'revert' | 'cancel' | 'complete' | 'reopen';
 
 export interface TasafListItem {
   id: number;
@@ -201,7 +211,7 @@ export const TASAF_STATUS_SEVERITY: Record<string, 'secondary' | 'info' | 'warn'
   'Approved':     'success',
   'Rejected':     'danger',
   'Cancelled':    'secondary',
-  'Closed':       'info',
+  'Completed':    'info',
 };
 
 export interface TasafOption {

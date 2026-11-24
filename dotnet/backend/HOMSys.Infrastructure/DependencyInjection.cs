@@ -43,6 +43,7 @@ public static class DependencyInjection
         services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
         services.AddScoped<ITasafLookupRepository, TasafLookupRepository>();
         services.AddScoped<ITasafRepository, TasafRepository>();
+        services.AddScoped<ITparRepository, TparRepository>();
         services.AddScoped<ITasafWorksheetRepository, TasafWorksheetRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddScoped<IFormLayoutRepository, FormLayoutRepository>();
@@ -79,6 +80,7 @@ public static class DependencyInjection
         services.AddScoped<BankStatementService>();
         services.AddScoped<BmsCollectionImporter>();
         services.AddScoped<UserBranchService>();
+        services.AddScoped<HOMSys.Infrastructure.Data.UserServicingBranchService>();
 
         // Collection receipt soft copies: Azure Blob when configured (production), else a local
         // folder for dev/test. Production MUST set Attachments:BlobConnectionString — App Service
@@ -95,6 +97,7 @@ public static class DependencyInjection
         services.AddScoped<TasafPriceService>();
         services.AddScoped<TasafService>();
         services.AddScoped<TasafWorksheetService>();
+        services.AddScoped<TparService>();
         services.AddScoped<HOMSys.Infrastructure.Rdp.RdpSalesService>();
         services.AddScoped<HOMSys.Infrastructure.Rdp.RdpUbaService>();
         services.AddScoped<NotificationService>();

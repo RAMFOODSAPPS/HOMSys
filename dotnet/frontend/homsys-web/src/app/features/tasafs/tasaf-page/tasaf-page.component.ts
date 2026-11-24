@@ -94,22 +94,6 @@ function blankProduct(): TasafProduct {
           @else { <strong class="ref-preview">assigned on save</strong> }
           <span>Date</span><strong>{{ current() ? (utc(current()!.createdAt) | date:'dd MMM yyyy h:mm a') : 'today' }}</strong>
           <span>Status</span><p-tag [value]="current()?.status ?? 'New'" [severity]="severity()" />
-          <span>TPAR No.</span>
-          <!-- Free text, no link; set only once Approved (pencil, saved on its own). -->
-          @if (tparEditing()) {
-            <span class="tpar-edit">
-              <input pInputText [(ngModel)]="tparDraft" maxlength="50" placeholder="TPAR document no." (keydown.enter)="saveTparNo()" (keydown.escape)="tparEditing.set(false)" />
-              <p-button icon="pi pi-check" [text]="true" size="small" [loading]="tparSaving()" (onClick)="saveTparNo()" pTooltip="Save" />
-              <p-button icon="pi pi-times" [text]="true" size="small" severity="secondary" (onClick)="tparEditing.set(false)" pTooltip="Cancel" />
-            </span>
-          } @else {
-            <span class="tpar-view">
-              <strong>{{ current()?.tparNo || '—' }}</strong>
-              @if (current()?.canSetTparNo) {
-                <p-button icon="pi pi-pencil" [text]="true" size="small" (onClick)="editTparNo()" pTooltip="Enter the TPAR (Trade Promo Analysis Report) document no." />
-              }
-            </span>
-          }
         </div>
       </div>
 
@@ -646,6 +630,46 @@ function blankProduct(): TasafProduct {
         }
 
       </section>
+
+      <!-- ── TPARs (entered on the TPAR page once Approved; read-only here) ── -->
+      @if (current(); as t) {
+        @if (t.status === 'Approved' || t.status === 'Completed' || t.tpars.length) {
+          <section class="card">
+            <div class="sec-head">
+              <h3>TPAR (Trade Promo Analysis Report)</h3>
+              <span>
+                @if (t.canComplete) {
+                  <p-button label="Complete" icon="pi pi-check-circle" size="small" [text]="true" severity="success" (onClick)="openDecision('complete')"
+                    pTooltip="Mark the TASAF as done although its TPARs don't reach the approved amount" />
+                }
+                @if (t.canReopen) {
+                  <p-button label="Reopen" icon="pi pi-lock-open" size="small" [text]="true" severity="warn" (onClick)="openDecision('reopen')"
+                    pTooltip="Admin: back to Approved so TPARs can be added or corrected" />
+                }
+              </span>
+            </div>
+            <table class="tpar-tbl">
+              <thead><tr><th>TPAR No.</th><th>Status</th><th>Branch</th><th class="num">Amount</th><th>Remarks</th><th>Entered by</th><th>Date</th></tr></thead>
+              <tbody>
+                @for (p of t.tpars; track p.id) {
+                  <tr [class.muted]="p.status === 'Cancelled'"><td>{{ p.tparNo }}</td><td>{{ p.status }}</td><td>{{ p.branchName }}</td><td class="num">{{ p.amount | number:'1.2-2' }}</td><td>{{ p.remarks }}</td>
+                    <td>{{ p.createdByName }}</td><td>{{ utc(p.createdAt) | date:'dd MMM yyyy h:mm a' }}</td></tr>
+                } @empty {
+                  <tr><td colspan="7" class="muted">No TPAR yet — TPARs are entered on the TPAR page.</td></tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr><td colspan="3"><strong>Total (not cancelled)</strong></td><td class="num"><strong>{{ t.tparTotal | number:'1.2-2' }}</strong></td><td colspan="3"></td></tr>
+                <tr><td colspan="3" class="muted">Approved TPARs</td><td class="num muted">{{ t.tparApprovedTotal | number:'1.2-2' }}</td><td colspan="3"></td></tr>
+                <tr><td colspan="3" class="muted">Approved amount</td><td class="num muted">{{ t.totalCost | number:'1.2-2' }}</td><td colspan="3"></td></tr>
+                <tr><td colspan="3" class="muted">Balance</td><td class="num muted">{{ t.tparBalance | number:'1.2-2' }}</td><td colspan="3"></td></tr>
+              </tfoot>
+            </table>
+            <small class="muted">The TASAF becomes Completed when its approved TPARs add up to the approved amount
+              @if (t.status === 'Approved') {, or when the proponent / an Admin clicks Complete}.</small>
+          </section>
+        }
+      }
     </div>
 
     <!-- Approval history (toolbar History button). -->
@@ -693,8 +717,9 @@ function blankProduct(): TasafProduct {
       padding-bottom: 0.75rem; margin-bottom: 1rem; border-bottom: 2px solid #800000; }
     .doc-title { font-size: 1.15rem; font-weight: 700; color: #800000; letter-spacing: 0.02em; }
     .doc-meta { display: grid; grid-template-columns: auto auto; gap: 0.2rem 0.75rem; font-size: 0.85rem; align-items: center; }
-    .tpar-view, .tpar-edit { display: flex; align-items: center; gap: 0.15rem; min-height: 1.75rem; }
-    .tpar-edit input { width: 10rem; padding: 0.2rem 0.4rem; font-size: 0.85rem; }
+    .tpar-tbl { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .tpar-tbl th, .tpar-tbl td { padding: .3rem .5rem; text-align: left; }
+    .tpar-tbl .num { text-align: right; }
     .card { background: var(--p-surface-card); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 0.85rem; }
     .card h3 { margin: 0 0 0.6rem; font-size: 0.95rem; color: #800000; }
     .sec-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.4rem; }
@@ -860,37 +885,39 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   /** Submit only once the TASAF has been saved (unsaved edits after that are saved on submit). */
   protected submitBlocked = computed(() => this.designing() || !this.current());
   protected deciding     = signal(false);
-  /** TPAR No. (header): its own small save, so it works on any status and keeps unsaved form edits. */
-  protected tparEditing  = signal(false);
-  protected tparSaving   = signal(false);
-  protected tparDraft    = '';
   protected decision     = signal<TasafDialogAction>('approve');
   protected decisionTitle = computed(() => {
     switch (this.decision()) {
-      case 'return': return 'Return to KAM';
-      case 'reject': return 'Reject';
-      case 'revert': return 'Revert TASAF';
-      case 'cancel': return 'Cancel TASAF';
-      default:       return `Approve as ${this.current()?.currentRoleCode ?? ''}`.trim();
+      case 'return':   return 'Return to KAM';
+      case 'reject':   return 'Reject';
+      case 'revert':   return 'Revert TASAF';
+      case 'cancel':   return 'Cancel TASAF';
+      case 'complete': return 'Complete TASAF';
+      case 'reopen':   return 'Reopen TASAF';
+      default:         return `Approve as ${this.current()?.currentRoleCode ?? ''}`.trim();
     }
   });
   protected decisionHint = computed(() => {
     const t = this.current();
+    const n2 = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     switch (this.decision()) {
-      case 'revert': return (this.isProponent()
+      case 'revert': return this.isProponent()
           ? `Takes this ${t?.status} TASAF back to you as Returned so you can make changes and resubmit it (or cancel it). Its approvals must be signed again; the approvers are notified and everything is kept in the history.`
-          : `Sends this ${t?.status} TASAF back to ${t?.proponentName} as Returned. They can correct and resubmit it, or cancel it. The approval history is kept.`)
-        + (t?.tparNo ? ` The TPAR No. (${t.tparNo}) will be cleared.` : '');
+          : `Sends this ${t?.status} TASAF back to ${t?.proponentName} as Returned. They can correct and resubmit it, or cancel it. The approval history is kept.`;
       case 'cancel': return 'The TASAF is withdrawn and kept as Cancelled (not deleted). This cannot be undone.';
+      case 'complete': return `Marks the TASAF as done although its TPARs total ${n2(t?.tparTotal ?? 0)} of the approved ${n2(t?.totalCost ?? 0)} `
+          + `(unused balance ${n2(t?.tparBalance ?? 0)}). No more TPARs can be added afterwards unless an Admin reopens it.`;
+      case 'reopen': return 'Sets the Completed TASAF back to Approved so TPARs can be added or corrected on the TPAR page.';
       default:       return '';
     }
   });
   protected decisionPlaceholder = computed(() => ({
     approve: '', return: 'What should the KAM change?', reject: 'Reason for rejecting',
-    revert: 'What was wrong with the approval?', cancel: 'Reason for cancelling'
+    revert: 'What was wrong with the approval?', cancel: 'Reason for cancelling',
+    complete: 'Why is it complete below the approved amount?', reopen: 'Why reopen it?'
   })[this.decision()]);
   protected decisionSeverity = computed(() => ({
-    approve: 'success', return: 'secondary', reject: 'danger', revert: 'warn', cancel: 'danger'
+    approve: 'success', return: 'secondary', reject: 'danger', revert: 'warn', cancel: 'danger', complete: 'success', reopen: 'warn'
   } as const)[this.decision()]);
   protected decisionVisible = false;
   protected decisionComment = '';
@@ -983,7 +1010,6 @@ export class TasafPageComponent implements OnInit, OnDestroy {
   private resetFormOnly() {
     this.tabBar.unregisterDirtyChecker(this.currentTabKey);
     this.current.set(null);
-    this.tparEditing.set(false);
     this.apiError.set(null);
     this.setModel(this.newModel());
     this.currentTabKey = TAB;
@@ -994,7 +1020,6 @@ export class TasafPageComponent implements OnInit, OnDestroy {
 
   private loadTasaf(t: TasafDto) {
     this.current.set(t);
-    this.tparEditing.set(false);
     this.prefetchLogo(t.id); // Export › PDF is then instant
     this.apiError.set(null);
     this.setModel(t);
@@ -1077,7 +1102,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
         reject:  { onClick: () => this.openDecision('reject'), disabled: this.designing },
       } : {}),
       // Revert → Returned: Admin fixes an approval mistake, or the proponent takes their own TASAF back for changes
-      // (For Approval / Approved / Closed). Proponent/Admin withdraws (kept as Cancelled).
+      // (For Approval / Approved, no TPARs). Proponent/Admin withdraws (kept as Cancelled).
       ...(t?.canRevert ? { revert: { onClick: () => this.openDecision('revert'), disabled: this.designing,
         label: this.isProponent() ? 'Revert for changes — back to you as Returned' : 'Revert (Admin) — back to the proponent' } } : {}),
       ...(t?.canCancel ? { cancelDoc: { label: 'Cancel TASAF', onClick: () => this.openDecision('cancel'), disabled: this.designing } } : {}),
@@ -1859,7 +1884,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       case 'Approved':     return 'approved.';
       case 'Rejected':     return 'rejected.';
       case 'Cancelled':    return 'cancelled.';
-      case 'Closed':       return `closed (TPAR No. ${t.tparNo ?? '—'} entered).`;
+      case 'Completed':    return 'completed.';
       default:            return 'only the proponent can edit this TASAF.';
     }
   }
@@ -1946,59 +1971,6 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  editTparNo() {
-    this.tparDraft = this.current()?.tparNo ?? '';
-    this.tparEditing.set(true);
-  }
-
-  /** Saves only the TPAR No.; the rest of the form (and any unsaved edits) is left as it is. */
-  saveTparNo() {
-    const t = this.current();
-    if (!t || this.tparSaving()) return;
-    const value = this.tparDraft.trim();
-    if (value === (t.tparNo ?? '')) { this.tparEditing.set(false); return; }
-    // Entering the TPAR No. on an Approved TASAF closes it — and locks the TPAR No. (only an Admin Revert reopens it).
-    if (t.status === 'Approved' && value) {
-      this.confirmSvc.confirm({
-        header: 'Close this TASAF?',
-        message: `Saving TPAR No. <strong>${this.escape(value)}</strong> will <strong>close</strong> ${this.escape(t.refNo ?? 'this TASAF')}. `
-          + `After that the TPAR No. can no longer be changed unless an Admin reverts the TASAF. Continue?`,
-        icon: 'pi pi-lock',
-        acceptLabel: 'Save and close',
-        rejectLabel: 'Cancel',
-        accept: () => this.doSaveTparNo(t.id, value)
-      });
-      return;
-    }
-    this.doSaveTparNo(t.id, value);
-  }
-
-  private escape(s: string) {
-    return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-  }
-
-  private doSaveTparNo(id: number, value: string) {
-    if (this.tparSaving()) return;
-    this.tparSaving.set(true);
-    this.api.setTparNo(id, value).subscribe({
-      next: res => {
-        this.tparSaving.set(false);
-        this.tparEditing.set(false);
-        if (res.data) {
-          this.current.update(c => c && c.id === res.data!.id ? { ...c, tparNo: res.data!.tparNo, actions: res.data!.actions, status: res.data!.status,
-            canSetTparNo: res.data!.canSetTparNo, canRevert: res.data!.canRevert, canCancel: res.data!.canCancel, canDelete: res.data!.canDelete } : c);
-          this.snapshot = JSON.stringify(this.payload()); // already saved — not a pending change
-          this.syncToolbar(); // status may have changed (Closed / reopened)
-        }
-        this.messageSvc.add({ severity: 'success', summary: 'TPAR No.', detail: res.data?.tparNo ? `Saved: ${res.data.tparNo}${res.data.status === 'Closed' ? ' — TASAF closed.' : ''}` : `Cleared${res.data?.status === 'Approved' ? ' — TASAF reopened as Approved.' : '.'}` });
-      },
-      error: err => {
-        this.tparSaving.set(false);
-        this.messageSvc.add({ severity: 'error', summary: 'TPAR No.', detail: err?.error?.message ?? 'Failed to save the TPAR No.' });
-      }
-    });
-  }
-
   openDecision(d: TasafDialogAction) {
     this.decision.set(d);
     this.decisionComment = '';
@@ -2016,6 +1988,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
     const comment = this.decisionComment.trim();
     const call = d === 'revert' ? this.api.revert(t.id, comment)
                : d === 'cancel' ? this.api.cancel(t.id, comment)
+               : d === 'complete' ? this.api.complete(t.id, comment)
+               : d === 'reopen' ? this.api.reopen(t.id, comment)
                : this.api.decide(t.id, d, comment);
     this.deciding.set(true);
     call.subscribe({

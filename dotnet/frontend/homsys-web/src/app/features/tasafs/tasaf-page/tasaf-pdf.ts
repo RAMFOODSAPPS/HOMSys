@@ -217,6 +217,14 @@ export function buildTasafPdf(t: TasafDto, logo?: string | null): jsPDF {
        ...(rev ? [['', rev.role, rev.byName, 'Returned to proponent', when(rev.at), rev.comment]] : [])], []);
   }
 
+  // TPARs entered against it (TPAR page)
+  if (t.tpars?.length) {
+    section('TPAR (Trade Promo Analysis Report)');
+    table(['TPAR No.', 'Status', 'Branch', 'Amount', 'Remarks', 'Entered by', 'Date'],
+      t.tpars.map(p => [p.tparNo, p.status, p.branchName, n2(p.amount), p.remarks, p.createdByName, when(p.createdAt)]),
+      [3], ['Total (not cancelled)', '', '', n2(t.tparTotal), `Approved ${n2(t.tparApprovedTotal)} - Balance ${n2(t.tparBalance)}`, '', '']);
+  }
+
   // Footer on every page
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {

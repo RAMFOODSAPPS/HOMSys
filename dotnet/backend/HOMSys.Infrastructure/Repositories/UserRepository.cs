@@ -70,6 +70,9 @@ public class UserRepository(AppDbContext db) : IUserRepository
             .SetProperty(u => u.IsActive, user.IsActive)
             .SetProperty(u => u.PasswordHash, user.PasswordHash)
             .SetProperty(u => u.MustChangePassword, user.MustChangePassword)
+            .SetProperty(u => u.TempPasswordHash, user.TempPasswordHash)
+            .SetProperty(u => u.TempPasswordExpiresAt, user.TempPasswordExpiresAt)
+            .SetProperty(u => u.TempPasswordFailures, user.TempPasswordFailures)
             .SetProperty(u => u.UpdatedAt, user.UpdatedAt));
 
         await db.UserRoles.Where(ur => ur.UserId == user.Id).ExecuteDeleteAsync();
@@ -80,6 +83,17 @@ public class UserRepository(AppDbContext db) : IUserRepository
     public async Task UpdateLastLoginAsync(int userId, DateTime at) =>
         await db.Users.Where(u => u.Id == userId).ExecuteUpdateAsync(s => s
             .SetProperty(u => u.LastLoginAt, at));
+
+    public async Task SavePasswordStateAsync(User user) =>
+        await db.Users.Where(u => u.Id == user.Id).ExecuteUpdateAsync(s => s
+            .SetProperty(u => u.PasswordHash, user.PasswordHash)
+            .SetProperty(u => u.MustChangePassword, user.MustChangePassword)
+            .SetProperty(u => u.UpdatedAt, user.UpdatedAt)
+            .SetProperty(u => u.UpdatedBy, user.UpdatedBy)
+            .SetProperty(u => u.TempPasswordHash, user.TempPasswordHash)
+            .SetProperty(u => u.TempPasswordExpiresAt, user.TempPasswordExpiresAt)
+            .SetProperty(u => u.TempPasswordRequestedAt, user.TempPasswordRequestedAt)
+            .SetProperty(u => u.TempPasswordFailures, user.TempPasswordFailures));
 
     public async Task DeleteAsync(int id)
     {

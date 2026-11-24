@@ -1,6 +1,6 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { forkJoin, Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { InputTextModule } from 'primeng/inputtext';
@@ -117,6 +117,13 @@ import { SiteDto } from '../../../core/models/site.model';
           <p-multiselect formControlName="roleIds" [options]="roles()"
             optionLabel="name" optionValue="id"
             placeholder="Select roles" styleClass="w-full" />
+        </div>
+
+        <div class="field">
+          <label>Servicing branches <span class="user-sub">(branches this user covers — a TPAR encoder picks only these)</span></label>
+          <p-multiselect formControlName="servicingSiteIds" [options]="sites()"
+            optionLabel="name" optionValue="id" [filter]="true" display="chip"
+            placeholder="None — any of the TASAF's branches" styleClass="w-full" />
         </div>
 
         @if (selectedUser()) {
@@ -303,6 +310,7 @@ export class UserPageComponent implements OnInit, OnDestroy {
     branchCode:   [null as string | null],
     roleIds:      [[] as number[], Validators.required],
     collectionSiteIds: [[] as number[]],
+    servicingSiteIds:  [[] as number[]],
     password:     [''],
     isActive:     [true]
   });
@@ -360,7 +368,7 @@ export class UserPageComponent implements OnInit, OnDestroy {
     this.selectedUser.set(undefined);
     this.errorMessage.set(null);
     this.successMessage.set(null);
-    this.form.reset({ isActive: true, roleIds: [], companyId: null, departmentId: null, siteId: null, branchCode: null });
+    this.form.reset({ isActive: true, roleIds: [], companyId: null, departmentId: null, siteId: null, branchCode: null, collectionSiteIds: [], servicingSiteIds: [] });
     this.form.get('username')?.setValidators([Validators.required, Validators.minLength(3)]);
     this.form.get('password')?.clearValidators();
     this.form.get('username')?.updateValueAndValidity();
@@ -489,7 +497,10 @@ export class UserPageComponent implements OnInit, OnDestroy {
       companyId: user.companyId ?? null, departmentId: user.departmentId ?? null,
       siteId: user.siteId ?? null, branchCode: user.branchCode ?? null,
       roleIds: user.roleIds ?? [],
-      isActive: user.isActive, password: '', collectionSiteIds: []
+      isActive: user.isActive, password: '', collectionSiteIds: [], servicingSiteIds: []
+    });
+    this.userService.servicingBranches(user.id).subscribe({
+      next: res => this.form.patchValue({ servicingSiteIds: res.data ?? [] }, { emitEvent: false })
     });
     this.collectionService.userBranches(user.id).subscribe({
       next: res => this.form.patchValue({ collectionSiteIds: res.data ?? [] }, { emitEvent: false })
@@ -536,14 +547,17 @@ export class UserPageComponent implements OnInit, OnDestroy {
         newPassword: v.password || undefined
       }).subscribe({
         next: () => {
-          this.collectionService.setUserBranches(u.id, v.collectionSiteIds ?? []).subscribe({
+          forkJoin([
+            this.collectionService.setUserBranches(u.id, v.collectionSiteIds ?? []),
+            this.userService.setServicingBranches(u.id, v.servicingSiteIds ?? [])
+          ]).subscribe({
             next: () => {
               this.loading.set(false);
               this.successMessage.set('User updated successfully.');
             },
             error: (err) => {
               this.loading.set(false);
-              this.errorMessage.set(err?.error?.message ?? 'User saved, but the collection branches could not be saved.');
+              this.errorMessage.set(err?.error?.message ?? 'User saved, but the collection / servicing branches could not be saved.');
             }
           });
         },
@@ -565,6 +579,11 @@ export class UserPageComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.loading.set(false);
         this.generatedPassword.set(res.generatedPassword);
+        const sites = v.servicingSiteIds ?? [];
+        if (res.data?.id && sites.length)
+          this.userService.setServicingBranches(res.data.id, sites).subscribe({
+            error: err => this.errorMessage.set(err?.error?.message ?? 'User created, but the servicing branches could not be saved.')
+          });
       },
       error: (err) => {
         this.loading.set(false);

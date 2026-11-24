@@ -11,6 +11,8 @@ public interface IUserRepository
     Task<User> CreateAsync(User user);
     Task UpdateAsync(User user);
     Task UpdateLastLoginAsync(int userId, DateTime at);
+    /// <summary>Writes only the password fields (hash, must-change, forgot-password temp state) — no role rewrite.</summary>
+    Task SavePasswordStateAsync(User user);
     Task DeleteAsync(int id);
     Task<bool> ExistsAsync(string username, string email, int? excludeId = null);
 }

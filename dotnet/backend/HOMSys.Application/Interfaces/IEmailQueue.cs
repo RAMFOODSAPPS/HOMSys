@@ -14,4 +14,6 @@ public record NotificationEmail(string To, string ToName, string Title, string M
 public interface IEmailQueue
 {
     void Enqueue(NotificationEmail message);
+    /// <summary>True when email is configured, i.e. Enqueue will actually send.</summary>
+    bool IsEnabled { get; }
 }

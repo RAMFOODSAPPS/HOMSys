@@ -69,6 +69,7 @@ public class UserService(IUserRepository userRepo, IRoleRepository roleRepo, IHt
         var generatedPassword = PasswordGenerator.Generate();
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(generatedPassword);
         user.MustChangePassword = true;
+        AuthService.ClearTempPassword(user);
         user.UpdatedAt = DateTime.UtcNow;
         user.UpdatedBy = CurrentUser;
 
@@ -96,6 +97,7 @@ public class UserService(IUserRepository userRepo, IRoleRepository roleRepo, IHt
         {
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
             user.MustChangePassword = false;
+            AuthService.ClearTempPassword(user);
         }
 
         var roles = new List<Role>();

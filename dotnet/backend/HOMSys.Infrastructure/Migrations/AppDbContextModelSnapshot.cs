@@ -2454,6 +2454,13 @@ namespace HOMSys.Infrastructure.Migrations
                             Description = "Upload RDP (distributor) sales files and maintain the RDP list and channel mapping",
                             Key = "rdp-upload",
                             Name = "RDP Sales Upload"
+                        },
+                        new
+                        {
+                            Id = 30,
+                            Description = "Enter TPARs (Trade Promo Analysis Reports) against Approved TASAFs",
+                            Key = "tpar",
+                            Name = "TPAR Encoding"
                         });
                 });
 
@@ -4370,6 +4377,11 @@ namespace HOMSys.Infrastructure.Migrations
                         {
                             RoleId = 1,
                             PermissionId = 29
+                        },
+                        new
+                        {
+                            RoleId = 1,
+                            PermissionId = 30
                         });
                 });
 
@@ -5722,10 +5734,6 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<decimal>("TotalCost")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("TparNo")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -8617,6 +8625,92 @@ namespace HOMSys.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafTpar", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("BranchName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CancelledBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedByName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Remarks")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("SiteId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("TasafId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TparNo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SiteId");
+
+                    b.HasIndex("TasafId");
+
+                    b.HasIndex("TparNo")
+                        .IsUnique()
+                        .HasFilter("[Status] <> N'Cancelled'");
+
+                    b.ToTable("TasafTpars");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafWorksheet", b =>
                 {
                     b.Property<int>("Id")
@@ -8742,6 +8836,19 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<int?>("SiteId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("TempPasswordExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("TempPasswordFailures")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TempPasswordHash")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("TempPasswordRequestedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -8779,6 +8886,7 @@ namespace HOMSys.Infrastructure.Migrations
                             LastName = "Administrator",
                             MustChangePassword = true,
                             PasswordHash = "$2a$11$HWPtG2hulzuprKTyJrT/cOhS/k.aBx.7jJZJaRYwwVkbs5D5IUvAq",
+                            TempPasswordFailures = 0,
                             Username = "admin"
                         });
                 });
@@ -8818,6 +8926,21 @@ namespace HOMSys.Infrastructure.Migrations
                             UserId = 1,
                             RoleId = 1
                         });
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.UserServicingBranch", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SiteId")
+                        .HasColumnType("int");
+
+                    b.HasKey("UserId", "SiteId");
+
+                    b.HasIndex("SiteId");
+
+                    b.ToTable("UserServicingBranches");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.Zone2AddOn", b =>
@@ -9703,6 +9826,24 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafTpar", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HOMSys.Domain.Entities.Tasaf", "Tasaf")
+                        .WithMany("Tpars")
+                        .HasForeignKey("TasafId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Site");
+
+                    b.Navigation("Tasaf");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafWorksheet", b =>
                 {
                     b.HasOne("HOMSys.Domain.Entities.User", "ProponentUser")
@@ -9776,6 +9917,25 @@ namespace HOMSys.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Role");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.UserServicingBranch", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HOMSys.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Site");
 
                     b.Navigation("User");
                 });
@@ -9878,6 +10038,8 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("Steps");
 
                     b.Navigation("SubCategories");
+
+                    b.Navigation("Tpars");
 
                     b.Navigation("Worksheets");
                 });

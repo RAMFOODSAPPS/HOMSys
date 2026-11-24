@@ -171,6 +171,15 @@ public static class TasafEmailRenderer
             sb.Append(Table(["#", "Role", "Approver", "Status", "Date", "Comment"], [false, false, false, false, false, false], signRows, null));
         }
 
+        // TPARs entered against it (TPAR page)
+        if (d.Tpars.Count > 0)
+        {
+            sb.Append(Section("TPAR (Trade Promo Analysis Report)"));
+            sb.Append(Table(["TPAR No.", "Status", "Branch", "Amount", "Remarks", "Entered by", "Date"], [false, false, false, true, false, false, false],
+                d.Tpars.Select(p => new[] { p.TparNo, p.Status, p.BranchName, Num(p.Amount), p.Remarks, p.CreatedByName, Manila(p.CreatedAt) }).ToList(),
+                ["Total (not cancelled)", "", "", Num(d.TparTotal), $"Approved {Num(d.TparApprovedTotal)} · Balance {Num(d.TparBalance)}", "", ""]));
+        }
+
         // Review & Decide: opens the no-login decision page (Approve / Return / Reject + required comment)
         if (decisionToken is not null)
         {

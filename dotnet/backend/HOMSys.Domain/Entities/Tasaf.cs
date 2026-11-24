@@ -11,8 +11,6 @@ public class Tasaf
 
     /// <summary>YEAR-SalesGroup-ProponentInitials-NN (e.g. 2026-RKA-ER-03). Null until submitted.</summary>
     public string? RefNo { get; set; }
-    /// <summary>TPAR (Trade Promo Analysis Report) document no. for this TASAF; typed by the proponent / Admin, any time until Cancelled.</summary>
-    public string? TparNo { get; set; }
     /// <summary>The proposal number (last part of RefNo): one continuous series, unique. See TasafNumbering.</summary>
     public int? RefSeq { get; set; }
     public string Status { get; set; } = TasafStatus.Draft;
@@ -78,6 +76,8 @@ public class Tasaf
 
     public List<TasafApprovalStep> Steps { get; set; } = [];
     public List<TasafAction> Actions { get; set; } = [];
+    /// <summary>TPARs entered against it on the TPAR page (once Approved).</summary>
+    public List<TasafTpar> Tpars { get; set; } = [];
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string CreatedBy { get; set; } = string.Empty;
@@ -116,9 +116,9 @@ public static class TasafStatus
     public const string Rejected    = "Rejected";
     /// <summary>Withdrawn by the proponent (or an Admin). Kept for the record, never deleted.</summary>
     public const string Cancelled   = "Cancelled";
-    /// <summary>Approved + its TPAR No. entered (user decision 2026-11-20). Terminal; an Admin clearing the
-    /// TPAR No. reopens it as Approved.</summary>
-    public const string Closed      = "Closed";
+    /// <summary>Approved and done (user decision 2026-11-24, was "Closed"): set automatically when its TPARs add up
+    /// to the approved TotalCost, or by the proponent / Admin with "Complete". An Admin can Reopen it (→ Approved).</summary>
+    public const string Completed   = "Completed";
 }
 
 public static class TasafStepStatus

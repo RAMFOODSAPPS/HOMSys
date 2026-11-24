@@ -28,6 +28,13 @@ public class User
     public string? UpdatedBy { get; set; }
     public DateTime? LastLoginAt { get; set; }
 
+    // Forgot password (login page): an emailed temporary password, valid until it expires, is used, or 5 wrong tries.
+    // The current password keeps working meanwhile, so a reset asked for by someone else can't lock the user out.
+    public string? TempPasswordHash { get; set; }
+    public DateTime? TempPasswordExpiresAt { get; set; }
+    public DateTime? TempPasswordRequestedAt { get; set; }
+    public int TempPasswordFailures { get; set; }
+
     public ICollection<UserRole> UserRoles { get; set; } = [];
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
 }

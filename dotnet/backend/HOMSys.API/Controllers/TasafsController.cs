@@ -143,10 +143,15 @@ public class TasafsController(TasafService service, SalesOrderService salesOrder
     public async Task<IActionResult> Revert(int id, [FromBody] TasafCommentDto dto) =>
         Envelope(await service.RevertAsync(id, dto));
 
-    /// <summary>Proponent or Admin: set / clear the TPAR No. (any status but Cancelled).</summary>
-    [HttpPut("{id:int}/tpar-no")]
-    public async Task<IActionResult> SetTparNo(int id, [FromBody] TasafTparNoDto dto) =>
-        Envelope(await service.SetTparNoAsync(id, dto));
+    /// <summary>Proponent or Admin: mark an Approved TASAF that has TPARs as Completed (reason required).</summary>
+    [HttpPost("{id:int}/complete")]
+    public async Task<IActionResult> Complete(int id, [FromBody] TasafCommentDto dto) =>
+        Envelope(await service.CompleteAsync(id, dto));
+
+    /// <summary>Admin: Completed → Approved again, so its TPARs can be fixed (reason required).</summary>
+    [HttpPost("{id:int}/reopen")]
+    public async Task<IActionResult> Reopen(int id, [FromBody] TasafCommentDto dto) =>
+        Envelope(await service.ReopenAsync(id, dto));
 
     /// <summary>Proponent or Admin: withdraw the TASAF (kept as Cancelled, not deleted).</summary>
     [HttpPost("{id:int}/cancel")]

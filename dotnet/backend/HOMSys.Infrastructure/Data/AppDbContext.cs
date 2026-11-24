@@ -86,6 +86,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<DepositBatch> DepositBatches => Set<DepositBatch>();
     public DbSet<HomsPosting> HomsPostings => Set<HomsPosting>();
     public DbSet<UserBranch> UserBranches => Set<UserBranch>();
+    public DbSet<UserServicingBranch> UserServicingBranches => Set<UserServicingBranch>();
     public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
     public DbSet<BankAccountSite> BankAccountSites => Set<BankAccountSite>();
     public DbSet<BankStatementUpload> BankStatementUploads => Set<BankStatementUpload>();
@@ -125,6 +126,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TasafProduct> TasafProducts => Set<TasafProduct>();
     public DbSet<TasafCost> TasafCosts => Set<TasafCost>();
     public DbSet<TasafAction> TasafActions => Set<TasafAction>();
+    public DbSet<TasafTpar> TasafTpars => Set<TasafTpar>();
 
     // In-app notifications (topbar bell) — see NotificationService.
     public DbSet<Notification> Notifications => Set<Notification>();
@@ -213,6 +215,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         // Not unique: several logins may share one email. Username stays unique (the login).
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Email);
+        modelBuilder.Entity<User>()
+            .Property(u => u.TempPasswordHash).HasMaxLength(100);
 
         modelBuilder.Entity<Role>()
             .HasIndex(r => r.Name).IsUnique();
@@ -327,7 +331,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new Permission { Id = 26, Key = "pdc-confirm", Name = "Matured PDC Confirmation", Description = "Confirm a matured PDC's deposit against the bank statement (CNC Verifier) — posts its JV to HOMS" },
             new Permission { Id = 27, Key = "collections-ra-encode", Name = "Remittance Advice Encoding", Description = "Custodian Verifier: encode CRs and Remittance Advices (NKA) for every branch, uploading the chain's RA Excel" },
             new Permission { Id = 28, Key = "rdp-uba", Name = "UBA Dashboard", Description = "View the unique buying accounts dashboard built from RDP (distributor) sales files" },
-            new Permission { Id = 29, Key = "rdp-upload", Name = "RDP Sales Upload", Description = "Upload RDP (distributor) sales files and maintain the RDP list and channel mapping" }
+            new Permission { Id = 29, Key = "rdp-upload", Name = "RDP Sales Upload", Description = "Upload RDP (distributor) sales files and maintain the RDP list and channel mapping" },
+            new Permission { Id = 30, Key = "tpar", Name = "TPAR Encoding", Description = "Enter TPARs (Trade Promo Analysis Reports) against Approved TASAFs" }
         );
 
         // Admin gets all permissions by default
@@ -360,7 +365,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new RolePermission { RoleId = 1, PermissionId = 26 },
             new RolePermission { RoleId = 1, PermissionId = 27 },
             new RolePermission { RoleId = 1, PermissionId = 28 },
-            new RolePermission { RoleId = 1, PermissionId = 29 }
+            new RolePermission { RoleId = 1, PermissionId = 29 },
+            new RolePermission { RoleId = 1, PermissionId = 30 }
         );
 
         // Seed default admin user (password: Admin@1234)
@@ -944,6 +950,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         });
 
         b.Entity<UserBranch>(e =>
+        {
+            e.HasKey(x => new { x.UserId, x.SiteId });
+            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<UserServicingBranch>(e =>
         {
             e.HasKey(x => new { x.UserId, x.SiteId });
             e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
