@@ -1407,16 +1407,19 @@ app-pdc-page.pdcm-fill { display: flex; flex-direction: column; height: 100%; mi
 .find-panel .ff .pair > * { min-width: 0; }
 
 /* Collection status tracker: status / next steps + HOMS documents list (2026-11-24) */
-.cs-foot { margin: 4px 16px 14px; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px; align-items: start; }
-.cs-guide { padding: 10px 14px; border-radius: 8px; border: 1px solid #E5E0DA; border-left: 4px solid #2F5DA8;
+.cs-prog-row { flex-shrink: 0; display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.cs-prog-row > * { min-width: 0; margin: 0; }
+.cs-hdocs-card { display: flex; flex-direction: column; }
+.cs-hd-list { list-style: none; margin: 0; padding: 6px 14px 12px; }
+.cs-hd-list li { padding: 7px 0; border-top: 1px solid #F0EDE9; }
+.cs-hd-list li:first-child { border-top: 0; }
+.cs-hd-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.cs-hd-top b { font: 600 11.5px/1.3 ui-monospace, 'JetBrains Mono', monospace; color: #1C1B1A; white-space: nowrap; }
+.cs-hd-sub { font-size: 10.5px; color: #6B6661; margin-top: 2px; }
+.cs-hd-none { margin: 0; padding: 12px 14px; font-size: 11.5px; color: #6B6661; }
+@media (max-width: 1100px) { .cs-prog-row { grid-template-columns: 1fr; } }
+.cs-guide { margin: 4px 16px 14px; padding: 10px 14px; border-radius: 8px; border: 1px solid #E5E0DA; border-left: 4px solid #2F5DA8;
   background: #FAF9F7; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.cs-hdocs { padding: 10px 14px; border-radius: 8px; border: 1px solid #E5E0DA; background: #fff; min-width: 0; overflow-x: auto; }
-.cs-hdocs small { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #6B6661; margin-bottom: 4px; }
-.cs-hdocs table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-.cs-hdocs td { padding: 4px 8px 4px 0; border-top: 1px solid #F0EDE9; vertical-align: middle; }
-.cs-hdocs tr:first-child td { border-top: 0; }
-.cs-hdocs td.mono b { font: 600 11px/1.3 ui-monospace, 'JetBrains Mono', monospace; white-space: nowrap; }
-.cs-hdocs .dim, .cs-hdocs p.dim { color: #6B6661; font-size: 11px; margin: 0; } .cs-hdocs .nowrap { white-space: nowrap; }
 .cs-doc-st { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; white-space: nowrap; background: #F0EDE9; color: #6B6661; }
 .cs-doc-st[data-tone=ok] { background: #E9F6EE; color: #1E8A4C; } .cs-doc-st[data-tone=wait] { background: #EEF3FB; color: #2F5DA8; }
 .cs-doc-st[data-tone=hold] { background: #FDF4E3; color: #A26300; } .cs-doc-st[data-tone=bad] { background: #FCEBEA; color: #C8261B; }
@@ -1430,4 +1433,3 @@ app-pdc-page.pdcm-fill { display: flex; flex-direction: column; height: 100%; mi
 .cs-guide small { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #6B6661; margin-bottom: 2px; }
 .cs-guide-st b { font-size: 12.5px; font-weight: 600; color: #1C1B1A; line-height: 1.4; }
 .cs-guide-nx ol { margin: 0; padding-left: 18px; font-size: 12px; color: #1C1B1A; line-height: 1.5; }
-@media (max-width: 1100px) { .cs-foot { grid-template-columns: 1fr; } }

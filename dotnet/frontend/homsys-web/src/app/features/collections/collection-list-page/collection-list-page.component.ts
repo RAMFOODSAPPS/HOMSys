@@ -245,6 +245,7 @@ interface Action { label: string; kind: 'primary' | 'secondary' | 'danger'; run:
               @if (n.text) { <div class="cll-note" [class.bad]="n.bad"><i>!</i><span>{{ n.text }}</span></div> }
             }
 
+            <div class="cs-prog-row">
             <div class="cll-card-box">
               <div class="cll-box-head"><b>Progress</b><small>{{ progressText(d) }}</small></div>
               <div class="cll-steps-wrap">
@@ -263,7 +264,6 @@ interface Action { label: string; kind: 'primary' | 'secondary' | 'danger'; run:
                 </div>
               </div>
               @if (guide(d); as g) {
-              <div class="cs-foot">
               <div class="cs-guide" [attr.data-tone]="g.tone">
                 <div class="cs-guide-st"><small>Status</small><b>{{ g.status }}</b></div>
                 @if (g.next.length) {
@@ -271,21 +271,21 @@ interface Action { label: string; kind: 'primary' | 'secondary' | 'danger'; run:
                     <ol>@for (n of g.next; track $index) { <li>{{ n }}</li> }</ol></div>
                 }
               </div>
-              <div class="cs-hdocs">
-                <small>HOMS (FoxPro) documents</small>
-                @if (hdocs(d); as hd) {
-                  @if (hd.length) {
-                    <table>
-                      @for (x of hd; track $index) {
-                        <tr [pTooltip]="x.tip"><td class="mono"><b>{{ x.text }}</b></td><td><span class="cs-doc-st" [attr.data-tone]="x.tone">{{ x.state }}</span></td>
-                          <td class="dim">{{ x.step }}</td><td class="dim nowrap">{{ x.at | date:'MM/dd/yy hh:mm a' }}</td></tr>
-                      }
-                    </table>
-                  } @else { <p class="dim">None yet — generated when the receipt is verified.</p> }
-                }
-              </div>
-              </div>
             }
+            </div>
+            <div class="cll-card-box cs-hdocs-card">
+              <div class="cll-box-head"><b>HOMS (FoxPro) documents</b><small>{{ d.homsPostings.length }}</small></div>
+              @if (hdocs(d); as hd) {
+                @if (hd.length) {
+                  <ul class="cs-hd-list">
+                    @for (x of hd; track $index) {
+                      <li [pTooltip]="x.tip"><div class="cs-hd-top"><b>{{ x.text }}</b><span class="cs-doc-st" [attr.data-tone]="x.tone">{{ x.state }}</span></div>
+                        <div class="cs-hd-sub">{{ x.step }} · {{ x.at | date:'MM/dd/yy hh:mm a' }}</div></li>
+                    }
+                  </ul>
+                } @else { <p class="cs-hd-none">None yet — generated when the receipt is verified.</p> }
+              }
+            </div>
             </div>
 
             <div class="cll-card-box">

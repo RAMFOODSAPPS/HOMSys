@@ -115,6 +115,7 @@ const NEW_KEY = '/collections';
 
       <main class="rv-main">
         @if (col(); as c) {
+          <div class="cs-prog-row">
           <section class="card steps-card">
             <div class="steps" [style.grid-template-columns]="'repeat(' + steps().length + ', minmax(80px, 1fr))'">
               @for (s of steps(); track $index) {
@@ -139,7 +140,6 @@ const NEW_KEY = '/collections';
               }
             </div>
             @if (guide(); as g) {
-              <div class="cs-foot">
               <div class="cs-guide" [attr.data-tone]="g.tone">
                 <div class="cs-guide-st"><small>Status</small><b>{{ g.status }}</b></div>
                 @if (g.next.length) {
@@ -147,22 +147,22 @@ const NEW_KEY = '/collections';
                     <ol>@for (n of g.next; track $index) { <li>{{ n }}</li> }</ol></div>
                 }
               </div>
-              <div class="cs-hdocs">
-                <small>HOMS (FoxPro) documents</small>
-                @if (hdocs(); as hd) {
-                  @if (hd.length) {
-                    <table>
-                      @for (x of hd; track $index) {
-                        <tr [pTooltip]="x.tip"><td class="mono"><b>{{ x.text }}</b></td><td><span class="cs-doc-st" [attr.data-tone]="x.tone">{{ x.state }}</span></td>
-                          <td class="dim">{{ x.step }}</td><td class="dim nowrap">{{ x.at | date:'MM/dd/yy hh:mm a' }}</td></tr>
-                      }
-                    </table>
-                  } @else { <p class="dim">None yet — generated when the receipt is verified.</p> }
-                }
-              </div>
-              </div>
             }
           </section>
+          <section class="card cs-hdocs-card">
+            <div class="card-h between">HOMS (FoxPro) documents <span class="count">{{ c.homsPostings.length }}</span></div>
+            @if (hdocs(); as hd) {
+                @if (hd.length) {
+                  <ul class="cs-hd-list">
+                    @for (x of hd; track $index) {
+                      <li [pTooltip]="x.tip"><div class="cs-hd-top"><b>{{ x.text }}</b><span class="cs-doc-st" [attr.data-tone]="x.tone">{{ x.state }}</span></div>
+                        <div class="cs-hd-sub">{{ x.step }} · {{ x.at | date:'MM/dd/yy hh:mm a' }}</div></li>
+                    }
+                  </ul>
+                } @else { <p class="cs-hd-none">None yet — generated when the receipt is verified.</p> }
+              }
+          </section>
+          </div>
           @if (c.remittanceId) {
             <p-message severity="info" styleClass="w-full">
               Part of Remittance Advice #{{ c.remittanceId }} — its invoices come from the RA Excel, and it's submitted, verified and voided with the RA.
