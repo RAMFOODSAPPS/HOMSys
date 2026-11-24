@@ -1,6 +1,6 @@
 import { CollectionDto, HomsPostingDto } from '../../core/models/collection.model';
 
-/** A HOMS document a step generated (RPDC/OR at Verified, JV at Bank matched, the RPDC cancel at Voided). */
+/** A HOMS document the collection generated (RPDC/OR at Verified, JV at Bank matched, the RPDC cancel at Voided). */
 export interface StepDoc { text: string; state: string; tone: 'ok' | 'wait' | 'hold' | 'bad' | 'off'; tip: string; }
 
 /** One step of the status tracker of a saved collection (collection page header, Collections list preview). */
@@ -10,8 +10,6 @@ export interface CollectionStep {
   dateOnly?: boolean;
   /** Connector from the previous step is green: both steps reached. */
   linked?: boolean;
-  /** HOMS documents generated at this step. */
-  docs?: StepDoc[];
 }
 
 const KIND_NAME: Record<string, string> = { OR: 'OR', RPDC: 'RPDC', JV: 'JV', DEDUCTIONS: 'Deductions', 'RPDC-CANCEL': 'RPDC cancel' };
@@ -31,17 +29,6 @@ function stepDoc(p: HomsPostingDto): StepDoc {
   }
 }
 
-/** Hangs each HOMS document under the step that generated it. */
-function attachDocs(c: CollectionDto, steps: CollectionStep[]) {
-  const at = (labels: string[], kinds: string[]) => {
-    const step = steps.find(x => labels.includes(x.label));
-    const docs = c.homsPostings.filter(p => kinds.includes(p.kind)).map(stepDoc);
-    if (step && docs.length) step.docs = docs;
-  };
-  at(['Verified'], ['OR', 'RPDC', 'DEDUCTIONS']);
-  at(['Bank matched', 'Bank match found'], ['JV']);
-  at(['Voided'], ['RPDC-CANCEL']);
-}
 
 /**
  * Status tracker, read as one sequence: every step up to the furthest one reached is highlighted and that one is
@@ -112,7 +99,6 @@ export function collectionSteps(c: CollectionDto): CollectionStep[] {
   }
   out[cur].current = true;
   out.forEach((x, i) => x.linked = i > 0 && i <= cur);
-  attachDocs(c, out);
   // Names, not usernames (user 2026-11-24); "watcher" and users not found stay as they are.
   const names = c.userNames ?? {};
   const nameOf = (u: string) => names[u] ?? Object.entries(names).find(([k]) => k.toLowerCase() === u.toLowerCase())?.[1] ?? u;

@@ -135,7 +135,6 @@ const NEW_KEY = '/collections';
                     }
                     @if (s.by) { <span class="cs-by">{{ s.by }}</span> }
                   </div>
-                  @if (s.docs) { <span class="cs-docs">@for (x of s.docs; track $index) { <span class="cs-doc" [attr.data-tone]="x.tone" [pTooltip]="x.tip"><b>{{ x.text }}</b><small>{{ x.state }}</small></span> }</span> }
                 </div>
               }
             </div>

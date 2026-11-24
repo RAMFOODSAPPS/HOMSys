@@ -258,7 +258,6 @@ interface Action { label: string; kind: 'primary' | 'secondary' | 'danger'; run:
                         @if (s.at) { {{ s.at | date:'MM/dd/yy' }}@if (!s.dateOnly) {<br>{{ s.at | date:'hh:mm a' }}} }
                         @if (s.by) {<br><span class="cs-by">{{ s.by }}</span>}
                       </span>
-                      @if (s.docs) { <span class="cs-docs">@for (x of s.docs; track $index) { <span class="cs-doc" [attr.data-tone]="x.tone" [pTooltip]="x.tip"><b>{{ x.text }}</b><small>{{ x.state }}</small></span> }</span> }
                     </div>
                   }
                 </div>
