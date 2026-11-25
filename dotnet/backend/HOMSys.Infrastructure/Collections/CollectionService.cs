@@ -224,6 +224,7 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             : null;
         var financePdc = await FinanceConfirmsPdcAsync(u, c);
         var encoder = await EncoderAsync(c.CreatedBy);
+        var userNames = await UserNamesAsync(c);
         return new CollectionDto(
             c.Id, c.CollectionKey, c.SiteId, c.Site.Code, c.Site.Name,
             c.ReceiptType.ToString(), c.ReceiptNo, c.ReceiptDate, c.CustKey, c.CustName,
@@ -265,7 +266,19 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
             CanUpdateDocs: MissingSiDocs(c) > 0 && await CanUpdateDocsAsync(u, c),
             DepositoryAccountId: c.DepositoryAccountId, DepositoryBank: c.DepositoryAccount?.Label,
             CreatedByName: encoder?.Name, CreatedByBranch: encoder?.Branch,
-            PdcMatchByFinance: financePdc);
+            PdcMatchByFinance: financePdc, UserNames: userNames);
+    }
+
+    /// <summary>Full names of the users in a collection's history (the tracker shows names, not usernames). "watcher" etc. stay as they are.</summary>
+    private async Task<Dictionary<string, string>> UserNamesAsync(Collection c)
+    {
+        var who = c.History.Select(h => h.By).Append(c.CreatedBy).Append(c.VerifiedBy).Append(c.PdcOutcomeBy)
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!).Distinct().ToList();
+        if (who.Count == 0) return [];
+        var rows = await db.Users.AsNoTracking().Where(x => who.Contains(x.Username))
+            .Select(x => new { x.Username, Name = (x.FirstName + " " + x.LastName).Trim() }).ToListAsync();
+        return rows.Where(r => r.Name.Length > 0).GroupBy(r => r.Username, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Name, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>Service Invoice deductions still without their scanned copy (they stay out of HOMS's ordeduc2 until then).</summary>

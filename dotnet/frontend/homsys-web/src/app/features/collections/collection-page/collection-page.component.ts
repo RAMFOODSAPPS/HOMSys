@@ -26,7 +26,7 @@ import {
   CollectionDocumentKindDto, documentKindLabel, BankAccountOptionDto, CollectionDto, CollectionSiteDto, DEDUCTION_REASONS, DeductionType, deductionName, ewtAccount,
   OpenInvoiceDto, PAYMENT_MODES, PaymentMode, RECEIPT_TYPES, ReceiptType, SaveCollectionDto, statusLabel, statusSeverity
 } from '../../../core/models/collection.model';
-import { CollectionStep as Step, collectionSteps } from '../collection-steps';
+import { CollectionGuide, CollectionStep as Step, HomsDocRow, collectionGuide, collectionSteps, homsDocs } from '../collection-steps';
 
 /** One invoice the collection is applied to, as edited in the grid. */
 interface Line {
@@ -115,6 +115,7 @@ const NEW_KEY = '/collections';
 
       <main class="rv-main">
         @if (col(); as c) {
+          <div class="cs-prog-row">
           <section class="card steps-card">
             <div class="steps" [style.grid-template-columns]="'repeat(' + steps().length + ', minmax(80px, 1fr))'">
               @for (s of steps(); track $index) {
@@ -133,12 +134,35 @@ const NEW_KEY = '/collections';
                       <span>{{ s.at | date:'MM/dd/yy' }}</span>
                       @if (!s.dateOnly) { <span>{{ s.at | date:'hh:mm a' }}</span> }
                     }
-                    @if (s.by) { <span>{{ s.by }}</span> }
+                    @if (s.by) { <span class="cs-by">{{ s.by }}</span> }
                   </div>
                 </div>
               }
             </div>
+            @if (guide(); as g) {
+              <div class="cs-guide" [attr.data-tone]="g.tone">
+                <div class="cs-guide-st"><small>Status</small><b>{{ g.status }}</b></div>
+                @if (g.next.length) {
+                  <div class="cs-guide-nx"><small>Next step{{ g.next.length === 1 ? '' : 's' }}</small>
+                    <ol>@for (n of g.next; track $index) { <li>{{ n }}</li> }</ol></div>
+                }
+              </div>
+            }
           </section>
+          <section class="card cs-hdocs-card">
+            <div class="card-h between">HOMS (FoxPro) documents <span class="count">{{ c.homsPostings.length }}</span></div>
+            @if (hdocs(); as hd) {
+                @if (hd.length) {
+                  <ul class="cs-hd-list">
+                    @for (x of hd; track $index) {
+                      <li [pTooltip]="x.tip"><div class="cs-hd-top"><b>{{ x.text }}</b><span class="cs-doc-st" [attr.data-tone]="x.tone">{{ x.state }}</span></div>
+                        <div class="cs-hd-sub">{{ x.step }} · {{ x.at | date:'MM/dd/yy hh:mm a' }}</div></li>
+                    }
+                  </ul>
+                } @else { <p class="cs-hd-none">None yet — generated when the receipt is verified.</p> }
+              }
+          </section>
+          </div>
           @if (c.remittanceId) {
             <p-message severity="info" styleClass="w-full">
               Part of Remittance Advice #{{ c.remittanceId }} — its invoices come from the RA Excel, and it's submitted, verified and voided with the RA.
@@ -756,6 +780,8 @@ export class CollectionPageComponent implements OnInit, OnDestroy {
   protected appliedTotal = computed(() => { this.formTick(); return this.round(this.lines().reduce((s, l) => s + (l.applied ?? 0), 0)); });
   /** Status tracker (shared with the Collections list preview): see collectionSteps. */
   protected steps = computed<Step[]>(() => { const c = this.col(); return c ? collectionSteps(c) : []; });
+  protected guide = computed<CollectionGuide | null>(() => { const c = this.col(); return c ? collectionGuide(c) : null; });
+  protected hdocs = computed<HomsDocRow[]>(() => { const c = this.col(); return c ? homsDocs(c) : []; });
 
   /** Invoice balance after this receipt (live while editing): open balance − applied − deductions. A voided receipt
    *  or bounced PDC doesn't count, so its invoices keep their open balance. */

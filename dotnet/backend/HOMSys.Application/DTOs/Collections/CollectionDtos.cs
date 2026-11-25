@@ -107,7 +107,8 @@ public record CollectionDto(
     int? DepositoryAccountId = null, string? DepositoryBank = null,   // PDC: where it will be deposited (user 2026-11-23)
     string? CreatedByName = null,    // the encoder's full name (CreatedBy is the username)
     string? CreatedByBranch = null,  // the encoder's assigned branch(es)
-    bool PdcMatchByFinance = false); // PDC deposited before verification: the Finance Verifier approves its bank match (else CNC)
+    bool PdcMatchByFinance = false, // PDC deposited before verification: the Finance Verifier approves its bank match (else CNC)
+    Dictionary<string, string>? UserNames = null);   // username → full name of everyone in its history (tracker, user 2026-11-24)
 
 /// <summary>Type: "PulledOut" (customer took the check back) or "Replaced" (another check / payment took its place).</summary>
 public record PdcPulloutDto(string? Type, string? Reason);

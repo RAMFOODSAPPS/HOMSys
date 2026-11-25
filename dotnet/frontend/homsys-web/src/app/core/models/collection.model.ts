@@ -158,6 +158,8 @@ export interface CollectionDto {
   createdByName: string | null; createdByBranch: string | null;
   /** PDC deposited before verification: the Finance Verifier approves its bank match (verifying); else the CNC Verifier. */
   pdcMatchByFinance: boolean;
+  /** username → full name of everyone in its history (the tracker shows names). */
+  userNames?: Record<string, string> | null;
 }
 
 // ── Remittance Advice (NKA chains) ──────────────────────────────────────────
@@ -229,7 +231,7 @@ export interface RemittanceDto {
 }
 
 export interface HomsPostingDto {
-  id: number; kind: 'OR' | 'RPDC' | 'JV'; status: 'Pending' | 'Processing' | 'Done' | 'Held' | 'Failed' | 'Cancelled';
+  id: number; kind: 'OR' | 'RPDC' | 'JV' | 'DEDUCTIONS' | 'RPDC-CANCEL'; status: 'Pending' | 'Processing' | 'Done' | 'Held' | 'Failed' | 'Cancelled';
   docNo: number | null; file: string | null; message: string | null; createdAt: string; completedAt: string | null;
 }
 
