@@ -12,7 +12,8 @@ export interface CollectionStep {
   linked?: boolean;
 }
 
-const KIND_NAME: Record<string, string> = { OR: 'OR', RPDC: 'RPDC', JV: 'JV', DEDUCTIONS: 'Deductions', 'RPDC-CANCEL': 'RPDC cancel' };
+const KIND_NAME: Record<string, string> = { OR: 'OR', RPDC: 'RPDC', JV: 'JV', DEDUCTIONS: 'Deductions', 'RPDC-CANCEL': 'RPDC cancel',
+                                            REGISTER: 'PDC register' };
 const md = (iso: string) => { const [y, m, d] = iso.slice(0, 10).split('-'); return `${m}/${d}/${y.slice(2)}`; };
 
 function stepDoc(p: HomsPostingDto): StepDoc {
@@ -110,7 +111,7 @@ export function collectionSteps(c: CollectionDto): CollectionStep[] {
 export interface HomsDocRow extends StepDoc { step: string; at: string | null; }
 
 export function homsDocs(c: CollectionDto): HomsDocRow[] {
-  const step = (k: string) => k === 'JV' ? 'Bank matched' : k === 'RPDC-CANCEL' ? 'Voided' : 'Verified';
+  const step = (k: string) => k === 'JV' ? 'Bank matched' : k === 'RPDC-CANCEL' ? 'Voided' : k === 'REGISTER' ? 'Catch-up' : 'Verified';
   return [...c.homsPostings].sort((a, b) => a.id - b.id)
     .map(p => ({ ...stepDoc(p), step: step(p.kind), at: p.completedAt ?? p.createdAt }));
 }

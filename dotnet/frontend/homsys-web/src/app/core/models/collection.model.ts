@@ -231,7 +231,7 @@ export interface RemittanceDto {
 }
 
 export interface HomsPostingDto {
-  id: number; kind: 'OR' | 'RPDC' | 'JV' | 'DEDUCTIONS' | 'RPDC-CANCEL'; status: 'Pending' | 'Processing' | 'Done' | 'Held' | 'Failed' | 'Cancelled';
+  id: number; kind: 'OR' | 'RPDC' | 'JV' | 'DEDUCTIONS' | 'RPDC-CANCEL' | 'REGISTER'; status: 'Pending' | 'Processing' | 'Done' | 'Held' | 'Failed' | 'Cancelled';
   docNo: number | null; file: string | null; message: string | null; createdAt: string; completedAt: string | null;
 }
 

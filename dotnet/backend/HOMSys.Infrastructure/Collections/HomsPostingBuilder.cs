@@ -19,7 +19,9 @@ public static class HomsPostingBuilder
 {
     public const int ArTrade = 10301, Cewt = 10507, PdcDts = 10552;
 
-    public sealed record Doc(string Table, int DocId, int? DocNo, Dictionary<string, object?> Header, List<Dictionary<string, object?>> Lines);
+    /// <param name="Register">RPDC / JV: what DCSR writes besides GH/GD (see <see cref="RpdcRegister"/> / <see cref="JvRegister"/>).</param>
+    public sealed record Doc(string Table, int DocId, int? DocNo, Dictionary<string, object?> Header, List<Dictionary<string, object?>> Lines,
+        Dictionary<string, object?>? Register = null);
 
     public sealed record Input(Collection C, DateOnly PostDate, string UserName);
 
@@ -75,17 +77,99 @@ public static class HomsPostingBuilder
         if (kind != HomsPostingKind.Rpdc && account?.HomsAcctNo is null)
             return (null, c.DepositBatch is null ? "No deposit recorded." : $"Deposit account {c.DepositBatch.Bank} has no HOMS GL account (BANKS4W).");
         var gl = account?.HomsAcctNo ?? 0;
+        // A PDC's depository account is named at encoding (user 2026-11-23); the deposit's own account once it's deposited.
+        var depository = c.DepositoryAccount ?? account;
 
         Doc doc = kind switch
         {
             HomsPostingKind.Or => Or(x, docNo, dept, user, invs, first, account!, gl),
-            HomsPostingKind.Rpdc => Rpdc(x, docNo, dept, user, invs, first),
-            _ => Jv(x, docNo, dept, user, invs, first, account!, gl),
+            HomsPostingKind.Rpdc => Rpdc(x, docNo, dept, user, invs, first, depository) with
+            {
+                Register = RpdcRegister(x, docNo, dept, user, invs, depository),
+            },
+            _ => Jv(x, docNo, dept, user, invs, first, account!, gl) with { Register = JvRegister(x, docNo, dept, invs) },
         };
 
         decimal Sum(string f) => doc.Lines.Sum(l => l.GetValueOrDefault(f) is decimal v ? v : 0m);
         if (Sum("DRAMT") != Sum("CRAMT")) return (null, $"Debits {Sum("DRAMT"):N2} ≠ credits {Sum("CRAMT"):N2}.");
         return (doc, null);
+    }
+
+    /// <summary>DCSR's desk folder for HO (bcode 03): DEPTCODE 32 = Luzon, any other = VisMin (PDCPOST2 / e105a).</summary>
+    public static string Desk(int dept) => dept == 32 ? "Luzon" : "VisMin";
+
+    /// <summary>
+    /// The DCSR user (F:\HOMS\RAM\syssec.dbf) HOMSys's RPDC / JV records carry as USERNAME (user 2026-11-25). DCSR's own
+    /// reports place a pdc4w / deposits row and a GH header on a desk only through its USERNAME (upddept(): syssec.DEPTCODE of
+    /// that user), so a HOMSys employee ID dropped them from Validate vs Deposit and Colltn. "IT (HOMS RE-POST)" is desk 32
+    /// (Luzon); its twin "IT (HOMS RE-POST) VM" desk 31 (VisMin).
+    /// </summary>
+    public static string DeskUser(int dept) => dept == 32 ? "IT (HOMS RE-POST)" : "IT (HOMS RE-POST) VM";
+
+    /// <summary>The customers (WHSENO + CKEY) of the invoices — how ordeduc2 is keyed (its WCKIDOCDOCNO tag).</summary>
+    private static List<Dictionary<string, object?>> Custs(List<(PostedInvoice Inv, decimal Applied, decimal Ewt)> invs) =>
+        invs.Select(t => Cust(t.Inv)).Select(k => (Wh: k["WHSENO"], Ckey: k["CKEY"])).Distinct()
+            .Select(k => new Dictionary<string, object?> { ["WHSENO"] = k.Wh, ["CKEY"] = k.Ckey }).ToList();
+
+    /// <summary>
+    /// What DCSR's RPDC post (e102new → PDCPOST2) writes besides GH/GD, field for field as RPDC 94000286 was backfilled and
+    /// checked against DCSR's own rows (2026-11-25):
+    ///   pdc  → pdc4w, one row per invoice: AMT = applied + EWT, PEWITAMT = the EWT's 1% base (EWT × 100; e105a takes 1% of
+    ///          it back off the deposit at the JV), WITHTCC = its 2307 attached; and the same rows into pd{MMYYYY} (POSTED blank);
+    ///   deposit → deposits, one row for the check: AMT = Σ pdc4w AMT (gross; the JV takes the EWT off), BANKDATE = check date;
+    ///   rpdctr gets the GD lines + the header's EXPLN1/2, ordeduct the RPDC's ordeduc2 rows (by customer = custs),
+    ///   ARCHIVES\{desk}\GH/GD a desk copy — all done by HOMSPOST from this and the staged header / lines.
+    /// </summary>
+    private static Dictionary<string, object?> RpdcRegister(Input x, int docNo, int dept, string user,
+        List<(PostedInvoice Inv, decimal Applied, decimal Ewt)> invs, BankAccount? acct)
+    {
+        var c = x.C;
+        var depBank = acct is null ? null : Cut(acct.HomsBankAc ?? acct.AccountNo, 16);
+        var deskUser = DeskUser(dept);
+        var sys = D(DateOnly.FromDateTime(c.CreatedAt));
+        var sub = D(c.SubmittedAt is { } s ? DateOnly.FromDateTime(s) : x.PostDate);
+        var pdc = invs.Select(t => With(Cust(t.Inv), new()
+        {
+            ["DCRNO"] = c.DcrNo ?? 0, ["DCRDATE"] = D(c.ReceiptDate), ["DOCNO"] = docNo, ["DOCDATE"] = D(c.ReceiptDate), ["DOCID"] = 33,
+            ["REFID"] = 1, ["REFNO"] = t.Inv.DocNo, ["REFDATE"] = D(t.Inv.DocDate),
+            ["CHECKNO"] = Cut(c.CheckNo, 16), ["CHECKDATE"] = D(c.CheckDate), ["AMT"] = t.Applied + t.Ewt, ["PEWITAMT"] = t.Ewt * 100m,
+            // DCSR's JV debits the EWT to IIF(withtcc, 10507, 10508): WITHTCC follows the account HOMSys debits it to.
+            ["WITHTCC"] = t.Ewt > 0 && EwtLines(c, t.Inv.Id).Any(e => e.Acct == Cewt),
+            ["DRAWEEBANK"] = Cut(c.Bank, 20), ["DEPBANK"] = depBank, ["RECBANK"] = acct?.BankAbbr, ["ACCTNO"] = acct?.HomsAcctNo ?? 0,
+            ["POSTED"] = D(x.PostDate), ["EMPNO"] = t.Inv.EmpNo, ["PAYMENTID"] = PaymentId(t.Inv.DocDate, 1, t.Inv.DocNo),
+            ["USERNAME"] = deskUser, ["SYSDATE"] = sys, ["SUBDATE"] = sub, ["DEPTCODE"] = dept,
+        })).ToList();
+        var first = invs[0].Inv;
+        var deposit = new Dictionary<string, object?>
+        {
+            ["SALESMAN"] = first.Salesman, ["DOCNO"] = docNo, ["DOCID"] = 33, ["DOCDATE"] = D(c.ReceiptDate), ["DCRDATE"] = D(c.ReceiptDate),
+            ["DCRNO"] = c.DcrNo ?? 0, ["DEPBANK"] = depBank, ["DRAWEEBANK"] = Cut(c.Bank, 20), ["CHECKNO"] = Cut(c.CheckNo, 16),
+            ["CHECKDATE"] = D(c.CheckDate), ["AMT"] = invs.Sum(t => t.Applied + t.Ewt), ["WHSENO"] = Cust(first)["WHSENO"],
+            ["ACCTNO"] = acct?.HomsAcctNo ?? 0, ["USERNAME"] = deskUser, ["SYSDATE"] = sys, ["DEP_CTR"] = 1, ["BANKDATE"] = D(c.CheckDate),
+            ["DCRNO2"] = c.DcrNo ?? 0, ["SALESMAN2"] = first.Salesman, ["RECBANK"] = acct?.BankAbbr, ["DEPTCODE"] = dept,
+        };
+        return new()
+        {
+            ["kind"] = "RPDC", ["rpdcNo"] = docNo, ["checkNo"] = Cut(c.CheckNo, 16), ["checkDate"] = D(c.CheckDate),
+            ["desk"] = Desk(dept), ["pdFile"] = $"pd{x.PostDate:MMyyyy}", ["custs"] = Custs(invs), ["pdc"] = pdc, ["deposit"] = deposit,
+        };
+    }
+
+    /// <summary>
+    /// What DCSR's JV for a matured PDC (e105a cmdGenJv + e105.prg) writes besides gatr / ARCHIVES GH/GD, done by HOMSPOST:
+    /// the RPDC's deposits row → AMT − the EWT, POSTED = the JV date, DOCDATE = the check date, then copied into DP{MMYYYY}
+    /// and DCSRARCH\{desk}\DP03MMYY; the JV into F:\HOMS\RAM\GH/GD03MMYY and DCSRARCH\{desk}\GH/GD03MMYY; rpdctr gets the JV
+    /// lines with the header's DOCDATE / EXPLN1-2 / POSTED / DCRNO / DCRDATE / TCODE; last pdc4w GATRNO / GATRDATE / GATRID 52.
+    /// </summary>
+    private static Dictionary<string, object?> JvRegister(Input x, int rpdcNo, int dept, List<(PostedInvoice Inv, decimal Applied, decimal Ewt)> invs)
+    {
+        var c = x.C;
+        return new()
+        {
+            ["kind"] = "JV", ["rpdcNo"] = rpdcNo, ["checkNo"] = Cut(c.CheckNo, 16), ["checkDate"] = D(c.CheckDate),
+            ["jvDate"] = D(x.PostDate), ["ewt"] = invs.Sum(t => t.Ewt), ["desk"] = Desk(dept), ["dpFile"] = $"DP{x.PostDate:MMyyyy}",
+            ["custs"] = Custs(invs),
+        };
     }
 
     private static Doc Or(Input x, int docNo, int dept, string user, List<(PostedInvoice Inv, decimal Applied, decimal Ewt)> invs,
@@ -122,9 +206,12 @@ public static class HomsPostingBuilder
         return new Doc("OH03", 2, docNo, header, lines);
     }
 
-    private static Doc Rpdc(Input x, int docNo, int dept, string user, List<(PostedInvoice Inv, decimal Applied, decimal Ewt)> invs, PostedInvoice first)
+    private static Doc Rpdc(Input x, int docNo, int dept, string user, List<(PostedInvoice Inv, decimal Applied, decimal Ewt)> invs, PostedInvoice first,
+        BankAccount? depository)
     {
         var c = x.C;
+        // DCSR's RPDC carries the DCR no. and, on its lines, the depository bank (user 2026-11-25: HOMSys wrote 0 / blank).
+        var depBank = depository is null ? null : Cut(depository.HomsBankAc ?? depository.AccountNo, 16);
         var header = new Dictionary<string, object?>
         {
             ["DOCID"] = 33, ["DOCTYPE"] = "RPDC", ["DOCNO"] = docNo, ["DOCDATE"] = D(c.ReceiptDate),
@@ -133,8 +220,8 @@ public static class HomsPostingBuilder
             ["CHECKNO"] = Cut(c.CheckNo, 16), ["CHECKDATE"] = D(c.CheckDate),
             ["EXPLN1"] = $"ENTRY for Received RPDC#: {docNo}",
             ["EXPLN2"] = $"Ref. Check Nos.: {c.CheckNo} Due date: {c.CheckDate:MM/dd/yyyy}",
-            ["POSTED"] = D(x.PostDate), ["DCRNO"] = 0, ["DCRDATE"] = D(c.ReceiptDate), ["BCODE"] = "03", ["TCODE"] = 1,
-            ["STATDESC"] = "Posted", ["USERNAME"] = user, ["EMPNO"] = first.EmpNo, ["DEPTCODE"] = dept,
+            ["POSTED"] = D(x.PostDate), ["DCRNO"] = c.DcrNo ?? 0, ["DCRDATE"] = D(c.ReceiptDate), ["BCODE"] = "03", ["TCODE"] = 1,
+            ["STATDESC"] = "Posted", ["USERNAME"] = DeskUser(dept), ["EMPNO"] = first.EmpNo, ["DEPTCODE"] = dept,
         };
         var lines = new List<Dictionary<string, object?>>();
         foreach (var (inv, applied, ewt) in invs)
@@ -144,7 +231,7 @@ public static class HomsPostingBuilder
                 ["DOCTYPE"] = "RPDC", ["DOCNO"] = docNo, ["DOCID"] = 33, ["EMPNO"] = inv.EmpNo, ["REFID"] = 1, ["REFNO"] = inv.DocNo,
                 ["REFDATE"] = D(inv.DocDate), ["NAMEDET"] = Cut(inv.CustName, 50), ["DRAWEEBANK"] = Cut(c.Bank, 20),
                 ["CHECKNO"] = Cut(c.CheckNo, 16), ["CHECKDATE"] = D(c.CheckDate), ["TRTYPE"] = 1,
-                ["PAYMENTID"] = PaymentId(inv.DocDate, 1, inv.DocNo),
+                ["PAYMENTID"] = PaymentId(inv.DocDate, 1, inv.DocNo), ["DEPBANK"] = depBank, ["RECBANK"] = depository?.BankAbbr,
             });
             lines.Add(With(Line(), new() { ["ACCTNO"] = PdcDts, ["DRAMT"] = applied + ewt }));
             lines.Add(With(Line(), new() { ["ACCTNO"] = ArTrade, ["CRAMT"] = applied + ewt }));
@@ -161,7 +248,7 @@ public static class HomsPostingBuilder
             ["DOCID"] = 52, ["DOCTYPE"] = "JV", ["DOCDATE"] = D(x.PostDate), ["REFID1"] = 33, ["REFTYPE1"] = "RPDC", ["REFTYPE2"] = "FBS",
             ["EXPLN1"] = $"Matured RPDC {rpdcNo}", ["EXPLN2"] = $",{Cut(c.Bank, 20)}-{c.CheckNo}",
             ["POSTED"] = D(x.PostDate), ["DCRNO"] = 0, ["DCRDATE"] = D(x.PostDate), ["BCODE"] = "03", ["TCODE"] = 1,
-            ["STATDESC"] = "Posted", ["USERNAME"] = user, ["DEPTCODE"] = dept,
+            ["STATDESC"] = "Posted", ["USERNAME"] = DeskUser(dept), ["DEPTCODE"] = dept,
         };
         Dictionary<string, object?> Line(PostedInvoice inv) => With(Cust(inv), new()
         {

@@ -4,8 +4,10 @@ namespace HOMSys.Domain.Entities;
 /// PdcJv = matured PDC's JV into GH03/GD03 (DR cash in bank + 10507 / CR 10552);
 /// RpdcCancel = a pulled-out / replaced PDC's RPDC cancelled in HOMS the way HOMS cancels one
 /// (header STATUS "3" / STATDESC "Cancelled", header and lines deleted) — LinesJson = the RPDC's lines, to recognise it.
-/// Deductions = ordeduc2 rows only, for an OR / RPDC already in HOMS (e.g. a Service Invoice whose scanned copy came later).</summary>
-public enum HomsPostingKind { Or, Rpdc, PdcJv, RpdcCancel, Deductions }
+/// Deductions = ordeduc2 rows only, for an OR / RPDC already in HOMS (e.g. a Service Invoice whose scanned copy came later).
+/// Register = the PDC register / side files only (pdc4w, deposits, ordeduct, rpdctr, pd / DP files, desk copies — see
+/// RegisterJson) for an RPDC / JV already in HOMS: the catch-up of the ones written before HOMSys filled them (2026-11-25).</summary>
+public enum HomsPostingKind { Or, Rpdc, PdcJv, RpdcCancel, Deductions, Register }
 
 /// <summary>Held = needs a fix in HOMSys first (reason in Message); Cancelled = the collection was voided before it was written.</summary>
 public enum HomsPostingStatus { Pending, Processing, Done, Held, Failed, Cancelled }
@@ -38,6 +40,10 @@ public class HomsPosting
     public string DeductionsJson { get; set; } = "[]";
     /// <summary>CollectionDeduction ids those rows came from (comma-separated), stamped HomsSentAt when written.</summary>
     public string? DeductionIds { get; set; }
+    /// <summary>RPDC / JV: what DCSR also writes besides GH/GD (user 2026-11-25, report variance) — the RPDC's pdc4w rows
+    /// (one per invoice) and deposits row (the check), the pd / DP month file names, the Luzon / VisMin desk, the JV's EWT
+    /// for deposits. Built by HomsPostingBuilder.Register; "{}" = nothing (postings from before, or OR / cancel).</summary>
+    public string RegisterJson { get; set; } = "{}";
 
     /// <summary>The file it was written to ("OH031026.dbf").</summary>
     public string? File { get; set; }

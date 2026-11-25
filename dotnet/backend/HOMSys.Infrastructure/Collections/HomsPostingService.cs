@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using HOMSys.Application.DTOs.Collections;
 using HOMSys.Domain.Entities;
 using HOMSys.Infrastructure.Data;
@@ -20,7 +21,7 @@ public class HomsPostingService(AppDbContext db)
     public static string Label(HomsPostingKind k) => k switch
     {
         HomsPostingKind.Or => "OR", HomsPostingKind.Rpdc => "RPDC", HomsPostingKind.RpdcCancel => "RPDC-CANCEL",
-        HomsPostingKind.Deductions => "DEDUCTIONS", _ => "JV",
+        HomsPostingKind.Deductions => "DEDUCTIONS", HomsPostingKind.Register => "REGISTER", _ => "JV",
     };
 
     private static readonly HomsPostingStatus[] Open = [HomsPostingStatus.Pending, HomsPostingStatus.Held, HomsPostingStatus.Failed];
@@ -56,6 +57,7 @@ public class HomsPostingService(AppDbContext db)
         await db.Collections.Where(x => x.Id == c.Id)
             .Include(x => x.Site).Include(x => x.Invoices).ThenInclude(i => i.PostedInvoice)
             .Include(x => x.Deductions).Include(x => x.DepositBatch).ThenInclude(b => b!.BankAccount)
+            .Include(x => x.DepositoryAccount)
             .AsSplitQuery().LoadAsync();
     }
 
@@ -78,6 +80,7 @@ public class HomsPostingService(AppDbContext db)
         p.DocNo = doc.DocNo ?? p.DocNo;
         p.HeaderJson = HomsPostingBuilder.Json(doc.Header);
         p.LinesJson = HomsPostingBuilder.Json(doc.Lines);
+        p.RegisterJson = doc.Register is null ? "{}" : HomsPostingBuilder.Json(doc.Register);
         SetDeductions(p, c, post, user);
     }
 
@@ -200,18 +203,107 @@ public class HomsPostingService(AppDbContext db)
         // Its ordeduc2 rows (written with the RPDC or later) are taken out with it.
         var deds = list.Where(p => p.Kind is HomsPostingKind.Rpdc or HomsPostingKind.Deductions)
             .SelectMany(p => JsonDocument.Parse(p.DeductionsJson).RootElement.EnumerateArray().Select(e => e.Clone())).ToList();
-        foreach (var d in list.Where(p => p.Kind == HomsPostingKind.Deductions && Open.Contains(p.Status))) d.Status = HomsPostingStatus.Cancelled;
+        foreach (var d in list.Where(p => p.Kind is HomsPostingKind.Deductions or HomsPostingKind.Register && Open.Contains(p.Status)))
+            d.Status = HomsPostingStatus.Cancelled;
+        // Its PDC register / side files (pdc4w, deposits, ordeduct, rpdctr, pd file, desk copy) come out with it: what the
+        // RPDC wrote them with, or the catch-up that wrote them for an RPDC from before.
+        var register = rpdc.RegisterJson is { Length: > 2 } r ? r
+            : list.Where(p => p.Kind == HomsPostingKind.Register && p.DocId == rpdc.DocId && p.Status == HomsPostingStatus.Done)
+                .OrderByDescending(p => p.Id).Select(p => p.RegisterJson).FirstOrDefault() ?? "{}";
         db.HomsPostings.Add(new HomsPosting
         {
             Collection = c, Kind = HomsPostingKind.RpdcCancel, Table = rpdc.Table, MonthKey = rpdc.MonthKey, DocId = rpdc.DocId,
-            DocNo = rpdc.DocNo, LinesJson = rpdc.LinesJson, DeductionsJson = JsonSerializer.Serialize(deds), CreatedBy = user,
+            DocNo = rpdc.DocNo, LinesJson = rpdc.LinesJson, DeductionsJson = JsonSerializer.Serialize(deds), RegisterJson = register,
+            CreatedBy = user,
         });
         return (true, null);
     }
 
+    /// <summary>
+    /// Catch-up (user 2026-11-25): an RPDC / JV HOMSys wrote before it filled DCSR's PDC register gets one Register posting —
+    /// the watcher adds what's missing (pdc4w, deposits, ordeduct, rpdctr, pd / DP files, desk copies) and fixes the RPDC's
+    /// DCRNO 0 / blank DEPBANK-RECBANK; whatever is already there is left alone (RPDC 94000286 was backfilled by hand).
+    /// Its header / lines are the ones written, with those fixes. Skips one already caught up, a pulled-out PDC, and a
+    /// document HOMS had before HOMSys wrote it. One line per posting; dryRun adds nothing. Saves.
+    /// </summary>
+    public async Task<List<string>> QueueRegisterCatchUpAsync(bool dryRun, string user)
+    {
+        var mains = await db.HomsPostings.Where(p => (p.Kind == HomsPostingKind.Rpdc || p.Kind == HomsPostingKind.PdcJv)
+                && p.Status == HomsPostingStatus.Done && p.DocNo != null && p.RegisterJson == "{}")
+            .OrderBy(p => p.Id).ToListAsync();
+        var report = new List<string>();
+        foreach (var main in mains)
+        {
+            string Line(string s) => $"{Label(main.Kind)} {main.DocNo} (collection {main.CollectionId}, posting {main.Id}): {s}";
+            var others = await db.HomsPostings.Where(p => p.CollectionId == main.CollectionId).ToListAsync();
+            if (others.Any(p => p.Kind == HomsPostingKind.Register && p.DocId == main.DocId && p.DocNo == main.DocNo
+                                && p.Status != HomsPostingStatus.Cancelled))
+            { report.Add(Line("already caught up / queued")); continue; }
+            if (others.Any(p => p.Kind == HomsPostingKind.RpdcCancel && p.Status != HomsPostingStatus.Cancelled))
+            { report.Add(Line("skipped — pulled out")); continue; }
+            if (main.Message?.StartsWith("Already in", StringComparison.Ordinal) == true
+                || main.Message?.StartsWith("JV'd in DCSR", StringComparison.Ordinal) == true)
+            { report.Add(Line("skipped — HOMS had it before HOMSys (DCSR's own)")); continue; }
+
+            var c = await db.Collections.Include(x => x.History).FirstAsync(x => x.Id == main.CollectionId);
+            await LoadForBuildAsync(c);
+            var (doc, error) = HomsPostingBuilder.Build(main.Kind, new HomsPostingBuilder.Input(c, PostedOf(main), main.CreatedBy));
+            if (doc?.Register is null) { report.Add(Line($"can't build: {error}")); continue; }
+
+            var header = JsonNode.Parse(main.HeaderJson)!.AsObject();
+            var lines = JsonNode.Parse(main.LinesJson)!.AsArray();
+            // The desk's DCSR user instead of a HOMSys employee ID (DCSR's reports place records on a desk by USERNAME);
+            // the watcher replaces an all-digits USERNAME with it on the RPDC / JV's records.
+            header["USERNAME"] = HomsPostingBuilder.DeskUser(((int?)header["DEPTCODE"]) ?? 32);
+            if (main.Kind == HomsPostingKind.Rpdc)
+            {
+                if (((int?)header["DCRNO"] ?? 0) == 0) header["DCRNO"] = c.DcrNo ?? 0;
+                var built = doc.Lines.FirstOrDefault();
+                foreach (var l in lines.OfType<JsonObject>())
+                    foreach (var f in new[] { "DEPBANK", "RECBANK" })
+                        if (string.IsNullOrWhiteSpace((string?)l[f]) && built?.GetValueOrDefault(f) is string v && v.Length > 0) l[f] = v;
+            }
+            report.Add(Line(dryRun ? "would queue" : "queued"));
+            if (dryRun) continue;
+            db.HomsPostings.Add(new HomsPosting
+            {
+                Collection = c, Kind = HomsPostingKind.Register, Table = main.Table, MonthKey = main.MonthKey, DocId = main.DocId,
+                DocNo = main.DocNo, HeaderJson = header.ToJsonString(), LinesJson = lines.ToJsonString(),
+                RegisterJson = HomsPostingBuilder.Json(doc.Register), CreatedBy = user,
+            });
+            c.History.Add(new CollectionHistory
+            {
+                Action = "Queued for HOMS (register)", By = user,
+                Reason = Cut($"{Label(main.Kind)} {main.DocNo}: pdc4w / deposits / rpdctr / side files DCSR writes, catch-up"),
+            });
+        }
+        // Queued before the register existed and not written yet (a matured PDC's JV waiting for its RPDC): the register is
+        // added as it would have been built then, the header / lines stay. A Held one gets it when it's rebuilt (Fill).
+        var waiting = await db.HomsPostings.Where(p => (p.Kind == HomsPostingKind.Rpdc || p.Kind == HomsPostingKind.PdcJv)
+                && (p.Status == HomsPostingStatus.Pending || p.Status == HomsPostingStatus.Failed) && p.RegisterJson == "{}")
+            .OrderBy(p => p.Id).ToListAsync();
+        foreach (var p in waiting)
+        {
+            var label = $"{Label(p.Kind)} {p.DocNo?.ToString() ?? "(no. not yet)"} (collection {p.CollectionId}, posting {p.Id}, {p.Status})";
+            var c = await db.Collections.FirstAsync(x => x.Id == p.CollectionId);
+            await LoadForBuildAsync(c);
+            var (doc, error) = HomsPostingBuilder.Build(p.Kind, new HomsPostingBuilder.Input(c, PostedOf(p), p.CreatedBy));
+            if (doc?.Register is null) { report.Add($"{label}: can't build its register: {error}"); continue; }
+            report.Add($"{label}: {(dryRun ? "would add" : "added")} its register + desk user (not written yet)");
+            if (dryRun) continue;
+            p.RegisterJson = HomsPostingBuilder.Json(doc.Register);
+            var header = JsonNode.Parse(p.HeaderJson)!.AsObject();
+            header["USERNAME"] = HomsPostingBuilder.DeskUser(((int?)header["DEPTCODE"]) ?? 32);
+            p.HeaderJson = header.ToJsonString();
+        }
+        if (!dryRun) await db.SaveChangesAsync();
+        return report;
+    }
+
     // ── watcher ─────────────────────────────────────────────────────────────
 
-    /// <summary>Claims up to 20 postings (oldest first). A JV waits until its RPDC is written.</summary>
+    /// <summary>Claims up to 20 postings (oldest first). A JV waits until its RPDC is written, and until a catch-up of the
+    /// RPDC's register (pdc4w / deposits, which the JV updates) is.</summary>
     public async Task<List<HomsPostingJobDto>> ClaimPendingAsync()
     {
         var now = DateTime.UtcNow;
@@ -219,7 +311,9 @@ public class HomsPostingService(AppDbContext db)
         var ids = await db.HomsPostings
             .Where(p => (p.Status == HomsPostingStatus.Pending || (p.Status == HomsPostingStatus.Processing && p.ClaimedAt < cutoff))
                         && !(p.Kind == HomsPostingKind.PdcJv && db.HomsPostings.Any(r => r.CollectionId == p.CollectionId
-                              && r.Kind == HomsPostingKind.Rpdc && r.Status != HomsPostingStatus.Done)))
+                              && ((r.Kind == HomsPostingKind.Rpdc && r.Status != HomsPostingStatus.Done)
+                                  || (r.Kind == HomsPostingKind.Register && r.DocId == 33
+                                      && r.Status != HomsPostingStatus.Done && r.Status != HomsPostingStatus.Cancelled)))))
             .OrderBy(p => p.Id).Select(p => p.Id).Take(20).ToListAsync();
         var claimed = new List<int>();
         foreach (var id in ids)
@@ -233,7 +327,7 @@ public class HomsPostingService(AppDbContext db)
         var rows = await db.HomsPostings.AsNoTracking().Where(p => claimed.Contains(p.Id)).OrderBy(p => p.Id).ToListAsync();
         return rows.Select(p => new HomsPostingJobDto(p.Id, Label(p.Kind), p.Table, p.Table.Replace("OH", "OD").Replace("GH", "GD"),
             p.MonthKey, p.DocId, p.DocNo, JsonDocument.Parse(p.HeaderJson).RootElement, JsonDocument.Parse(p.LinesJson).RootElement,
-            JsonDocument.Parse(p.DeductionsJson).RootElement)).ToList();
+            JsonDocument.Parse(p.DeductionsJson).RootElement, JsonDocument.Parse(p.RegisterJson).RootElement)).ToList();
     }
 
     /// <summary>A JV's number, claimed from HOMS DOCNUM before it is written — kept so a retry reuses it.</summary>
@@ -291,6 +385,30 @@ public class HomsPostingService(AppDbContext db)
                     By = c.PdcPulloutRequestedBy ?? "watcher",
                 });
             }
+        }
+        else if (p.Kind == HomsPostingKind.Register)
+        {
+            p.Status = HomsPostingStatus.Done;
+            p.File = dto.File is { Length: > 0 } f ? f[..Math.Min(f.Length, 40)] : null;
+            p.CompletedAt = DateTime.UtcNow;
+            p.Message = Cut(dto.Note);
+            p.Collection.History.Add(new CollectionHistory
+            {
+                Action = "HOMS register caught up",
+                Reason = Cut($"{(p.DocId == 33 ? "RPDC" : "JV")} {p.DocNo}: {dto.Note ?? "pdc4w / deposits / rpdctr / side files"}"),
+                By = "watcher",
+            });
+        }
+        else if (p.Kind == HomsPostingKind.PdcJv && dto.JvByDcsr is { } dcsr)
+        {
+            // The branch ran DCSR's own JV (e105a) on this check before HOMSys did (user 2026-11-25: HOMSys owns the JV, the
+            // users were told not to — this is the safety net): HOMS has its JV, HOMSys writes none.
+            var claimed = p.DocNo is { } own && own != dcsr.No ? $" (JV {own} claimed from DOCNUM is left unused)" : "";
+            p.Status = HomsPostingStatus.Done;
+            p.DocNo = dcsr.No;
+            p.CompletedAt = DateTime.UtcNow;
+            p.Message = Cut($"JV'd in DCSR as JV {dcsr.No} on {dcsr.Date} — HOMSys didn't write its own{claimed}.");
+            p.Collection.History.Add(new CollectionHistory { Action = "JV done in DCSR", Reason = p.Message, By = "watcher" });
         }
         else if (p.Kind == HomsPostingKind.Deductions)
         {
@@ -368,7 +486,7 @@ public class HomsPostingService(AppDbContext db)
         await LoadForBuildAsync(c);
         foreach (var p in list)
         {
-            if (p.Status == HomsPostingStatus.Held && p.Kind != HomsPostingKind.Deductions) Fill(p, c, user);
+            if (p.Status == HomsPostingStatus.Held && p.Kind is not (HomsPostingKind.Deductions or HomsPostingKind.Register)) Fill(p, c, user);
             else { p.Status = HomsPostingStatus.Pending; p.Message = null; }
             c.History.Add(new CollectionHistory { Action = $"HOMS {Label(p.Kind)} retried", Reason = p.Message, By = user });
         }
