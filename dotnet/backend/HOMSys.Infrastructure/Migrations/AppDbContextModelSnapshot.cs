@@ -2461,6 +2461,13 @@ namespace HOMSys.Infrastructure.Migrations
                             Description = "Enter TPARs (Trade Promo Analysis Reports) against Approved TASAFs",
                             Key = "tpar",
                             Name = "TPAR Encoding"
+                        },
+                        new
+                        {
+                            Id = 31,
+                            Description = "Budget dashboard: approved annual budget vs TASAFs created / approved / completed per sales group and account chain",
+                            Key = "tasaf-dashboard",
+                            Name = "TASAF Dashboard"
                         });
                 });
 
@@ -4382,6 +4389,11 @@ namespace HOMSys.Infrastructure.Migrations
                         {
                             RoleId = 1,
                             PermissionId = 30
+                        },
+                        new
+                        {
+                            RoleId = 1,
+                            PermissionId = 31
                         });
                 });
 
@@ -6496,6 +6508,52 @@ namespace HOMSys.Infrastructure.Migrations
                     b.ToTable("TasafBranches");
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafBudget", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("AreaId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ChainId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SalesGroupId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AreaId");
+
+                    b.HasIndex("ChainId");
+
+                    b.HasIndex("SalesGroupId");
+
+                    b.HasIndex("Year", "SalesGroupId", "ChainId", "AreaId")
+                        .IsUnique();
+
+                    b.ToTable("TasafBudgets");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafChain", b =>
                 {
                     b.Property<int>("Id")
@@ -7820,6 +7878,257 @@ namespace HOMSys.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafPostEval", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal?>("ActualCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("ActualDoors")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("ActualEndDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("ActualStartDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ApprovalTypeName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Conclusion")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedByName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CurrentApproverUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CurrentStepSeq")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Explanation")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("PlannedCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("PlannedDoors")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("TasafId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrentApproverUserId");
+
+                    b.HasIndex("TasafId")
+                        .IsUnique();
+
+                    b.ToTable("TasafPostEvals");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafPostEvalAttachment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BlobPath")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("PostEvalId")
+                        .HasColumnType("int");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("UploadedByUserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PostEvalId");
+
+                    b.ToTable("TasafPostEvalAttachments");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafPostEvalLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal?>("ActualCs")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("CProdNo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("LspPerCase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("PlannedCs")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("PostEvalId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("PostPromoCs")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("PrePromoCs")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PostEvalId");
+
+                    b.ToTable("TasafPostEvalLines");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafPostEvalStep", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ActedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Comment")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("PostEvalId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RoleCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("RoleId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RoleName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("Seq")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PostEvalId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("TasafPostEvalSteps");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafProduct", b =>
                 {
                     b.Property<int>("Id")
@@ -8367,6 +8676,9 @@ namespace HOMSys.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<bool>("DashboardByArea")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -8409,6 +8721,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "NKA",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            DashboardByArea = false,
                             Description = "National Key Accounts",
                             IsActive = true,
                             Name = "NKA",
@@ -8421,6 +8734,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "RKA",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            DashboardByArea = false,
                             Description = "Regional Key Accounts",
                             IsActive = true,
                             Name = "RKA",
@@ -8433,6 +8747,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "LKA",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            DashboardByArea = true,
                             Description = "Local Key Accounts",
                             IsActive = true,
                             Name = "LKA",
@@ -8445,6 +8760,7 @@ namespace HOMSys.Infrastructure.Migrations
                             Code = "GT",
                             CreatedAt = new DateTime(2026, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc),
                             CreatedBy = "seed",
+                            DashboardByArea = false,
                             Description = "General Trade",
                             IsActive = true,
                             Name = "GT",
@@ -9664,6 +9980,31 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("Site");
                 });
 
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafBudget", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.TasafArea", "Area")
+                        .WithMany()
+                        .HasForeignKey("AreaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HOMSys.Domain.Entities.TasafChain", "Chain")
+                        .WithMany()
+                        .HasForeignKey("ChainId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HOMSys.Domain.Entities.TasafSalesGroup", "SalesGroup")
+                        .WithMany()
+                        .HasForeignKey("SalesGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Area");
+
+                    b.Navigation("Chain");
+
+                    b.Navigation("SalesGroup");
+                });
+
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafChain", b =>
                 {
                     b.HasOne("HOMSys.Domain.Entities.TasafSalesGroup", "SalesGroup")
@@ -9758,6 +10099,44 @@ namespace HOMSys.Infrastructure.Migrations
                     b.HasOne("HOMSys.Domain.Entities.TasafWorksheet", null)
                         .WithMany("NearExLines")
                         .HasForeignKey("WorksheetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafPostEval", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.Tasaf", "Tasaf")
+                        .WithOne("PostEval")
+                        .HasForeignKey("HOMSys.Domain.Entities.TasafPostEval", "TasafId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tasaf");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafPostEvalAttachment", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.TasafPostEval", null)
+                        .WithMany("Attachments")
+                        .HasForeignKey("PostEvalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafPostEvalLine", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.TasafPostEval", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("PostEvalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafPostEvalStep", b =>
+                {
+                    b.HasOne("HOMSys.Domain.Entities.TasafPostEval", null)
+                        .WithMany("Steps")
+                        .HasForeignKey("PostEvalId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -10031,6 +10410,8 @@ namespace HOMSys.Infrastructure.Migrations
 
                     b.Navigation("Customers");
 
+                    b.Navigation("PostEval");
+
                     b.Navigation("ProductCategories");
 
                     b.Navigation("Products");
@@ -10042,6 +10423,15 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Navigation("Tpars");
 
                     b.Navigation("Worksheets");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.TasafPostEval", b =>
+                {
+                    b.Navigation("Attachments");
+
+                    b.Navigation("Lines");
+
+                    b.Navigation("Steps");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.TasafSalesGroup", b =>

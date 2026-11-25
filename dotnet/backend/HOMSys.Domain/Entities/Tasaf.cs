@@ -78,6 +78,8 @@ public class Tasaf
     public List<TasafAction> Actions { get; set; } = [];
     /// <summary>TPARs entered against it on the TPAR page (once Approved).</summary>
     public List<TasafTpar> Tpars { get; set; } = [];
+    /// <summary>Post evaluation (once Completed); its approval closes the TASAF.</summary>
+    public TasafPostEval? PostEval { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string CreatedBy { get; set; } = string.Empty;
@@ -119,6 +121,8 @@ public static class TasafStatus
     /// <summary>Approved and done (user decision 2026-11-24, was "Closed"): set automatically when its TPARs add up
     /// to the approved TotalCost, or by the proponent / Admin with "Complete". An Admin can Reopen it (→ Approved).</summary>
     public const string Completed   = "Completed";
+    /// <summary>Completed and its post evaluation approved (TasafPostEval) — final.</summary>
+    public const string Closed      = "Closed";
 }
 
 public static class TasafStepStatus

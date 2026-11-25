@@ -10,7 +10,7 @@ public class TparRepository(AppDbContext db) : ITparRepository
 {
     public async Task<List<Tasaf>> GetTasafsAsync(bool includeCompleted) =>
         await db.Tasafs.AsNoTracking()
-            .Where(t => t.Status == TasafStatus.Approved || (includeCompleted && t.Status == TasafStatus.Completed))
+            .Where(t => t.Status == TasafStatus.Approved || (includeCompleted && (t.Status == TasafStatus.Completed || t.Status == TasafStatus.Closed)))
             .Include(t => t.SalesGroup)
             .Include(t => t.ProgramType)
             .Include(t => t.Tpars)

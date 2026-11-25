@@ -124,6 +124,11 @@ export interface TasafDto extends SaveTasafDto {
   tparNo: string | null;
   /** TPARs entered against it on the TPAR page — read-only on the TASAF. */
   tpars: Tpar[];
+  /** Post evaluation (once Completed): kind, status (null = not started), actual cost and the over-budget flag. */
+  postEvalKind: 'Promo' | 'Activity';
+  postEvalStatus: string | null;
+  postEvalActualCost: number | null;
+  postEvalOverBudget: boolean | null;
   tparTotal: number;
   /** Approved TPARs only. */
   tparApprovedTotal: number;
@@ -212,6 +217,7 @@ export const TASAF_STATUS_SEVERITY: Record<string, 'secondary' | 'info' | 'warn'
   'Rejected':     'danger',
   'Cancelled':    'secondary',
   'Completed':    'info',
+  'Closed':       'contrast',
 };
 
 export interface TasafOption {

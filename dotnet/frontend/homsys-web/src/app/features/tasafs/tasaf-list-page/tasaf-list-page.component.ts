@@ -124,7 +124,8 @@ const EXPORT_COLS: ExportColumn[] = [
 
     <p-table [value]="filtered()" [loading]="loading()" [paginator]="true" [rows]="15"
       [rowsPerPageOptions]="[15, 30, 50]" [(selection)]="selected" selectionMode="single" dataKey="id"
-      (onRowSelect)="noSelection.set(false)" (onRowUnselect)="noSelection.set(true)" styleClass="p-datatable-sm">
+      (onRowSelect)="noSelection.set(false)" (onRowUnselect)="noSelection.set(true)" styleClass="p-datatable-sm"
+      [scrollable]="true">
       <ng-template pTemplate="header">
         <tr>
           <th pSortableColumn="refNo">Document No <p-sortIcon field="refNo" /></th>
@@ -144,20 +145,20 @@ const EXPORT_COLS: ExportColumn[] = [
       </ng-template>
       <ng-template pTemplate="body" let-t>
         <tr [pSelectableRow]="t" (dblclick)="open(t)" [class.awaiting]="t.awaitingMe">
-          <td>{{ t.refNo || '—' }}</td>
-          <td>{{ t.tparNo || '—' }}</td>
-          <td>
+          <td class="nw">{{ t.refNo || '—' }}</td>
+          <td class="nw">@for (n of tpars(t.tparNo); track $index) { <div>{{ n }}</div> } @empty { — }</td>
+          <td class="nw">
             <p-tag [value]="t.status" [severity]="severity(t.status)" />
             @if (t.awaitingMe) { <div class="sub mine">Your action</div> }
           </td>
-          <td>{{ t.title }}</td>
-          <td>{{ t.salesGroupName || '—' }}</td>
-          <td>{{ t.chainName || '—' }}@if (t.customerName) { <div class="sub">{{ t.customerName }}</div> }</td>
-          <td>{{ t.programTypeName || '—' }}</td>
-          <td>{{ duration(t) || '—' }}</td>
-          <td class="num">{{ t.totalCost | number:'1.2-2' }}</td>
-          <td>{{ t.proponentName }}</td>
-          <td>{{ withWhom(t) }}</td>
+          <td class="wide">{{ t.title }}</td>
+          <td class="nw">{{ t.salesGroupName || '—' }}</td>
+          <td class="wide">{{ t.chainName || '—' }}@if (t.customerName) { <div class="sub nw">{{ t.customerName }}</div> }</td>
+          <td class="wide">{{ t.programTypeName || '—' }}</td>
+          <td class="nw">{{ duration(t) || '—' }}</td>
+          <td class="num nw">{{ t.totalCost | number:'1.2-2' }}</td>
+          <td class="nw">{{ t.proponentName }}</td>
+          <td class="nw">{{ withWhom(t) }}</td>
           <td class="dt">{{ (utc(t.submittedAt) | date:'MM/dd/yyyy h:mm a') ?? '—' }}</td>
           <td class="dt">{{ utc(t.createdAt) | date:'MM/dd/yyyy h:mm a' }}</td>
         </tr>
@@ -170,7 +171,9 @@ const EXPORT_COLS: ExportColumn[] = [
   styles: [`
     :host { display: block; }
     .num { text-align: right; }
-    .dt { white-space: nowrap; }
+    .dt, .nw { white-space: nowrap; }
+    .wide { min-width: 11rem; }
+    :host ::ng-deep .p-datatable thead th { white-space: nowrap; }
     .sub { font-size: 0.75rem; color: var(--p-text-muted-color); }
     .sub.mine { color: #800000; font-weight: 600; }
     .views { margin-bottom: 0.6rem; }
@@ -323,6 +326,11 @@ export class TasafListPageComponent implements OnInit, OnDestroy {
       case 'Returned':     return t.proponentName;
       default:             return '—';
     }
+  }
+
+  /** TPAR numbers (joined ", ") one per line, so the column stays narrow. */
+  tpars(joined: string | null | undefined) {
+    return (joined ?? '').split(',').map(s => s.trim()).filter(Boolean);
   }
 
   duration(t: TasafListItem) {

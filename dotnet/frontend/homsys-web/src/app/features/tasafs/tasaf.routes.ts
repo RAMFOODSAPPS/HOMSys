@@ -12,6 +12,12 @@ export const tasafRoutes: Routes = [
       import('./tasaf-list-page/tasaf-list-page.component').then(m => m.TasafListPageComponent)
   },
   {
+    // Post Evaluation of Completed TASAFs (Promo Post Eval / Post Activity); its approval closes the TASAF.
+    path: 'post-eval',
+    loadComponent: () =>
+      import('./tasaf-post-eval-page/tasaf-post-eval-page.component').then(m => m.TasafPostEvalPageComponent)
+  },
+  {
     // LF Breakdown / Near Ex worksheets, attached to a TASAF (same 'tasaf' permission as the parent route).
     path: 'worksheets',
     loadComponent: () =>

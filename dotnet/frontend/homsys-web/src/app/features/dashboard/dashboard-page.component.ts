@@ -57,7 +57,9 @@ const GROUPS: DashboardGroup[] = [
     cards: [
       { label: 'TASAF',         icon: 'pi-file-edit', route: '/tasafs/list', permission: 'tasaf' },
       { label: 'TASAF Worksheets', icon: 'pi-table', route: '/tasafs/worksheets', permission: 'tasaf' },
+      { label: 'TASAF Post Evaluation', icon: 'pi-check-square', route: '/tasafs/post-eval', permission: 'tasaf' },
       { label: 'TPAR',          icon: 'pi-receipt', route: '/tpars',        permission: 'tpar' },
+      { label: 'TASAF Dashboard', icon: 'pi-chart-bar', route: '/tasaf-dashboard', permission: 'tasaf-dashboard' },
       { label: 'TASAF Setup',   icon: 'pi-cog',    route: '/tasaf-setup',  permission: 'tasaf-masters' }
     ]
   },

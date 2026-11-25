@@ -643,6 +643,40 @@ OneDrive `IT PROJECT DEV\NEW SYSTEM\HOMSYS`). SQL-only, no BMS involvement.
   (any module), `api/notifications`, topbar bell polls every 60 s. A notification's
   `Link` is navigated with state `{ <EntityType>Id: EntityId }`.
 
+## TASAF Post Evaluation (closes the TASAF)
+
+`/tasafs/post-eval` (permission `tasaf`; `TasafPostEvalService` in Infrastructure\Data, `api/tasaf-post-evals/{tasafId}`,
+migration `TasafPostEval`; workbook › PROMO Post Eval Template, user request 2026-11-24). One `TasafPostEval` per
+**Completed** TASAF, filled by the proponent (or an Admin). **Created automatically** as a Draft (CreatedByName
+"Automatic") the moment the TASAF becomes Completed — TPARs reach the amount (`TparService.ApproveAsync`) or Complete
+(`TasafService.CompleteAsync`) — via `ITasafPostEvalStarter` (implemented by `TasafPostEvalService.StartAsync`), which
+also notifies the proponent "Post evaluation to fill in"; an untouched automatic Draft gets the new TPAR total if the TASAF
+is reopened and completed again. The migration backfills a Draft for every TASAF already Completed (no notification). Program type name starting "PROMO" → **Promo Post
+Evaluation** (actual dates, planned / actual doors, per promoted SKU: pre-promo Mo Avg, planned / actual promo Cs, 1-month
+post-promo Cs → pesos and incremental %, cost evaluation, CTS, conclusion); every other type → **Post Activity** (actual
+execution dates, cost evaluation, remarks). SKU rows are a snapshot of the TASAF's products (only Actual / Post-promo Cs
+are entered). Actual cost starts as the approved TPAR total; ≤ approved TotalCost = green "Within budget", more = red
+flag. Submit builds the **same approval chain as the TASAF** (program type's approval type, rules on TotalCost, the sales
+group's approvers; `TasafPostEvalStep`); approvers Approve / Return (comment required, no Reject), an Admin may sign for
+the waiting approver. The last approval sets the TASAF **Closed** (`TasafStatus.Closed`, final: no TPAR changes, no
+cancel / delete / reopen). Revert (reason): proponent / Admin while For Approval; Admin once Approved (TASAF → Completed).
+All steps are logged in the TASAF history ("Post-eval …", "Closed"; Action max 20 chars). Bell + email (link opens the
+page, state `postEvalId` = the TASAF id); no no-login email decision page for it. The TASAF form shows a Post Evaluation
+block (status, actual cost, flag). **Attachments** panel (`TasafPostEvalAttachment`, migration `TasafPostEvalAttachments`, `api/tasaf-post-evals/{tasafId}/attachments`): PDF / JPG / PNG / xlsx / docx / pptx, 10 MB, max 20, checked by file signature; added / removed by the proponent or an Admin only while Draft / Returned (logged "Post-eval file added / del."), viewable by anyone who can open it; stored in blob container `tasaf-post-eval-files` (+ `Storage:ContainerSuffix`, `-dev` locally) through `IFileStorage` (`Storage__ConnectionString`, account sthomsyssea, already set on homsys-api), blob `{tasafId}/{guid}.ext`; no storage configured = upload refused with a message. NOT `IAttachmentStore`: live has no `Attachments__BlobConnectionString`, so that store writes to the App Service local disk. Optional, never required to submit. The list shows every status, For Approval first, then Draft / Returned, then Approved (waiting-for-me first within each). The dashboard's Closed column = Closed TASAFs, valued at their actual cost.
+
+## TASAF Dashboard (budget dashboard)
+
+`/tasaf-dashboard` (permission `tasaf-dashboard` 31: Admin, COO, TMM; `TasafDashboardService`, `api/tasaf-dashboard`,
+migration `TasafDashboard`), from `TASAF Next Steps as of Nov 23.xlsx` › dashboard. Per year (a TASAF's StartDate year,
+else its Manila created year): Approved Annual Budget, TASAF Created (all but Draft / Cancelled), Approved (Approved +
+Completed), Completed (with TPAR: their approved TPAR amount), Closed (actual spend — 0 until the post-evaluation step
+is built) and Balance = Budget − Approved amount; count + amount each. Two views: **By Sales Group** (one row per
+group; a group flagged `TasafSalesGroup.DashboardByArea` — LKA, seeded; user decision 2026-11-24 — shows one row per
+Area of the TASAF's own Area field: NCR, North Luzon, South Luzon, Visayas, West / Central Mindanao) and **By Account
+Chain**. A TASAF with several chains / areas splits its amount evenly. Budgets (`TasafBudgets`: Year + SalesGroupId +
+ChainId or AreaId, both null = the group's own; unique index without filter so NULLs count as equal) are typed on the page with Edit budgets (`tasaf-masters` / Admin); a group without
+its own budget shows its chains' total. Export › Excel gives both views on one sheet.
+
 ## RDP sales + UBA dashboard (Distributor Partners)
 
 RDPs (RAM Distributor Partners) send monthly sales files laid out like `RAM RDP Sales Raw Data Template.xlsx`

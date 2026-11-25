@@ -37,6 +37,12 @@ public class TasafSalesGroup : TasafLookup, ITasafAreasLookup
 
     /// <summary>Its users (KAMs / proponents). A proponent with groups sees only those on the TASAF form.</summary>
     public List<TasafSalesGroupUser> Members { get; set; } = [];
+
+    /// <summary>
+    /// TASAF Dashboard "By Sales Group" view: show this group split by Area (LKA: NCR / North Luzon / South Luzon /
+    /// Visayas / West + Central Mindanao — the TASAF's own Area field) instead of one row.
+    /// </summary>
+    public bool DashboardByArea { get; set; }
 }
 
 /// <summary>A user (KAM / proponent) in a sales group — TASAF Setup › Sales Groups › Users.</summary>
