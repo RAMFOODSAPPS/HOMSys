@@ -161,6 +161,11 @@ public class TasafDto : SaveTasafDto
     public string? TparNo { get; set; }
     /// <summary>TPARs entered against it (TPAR page), read-only here.</summary>
     public List<TparDto> Tpars { get; set; } = [];
+    /// <summary>Post evaluation (once Completed): Promo / Activity, its status (null = not started) and the red flag.</summary>
+    public string PostEvalKind { get; set; } = string.Empty;
+    public string? PostEvalStatus { get; set; }
+    public decimal? PostEvalActualCost { get; set; }
+    public bool? PostEvalOverBudget { get; set; }
     /// <summary>Every TPAR but Cancelled ones.</summary>
     public decimal TparTotal { get; set; }
     /// <summary>Approved TPARs only.</summary>

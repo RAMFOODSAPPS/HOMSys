@@ -15,6 +15,7 @@ public class TasafService(
     TasafPriceService prices,
     IUserRepository users,
     NotificationService notifications,
+    ITasafPostEvalStarter postEvals,
     IHttpContextAccessor http)
 {
     public const string NotFound = "TASAF not found.";
@@ -372,7 +373,7 @@ public class TasafService(
     {
         var t = await repo.GetByIdAsync(id);
         if (t is null) return NotFound;
-        if (!CanDelete(t)) return t.Status is TasafStatus.Approved or TasafStatus.Cancelled or TasafStatus.Completed
+        if (!CanDelete(t)) return t.Status is TasafStatus.Approved or TasafStatus.Cancelled or TasafStatus.Completed or TasafStatus.Closed
             ? $"{t.Status} TASAFs are kept for the record and cannot be deleted."
             : "Only an Admin can delete a TASAF.";
 
@@ -388,7 +389,7 @@ public class TasafService(
     private bool CanSubmit(Tasaf t) =>
         CanEdit(t) || (IsAdmin && t.Status is TasafStatus.Draft or TasafStatus.Returned);
     private bool CanDelete(Tasaf t) =>
-        IsAdmin && t.Status is not (TasafStatus.Approved or TasafStatus.Cancelled or TasafStatus.Completed); // kept for the record
+        IsAdmin && t.Status is not (TasafStatus.Approved or TasafStatus.Cancelled or TasafStatus.Completed or TasafStatus.Closed); // kept for the record
     /// <summary>Back to the proponent as Returned. Admin: For Approval / Approved / Rejected. The proponent, on
     /// their own TASAF: For Approval / Approved — e.g. changes needed after approval (user decision 2026-11-20);
     /// not Rejected (that is the approver's final word). Never while it has TPARs (delete them on the TPAR page
@@ -399,7 +400,7 @@ public class TasafService(
         || (t.ProponentUserId == CurrentUserId && t.Status is (TasafStatus.Approved or TasafStatus.ForApproval)));
     private bool CanCancel(Tasaf t) =>
         (IsAdmin || t.ProponentUserId == CurrentUserId)
-        && t.Status is not (TasafStatus.Approved or TasafStatus.Cancelled or TasafStatus.Completed);
+        && t.Status is not (TasafStatus.Approved or TasafStatus.Cancelled or TasafStatus.Completed or TasafStatus.Closed);
     /// <summary>"Complete" by hand (user decision 2026-11-24): the proponent or an Admin, on an Approved TASAF with at
     /// least one TPAR whose TPARs don't (yet) reach the approved amount. Reaching it completes it automatically.</summary>
     private bool CanComplete(Tasaf t) =>
@@ -808,7 +809,11 @@ public class TasafService(
         t.Actions.Add(NewAction("Completed", TasafStatus.Approved, t.Status, byProponent ? "Proponent" : "Admin",
             $"{comment} (unused balance {balance.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("en-US"))})", me));
         await repo.UpdateAsync(t);
-        if (!byProponent)
+        // The Draft post evaluation is created now; its message tells the proponent (fallback: the plain notice).
+        var started = false;
+        try { started = await postEvals.StartAsync(t.Id, byProponent ? "marked Completed by you" : $"marked Completed by {me} (Admin): {comment}"); }
+        catch (Exception) { /* the completion is saved */ }
+        if (!byProponent && !started)
             await notifications.SendAsync([t.ProponentUserId], "TASAF completed",
                 $"{t.RefNo} — {t.Title} was marked Completed by {me} (Admin): {comment}", "/tasafs", "tasaf", t.Id, emailRef: t.RefNo);
         return (Map((await repo.GetByIdAsync(id))!), null);
@@ -847,7 +852,7 @@ public class TasafService(
         if (!CanCancel(t))
             return (null, t.Status == TasafStatus.Approved
                 ? "An Approved TASAF must be reverted by an Admin before it can be cancelled."
-                : t.Status == TasafStatus.Completed ? "A Completed TASAF can't be cancelled."
+                : t.Status is TasafStatus.Completed or TasafStatus.Closed ? $"A {t.Status} TASAF can't be cancelled."
                 : t.Status == TasafStatus.Cancelled ? "This TASAF is already cancelled."
                 : "Only the proponent or an Admin can cancel this TASAF.");
         var (comment, error) = Reason(dto, "cancelling");
@@ -1332,6 +1337,10 @@ public class TasafService(
             RefNo             = t.RefNo,
             TparNo            = TparNos(t),
             Tpars             = t.Tpars.OrderBy(p => p.CreatedAt).ThenBy(p => p.Id).Select(p => TparService.ToDto(p, t, CurrentUserId, IsAdmin)).ToList(),
+            PostEvalKind       = (t.ProgramType?.Name ?? "").TrimStart().StartsWith("PROMO", StringComparison.OrdinalIgnoreCase) ? "Promo" : "Activity",
+            PostEvalStatus     = t.PostEval?.Status,
+            PostEvalActualCost = t.PostEval?.ActualCost,
+            PostEvalOverBudget = t.PostEval?.ActualCost is decimal pa ? pa > t.PostEval.PlannedCost : null,
             TparTotal         = TparService.Held(t),
             TparApprovedTotal = TparService.ApprovedSum(t),
             TparBalance       = TparService.Balance(t),

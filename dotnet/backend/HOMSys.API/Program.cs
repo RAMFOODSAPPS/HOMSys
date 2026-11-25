@@ -69,7 +69,8 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("rfc-follow-up", p => p.RequireClaim("permission", "pdc-confirm", "collections-manage"))
     .AddPolicy("rdp-uba", p => p.RequireClaim("permission", "rdp-uba"))
     .AddPolicy("rdp-upload", p => p.RequireClaim("permission", "rdp-upload"))
-    .AddPolicy("tpar", p => p.RequireClaim("permission", "tpar"));
+    .AddPolicy("tpar", p => p.RequireClaim("permission", "tpar"))
+    .AddPolicy("tasaf-dashboard", p => p.RequireClaim("permission", "tasaf-dashboard"));
 
 // CORS — allow specific origins and credentials (required for HttpOnly cookie)
 builder.Services.AddCors(options =>

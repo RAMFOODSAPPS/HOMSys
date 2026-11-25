@@ -48,9 +48,10 @@ export const AUTH_MODULES: AuthModule[] = [
   {
     key: 'trade', label: 'Trade Marketing', icon: 'pi-megaphone',
     pages: [
-      { key: 'tasaf',         icon: 'pi-file-check', pages: ['New TASAF', 'TASAF List'] },
+      { key: 'tasaf',         icon: 'pi-file-check', pages: ['New TASAF', 'TASAF List', 'Worksheets', 'Post Evaluation'] },
       { key: 'tasaf-masters', icon: 'pi-cog',        pages: ['TASAF Setup', 'Product Categories'] },
       { key: 'tpar',          icon: 'pi-receipt',    pages: ['New TPAR', 'TPAR List'] },
+      { key: 'tasaf-dashboard', icon: 'pi-chart-bar', pages: ['TASAF Dashboard'] },
     ],
     actions: [
       { key: 'tasaf-view-all', icon: 'pi-eye' },

@@ -200,6 +200,12 @@ export const routes: Routes = [
           { path: '',     loadComponent: () => import('./features/tpars/tpar-page.component').then(m => m.TparPageComponent) },
           { path: 'list', loadComponent: () => import('./features/tpars/tpar-list-page.component').then(m => m.TparListPageComponent) }
         ]
+      },
+      {
+        path: 'tasaf-dashboard',
+        data: { permission: 'tasaf-dashboard' },
+        loadComponent: () =>
+          import('./features/tasaf-dashboard/tasaf-dashboard-page.component').then(m => m.TasafDashboardPageComponent)
       }
     ]
   },

@@ -127,6 +127,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TasafCost> TasafCosts => Set<TasafCost>();
     public DbSet<TasafAction> TasafActions => Set<TasafAction>();
     public DbSet<TasafTpar> TasafTpars => Set<TasafTpar>();
+    public DbSet<TasafBudget> TasafBudgets => Set<TasafBudget>();
+    public DbSet<TasafPostEval> TasafPostEvals => Set<TasafPostEval>();
+    public DbSet<TasafPostEvalLine> TasafPostEvalLines => Set<TasafPostEvalLine>();
+    public DbSet<TasafPostEvalStep> TasafPostEvalSteps => Set<TasafPostEvalStep>();
+    public DbSet<TasafPostEvalAttachment> TasafPostEvalAttachments => Set<TasafPostEvalAttachment>();
 
     // In-app notifications (topbar bell) — see NotificationService.
     public DbSet<Notification> Notifications => Set<Notification>();
@@ -332,7 +337,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new Permission { Id = 27, Key = "collections-ra-encode", Name = "Remittance Advice Encoding", Description = "Custodian Verifier: encode CRs and Remittance Advices (NKA) for every branch, uploading the chain's RA Excel" },
             new Permission { Id = 28, Key = "rdp-uba", Name = "UBA Dashboard", Description = "View the unique buying accounts dashboard built from RDP (distributor) sales files" },
             new Permission { Id = 29, Key = "rdp-upload", Name = "RDP Sales Upload", Description = "Upload RDP (distributor) sales files and maintain the RDP list and channel mapping" },
-            new Permission { Id = 30, Key = "tpar", Name = "TPAR Encoding", Description = "Enter TPARs (Trade Promo Analysis Reports) against Approved TASAFs" }
+            new Permission { Id = 30, Key = "tpar", Name = "TPAR Encoding", Description = "Enter TPARs (Trade Promo Analysis Reports) against Approved TASAFs" },
+            new Permission { Id = 31, Key = "tasaf-dashboard", Name = "TASAF Dashboard", Description = "Budget dashboard: approved annual budget vs TASAFs created / approved / completed per sales group and account chain" }
         );
 
         // Admin gets all permissions by default
@@ -366,7 +372,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             new RolePermission { RoleId = 1, PermissionId = 27 },
             new RolePermission { RoleId = 1, PermissionId = 28 },
             new RolePermission { RoleId = 1, PermissionId = 29 },
-            new RolePermission { RoleId = 1, PermissionId = 30 }
+            new RolePermission { RoleId = 1, PermissionId = 30 },
+            new RolePermission { RoleId = 1, PermissionId = 31 }
         );
 
         // Seed default admin user (password: Admin@1234)

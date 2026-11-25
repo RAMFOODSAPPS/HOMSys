@@ -81,6 +81,9 @@ public static class DependencyInjection
         services.AddScoped<BmsCollectionImporter>();
         services.AddScoped<UserBranchService>();
         services.AddScoped<HOMSys.Infrastructure.Data.UserServicingBranchService>();
+        services.AddScoped<HOMSys.Infrastructure.Data.TasafDashboardService>();
+        services.AddScoped<HOMSys.Infrastructure.Data.TasafPostEvalService>();
+        services.AddScoped<HOMSys.Application.Interfaces.ITasafPostEvalStarter>(sp => sp.GetRequiredService<HOMSys.Infrastructure.Data.TasafPostEvalService>());
 
         // Collection receipt soft copies: Azure Blob when configured (production), else a local
         // folder for dev/test. Production MUST set Attachments:BlobConnectionString — App Service

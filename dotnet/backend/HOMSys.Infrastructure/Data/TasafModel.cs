@@ -42,6 +42,16 @@ internal static class TasafModel
         mb.Entity<TasafChain>().Property(x => x.CustomerMatch).HasMaxLength(500);
         mb.Entity<TasafArea>().Property(x => x.BranchCodes).HasMaxLength(500);
         mb.Entity<TasafSalesGroup>().Property(x => x.AreaNames).HasMaxLength(500);
+        mb.Entity<TasafBudget>(e =>
+        {
+            // One budget per year + sales group (ChainId / AreaId null), per year + chain, per year + area.
+            e.HasIndex(x => new { x.Year, x.SalesGroupId, x.ChainId, x.AreaId }).IsUnique().HasFilter(null); // NULLs count as equal
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.Property(x => x.UpdatedBy).HasMaxLength(100);
+            e.HasOne(x => x.SalesGroup).WithMany().HasForeignKey(x => x.SalesGroupId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Chain).WithMany().HasForeignKey(x => x.ChainId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Area).WithMany().HasForeignKey(x => x.AreaId).OnDelete(DeleteBehavior.Restrict);
+        });
         mb.Entity<TasafChain>().Property(x => x.AreaNames).HasMaxLength(500);
         mb.Entity<TasafProductGroup>().Property(x => x.ExcludedSegments).HasMaxLength(1000);
         mb.Entity<TasafChain>()
@@ -146,6 +156,51 @@ internal static class TasafModel
         });
 
         // TPAR page: several TPARs per TASAF; a TPAR No. is used only once (any TASAF) — a Cancelled one frees it.
+        mb.Entity<TasafPostEval>(e =>
+        {
+            e.HasIndex(x => x.TasafId).IsUnique();
+            e.HasOne(x => x.Tasaf).WithOne(t => t.PostEval).HasForeignKey<TasafPostEval>(x => x.TasafId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.Kind).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Explanation).HasMaxLength(4000);
+            e.Property(x => x.Conclusion).HasMaxLength(4000);
+            e.Property(x => x.PlannedCost).HasPrecision(18, 2);
+            e.Property(x => x.ActualCost).HasPrecision(18, 2);
+            e.Property(x => x.ApprovalTypeName).HasMaxLength(150);
+            e.Property(x => x.CreatedByName).HasMaxLength(150);
+            e.Property(x => x.UpdatedBy).HasMaxLength(100);
+            e.HasIndex(x => x.CurrentApproverUserId);
+            e.HasMany(x => x.Lines).WithOne().HasForeignKey(l => l.PostEvalId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Steps).WithOne().HasForeignKey(s => s.PostEvalId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Attachments).WithOne().HasForeignKey(a => a.PostEvalId).OnDelete(DeleteBehavior.Cascade);
+        });
+        mb.Entity<TasafPostEvalLine>(e =>
+        {
+            e.Property(x => x.CProdNo).HasMaxLength(20);
+            e.Property(x => x.Sku).HasMaxLength(300);
+            e.Property(x => x.LspPerCase).HasPrecision(18, 2);
+            e.Property(x => x.PrePromoCs).HasPrecision(18, 2);
+            e.Property(x => x.PlannedCs).HasPrecision(18, 2);
+            e.Property(x => x.ActualCs).HasPrecision(18, 2);
+            e.Property(x => x.PostPromoCs).HasPrecision(18, 2);
+        });
+        mb.Entity<TasafPostEvalAttachment>(e =>
+        {
+            e.Property(x => x.BlobPath).HasMaxLength(300);
+            e.Property(x => x.FileName).HasMaxLength(200);
+            e.Property(x => x.ContentType).HasMaxLength(100);
+            e.Property(x => x.UploadedBy).HasMaxLength(150);
+        });
+        mb.Entity<TasafPostEvalStep>(e =>
+        {
+            e.HasIndex(x => x.UserId);
+            e.Property(x => x.RoleCode).HasMaxLength(20);
+            e.Property(x => x.RoleName).HasMaxLength(150);
+            e.Property(x => x.UserName).HasMaxLength(150);
+            e.Property(x => x.Status).HasMaxLength(20);
+            e.Property(x => x.Comment).HasMaxLength(1000);
+        });
+
         mb.Entity<TasafTpar>(e =>
         {
             e.Property(x => x.TparNo).HasMaxLength(50).IsRequired();
@@ -334,12 +389,15 @@ internal static class TasafModel
     private static T[] Rows<T>(params string[] names) where T : TasafLookup, new() =>
         names.Select((n, i) => Row<T>(i + 1, "", n)).ToArray();
 
+    /// <summary>LKA is managed by region: the dashboard's sales-group view splits it by Area.</summary>
+    private static TasafSalesGroup WithDashboardByArea(TasafSalesGroup g) { g.DashboardByArea = true; return g; }
+
     private static void Seed(ModelBuilder mb)
     {
         mb.Entity<TasafSalesGroup>().HasData(
             Row<TasafSalesGroup>(1, "NKA", "NKA", "National Key Accounts"),
             Row<TasafSalesGroup>(2, "RKA", "RKA", "Regional Key Accounts"),
-            Row<TasafSalesGroup>(3, "LKA", "LKA", "Local Key Accounts"),
+            WithDashboardByArea(Row<TasafSalesGroup>(3, "LKA", "LKA", "Local Key Accounts")),
             Row<TasafSalesGroup>(4, "GT",  "GT",  "General Trade"));
 
         // Sales group per chain is not in the workbook — assigned on the setup page.

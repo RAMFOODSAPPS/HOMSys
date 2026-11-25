@@ -184,8 +184,10 @@ export class ModulebarComponent {
         { label: 'New TASAF',   icon: 'pi pi-file-edit', routerLink: '/tasafs',      permission: 'tasaf' },
         { label: 'TASAF List',  icon: 'pi pi-list',      routerLink: '/tasafs/list', permission: 'tasaf' },
         { label: 'Worksheets',  icon: 'pi pi-table',     routerLink: '/tasafs/worksheets', permission: 'tasaf' },
+        { label: 'Post Evaluation', icon: 'pi pi-check-square', routerLink: '/tasafs/post-eval', permission: 'tasaf' },
         { label: 'New TPAR',    icon: 'pi pi-receipt',   routerLink: '/tpars',       permission: 'tpar' },
         { label: 'TPAR List',   icon: 'pi pi-list',      routerLink: '/tpars/list',  permission: 'tpar' },
+        { label: 'TASAF Dashboard', icon: 'pi pi-chart-bar', routerLink: '/tasaf-dashboard', permission: 'tasaf-dashboard' },
         { separator: true, permission: 'tasaf-masters' },
         { label: 'TASAF Setup', icon: 'pi pi-cog',       routerLink: '/tasaf-setup', permission: 'tasaf-masters' }
       ]

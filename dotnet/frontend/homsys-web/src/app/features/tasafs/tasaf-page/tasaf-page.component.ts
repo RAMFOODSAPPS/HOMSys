@@ -669,6 +669,25 @@ function blankProduct(): TasafProduct {
               @if (t.status === 'Approved') {, or when the proponent / an Admin clicks Complete}.</small>
           </section>
         }
+        <!-- ── Post evaluation (Post Evaluation page, once Completed): its approval closes the TASAF ── -->
+        @if (t.status === 'Completed' || t.status === 'Closed' || t.postEvalStatus) {
+          <section class="card">
+            <div class="sec-head">
+              <h3>{{ t.postEvalKind === 'Promo' ? 'Promo Post Evaluation' : 'Post Activity' }}</h3>
+              <span>
+                <p-button [label]="t.postEvalStatus ? 'Open' : 'Start post evaluation'" icon="pi pi-check-square" size="small" [text]="true"
+                  (onClick)="openPostEval(t.id)" />
+              </span>
+            </div>
+            <div>Status: <strong>{{ t.postEvalStatus ?? 'Not started' }}</strong>
+              @if (t.postEvalActualCost !== null) {
+                · Actual cost <strong>{{ t.postEvalActualCost | number:'1.2-2' }}</strong> of approved {{ t.totalCost | number:'1.2-2' }}
+                <strong [style.color]="t.postEvalOverBudget ? '#c62828' : '#2e7d32'">— {{ t.postEvalOverBudget ? 'over budget' : 'within budget' }}</strong>
+              }
+            </div>
+            <small class="muted">Once the post evaluation is approved by the TASAF's approvers, the TASAF is Closed.</small>
+          </section>
+        }
       }
     </div>
 
@@ -808,6 +827,8 @@ export class TasafPageComponent implements OnInit, OnDestroy {
 
   protected readonly payRows = PAY_ROWS;
   protected readonly utc     = utc;
+  /** Post Evaluation page on this TASAF (its own tab). */
+  openPostEval(id: number) { this.router.navigate(['/tasafs/post-eval'], { state: { postEvalId: id } }); }
 
   protected options      = signal<TasafFormOptions | null>(null);
   protected current      = signal<TasafDto | null>(null);
@@ -1885,6 +1906,7 @@ export class TasafPageComponent implements OnInit, OnDestroy {
       case 'Rejected':     return 'rejected.';
       case 'Cancelled':    return 'cancelled.';
       case 'Completed':    return 'completed.';
+      case 'Closed':       return 'closed (post evaluation approved).';
       default:            return 'only the proponent can edit this TASAF.';
     }
   }

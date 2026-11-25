@@ -118,6 +118,8 @@ import { Tpar, TPAR_STATUS_SEVERITY, TparTasaf } from '../../core/models/tpar.mo
   styles: [`
     .page { padding: 0.25rem; }
     .card { background: var(--p-surface-card); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 0.85rem; }
+    .card { border: 1px solid var(--p-content-border-color); }
+    .card + .card { margin-top: 1.25rem; border-top: 3px solid #800000; }
     .card h3 { margin: 0; font-size: 0.95rem; color: #800000; }
     .sec-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
     .sec-head .acts, .sec-head .chk { margin-left: auto; display: flex; align-items: center; gap: 0.35rem; }

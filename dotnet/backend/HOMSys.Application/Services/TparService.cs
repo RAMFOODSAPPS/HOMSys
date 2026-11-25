@@ -19,6 +19,7 @@ public class TparService(
     ITparRepository repo,
     IUserRepository users,
     NotificationService notifications,
+    ITasafPostEvalStarter postEvals,
     IHttpContextAccessor http)
 {
     public const string NotFound = "TPAR not found.";
@@ -138,7 +139,12 @@ public class TparService(
             (tasaf, approver) = (t, me);
             return Task.FromResult<string?>(null);
         });
-        if (result.error is null && tasaf is not null)
+        // Completed: the Draft post evaluation is created now and its message tells the proponent (fallback below).
+        var started = false;
+        if (result.error is null && tasaf is not null && completed)
+            try { started = await postEvals.StartAsync(tasaf.Id, $"its approved TPARs reach the approved amount; last TPAR approved by {approver}"); }
+            catch (Exception) { /* the TPAR approval is saved; fall back to the plain notice */ }
+        if (result.error is null && tasaf is not null && !started)
             await notifications.SendAsync([tasaf.ProponentUserId], completed ? "TASAF completed" : "TPAR approved",
                 $"{tasaf.RefNo} — {tasaf.Title}: TPAR No. {result.dto!.TparNo} ({Money(result.dto.Amount)}) was approved by {approver}."
                 + (completed ? " The approved TPARs now add up to the approved amount, so the TASAF is Completed."
