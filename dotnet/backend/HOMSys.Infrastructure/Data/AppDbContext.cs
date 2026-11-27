@@ -82,6 +82,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     // Remittance Advice (NKA): one payment holding 1+ CRs filled from the chain's RA Excel.
     public DbSet<Remittance> Remittances => Set<Remittance>();
     public DbSet<RemittanceLine> RemittanceLines => Set<RemittanceLine>();
+    public DbSet<InvoiceBirSeries> InvoiceBirSeries => Set<InvoiceBirSeries>();
     public DbSet<RemittanceHistory> RemittanceHistories => Set<RemittanceHistory>();
     public DbSet<DepositBatch> DepositBatches => Set<DepositBatch>();
     public DbSet<HomsPosting> HomsPostings => Set<HomsPosting>();
@@ -873,6 +874,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Flags).HasMaxLength(200);
             e.HasOne(x => x.Collection).WithMany(c => c.RemittanceLines).HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.PostedInvoice).WithMany().HasForeignKey(x => x.PostedInvoiceId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<InvoiceBirSeries>(e =>
+        {
+            e.HasIndex(x => new { x.SourceFile, x.DocId, x.DocNo }).IsUnique();
+            e.HasIndex(x => new { x.BirFrom, x.BirTo });
+            e.Property(x => x.SourceFile).HasMaxLength(8);
         });
 
         b.Entity<RemittanceHistory>(e =>

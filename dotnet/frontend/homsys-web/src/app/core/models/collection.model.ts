@@ -176,18 +176,22 @@ export interface RemittanceListItemDto {
   createdBy: string; createdAt: string; submittedAt: string | null;
 }
 
-/** Every flag means the line doesn't match its invoice and blocks submit: correct the RA Excel and upload it again.
- *  RfcDiff (the chain's RFC/BO/RTV vs RFCs posted in BMS) also clears once BMS posts the RFC — HOMSys re-reads it from HO. */
-export type RemittanceFlag = 'Fetching' | 'NotFound' | 'GrossDiff' | 'VatExcluded' | 'CustDiff' | 'DateDiff' | 'RfcDiff' | 'OverBalance' | 'NetMismatch' | 'Duplicate';
+/** Every flag but RfcDiff means the line doesn't match its invoice and blocks submit: correct the RA Excel and upload it again.
+ *  RfcDiff (the chain's returns vs the RFCs posted in HOMS A/R) doesn't block (2026-11-26): the line is applied and its
+ *  returns wait for their RFC — the OR is held from HOMS until the CNC Verifier links each one (or it links itself). */
+export type RemittanceFlag = 'Fetching' | 'NotFound' | 'GrossDiff' | 'VatExcluded' | 'CustDiff' | 'DateDiff' | 'RfcDiff' | 'OverBalance' | 'NetMismatch' | 'Duplicate'
+  | 'BirNotFound' | 'BirAmbiguous';
 export const FLAG_LABELS: Record<RemittanceFlag, string> = {
   Fetching: 'Fetching from HO', NotFound: 'Not found in BMS', GrossDiff: 'Gross differs', VatExcluded: 'VAT excluded?', CustDiff: 'Customer differs',
-  DateDiff: 'Date differs', RfcDiff: 'RFC differs', OverBalance: 'Over balance', NetMismatch: 'Net ≠ gross − deductions', Duplicate: 'Listed twice',
+  DateDiff: 'Date differs', RfcDiff: 'Waiting for RFC', OverBalance: 'Over balance', NetMismatch: 'Net ≠ gross − deductions', Duplicate: 'Listed twice',
+  BirNotFound: 'BIR series not found', BirAmbiguous: 'BIR series: several invoices',
 };
 
 export interface RemittanceLineDto {
   id: number; rowNo: number; docNo: number; whseNo: number; siteCode: string | null; custKey: string; docDate: string | null; birSeries: string | null;
   gross: number; cewt: number; rfcBoRtv: number; other: number; net: number;
-  deductions: { type: DeductionType; amount: number; remark: string | null }[];
+  /** ref: "RFC 87001234" / "RTV …" / "DEAL 123"; rfcLinked: the return's RFC is linked (its OR isn't held for it). */
+  deductions: { type: DeductionType; amount: number; remark: string | null; dealCode: number | null; ref: string | null; rfcLinked: number | null }[];
   postedInvoiceId: number | null; systemTotal: number | null; systemRfc: number | null;
   systemCustKey: string | null; systemCustName: string | null; systemDocDate: string | null;
   flags: RemittanceFlag[]; applied: boolean;
@@ -195,6 +199,10 @@ export interface RemittanceLineDto {
   openBalance: number | null; appliedElsewhere: string | null;
   /** RFCs posted in BMS against the invoice (rfcNo 0 = number not synced yet). */
   rfcs: { rfcNo: number; rfcDate: string | null; amount: number }[] | null;
+  /** The invoice no. was looked up from the BIR series (Puregold); exVat = the gross is the invoice without VAT. */
+  docNoFromBir: boolean; exVat: boolean;
+  /** "With TTC" = T: the CEWIT goes on the OR (DR 10507, A/R credited net + CEWIT). */
+  ttc: boolean;
 }
 
 /** kind: what the file is (see ATTACHMENT_KINDS); note: a short label. */

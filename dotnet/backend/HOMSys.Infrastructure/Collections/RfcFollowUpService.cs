@@ -83,6 +83,8 @@ public class RfcFollowUpService(AppDbContext db, HomsPostingService homs)
         {
             var inv = d.PostedInvoice.DocNo;
             var match = (rfcs.GetValueOrDefault(inv) ?? []).Where(r => r.Amt == d.Amount && !taken.ContainsKey((inv, r.No))).ToList();
+            // Several of the same amount: the one the receipt names ("RFC 87001234", e.g. from an RA Excel's Rfc/Bo/Rtv).
+            if (match.Count > 1 && match.Where(r => d.Reference?.Trim() == $"RFC {r.No}").ToList() is [var named]) match = [named];
             if (match.Count != 1) continue;
             Link(d, match[0].No, "auto");
             taken[(inv, match[0].No)] = (d.Id, d.CollectionId, "");

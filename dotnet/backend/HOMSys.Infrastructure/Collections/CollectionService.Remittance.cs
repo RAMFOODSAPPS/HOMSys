@@ -12,9 +12,11 @@ namespace HOMSys.Infrastructure.Collections;
 /// per RA Excel (OR no. + DCR no. pre-filled from it, editable), and each Excel's invoice blocks are applied to that CR.
 /// Every line is counter-checked against the system invoice; a mismatch blocks submit until the Excel is corrected and
 /// uploaded again (no accepting differences). The Finance Verifier verifies / returns the RA as a whole; its CRs follow it.
-/// Applied the way HOMS records NKA ORs (checked on SVI OR 21312 / 21764): only the NET goes against each invoice —
-/// the chain's deductions (CEWT, RFC/BO/RTV, rebates, portal fees, unidentified…) stay open on A/R in HOMS and BMS, so
-/// they're kept on the RA lines for the checks and the verifier but never become CollectionDeductions.
+/// Applied the way HOMS's Auto CR (bgatr\autocrcs → BGATR send → DCSR post; checked on SVI Auto ORs 28571 / 23897) records
+/// an NKA OR: only the NET goes against each invoice on the OR (+ the CEWIT with "With TTC") — the chain's deductions stay
+/// open on A/R in HOMS — and every deduction is recorded as a CollectionDeduction, which the OR writes into ordeduc2 /
+/// ordeduct as autocrcs does (CEWIT 14, deal 1, BO RETURNS 11 with its RFC, OTHERS 15; user 2026-11-26 "100% aligned").
+/// A return waits for its RFC: the OR is held from HOMS A/R until each one is linked (auto, or by the CNC Verifier).
 /// </summary>
 public partial class CollectionService
 {
@@ -28,7 +30,7 @@ public partial class CollectionService
         [".xlsx"] = ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", [0x50, 0x4B, 0x03, 0x04]),
     };
 
-    private sealed record RaDed(DeductionType Type, decimal Amount, string? Remark);
+    private sealed record RaDed(DeductionType Type, decimal Amount, string? Remark, int? DealCode = null, int? RfcNo = null, string? Ref = null);
 
     private static string InRa(int raId) => $"This CR is part of Remittance Advice #{raId} — submit, verify, return or void it there.";
 
@@ -42,8 +44,8 @@ public partial class CollectionService
 
     private static string[] Split(string? flags) => string.IsNullOrEmpty(flags) ? [] : flags.Split(',');
 
-    /// <summary>No flags: the line matches its invoice, so it's applied to the CR.</summary>
-    private static bool IsClear(string flags) => string.IsNullOrEmpty(flags);
+    /// <summary>No flags but soft ones (RfcDiff): the line matches its invoice, so it's applied to the CR.</summary>
+    private static bool IsClear(string flags) => Split(flags).All(RemittanceFlags.Soft.Contains);
 
     private static bool IsClear(RemittanceLine l) => IsClear(l.Flags);
 
@@ -151,13 +153,18 @@ public partial class CollectionService
             var lines = c.RemittanceLines.OrderBy(l => l.RowNo).Select(l => new RemittanceLineDto(
                 l.Id, l.RowNo, l.DocNo, l.WhseNo, BranchWarehouseMap.SiteCode(l.WhseNo), l.CustKey, l.DocDate, l.BirSeries,
                 l.Gross, l.Cewt, l.RfcBoRtv, l.Other, l.Net,
-                Deds(l).Select(d => new RemittanceDeductionDto(d.Type.ToString(), d.Amount, d.Remark)).ToList(),
+                Deds(l).Select(d => new RemittanceDeductionDto(d.Type.ToString(), d.Amount, d.Remark, d.DealCode, d.Ref,
+                    d.Type == DeductionType.RfcBoRtv && l.PostedInvoiceId is { } dp
+                        ? c.Deductions.Where(x => x.PostedInvoiceId == dp && x.IsReturn && x.RfcNo is not null && x.Amount == d.Amount)
+                            .Select(x => x.RfcNo).FirstOrDefault()
+                        : null)).ToList(),
                 l.PostedInvoiceId, l.SystemTotal, l.SystemRfc, l.PostedInvoice?.CustKey.Trim(), l.PostedInvoice?.CustName, l.PostedInvoice?.DocDate,
                 Split(l.Flags).ToList(),
                 l.PostedInvoiceId is { } pid && applied.Contains(pid) && IsClear(l),
                 l.PostedInvoice is { } inv ? Balance(inv, paidElsewhere.GetValueOrDefault(inv.Id)) : null,
                 l.PostedInvoiceId is { } id && elsewhere.TryGetValue(id, out var who) ? who : null,
-                rfcs.GetValueOrDefault((l.WhseNo, l.DocNo)))).ToList();
+                rfcs.GetValueOrDefault((l.WhseNo, l.DocNo)),
+                l.DocNoFromBir, l.SystemTotal is { } st && Math.Abs(l.Gross - st) > 0.01m && IsVatExcluded(l.Gross, st), l.Ttc)).ToList();
             var att = c.Attachments.OrderBy(a => a.Id).Select(a => new CollectionAttachmentDto(a.Id, a.FileName, a.ContentType, a.Size,
                 Utc(a.UploadedAt), a.UploadedBy, a.Kind, a.Note)).ToList();
             var excel = c.Attachments.Where(IsRaExcel).MaxBy(a => a.Id);
@@ -357,7 +364,7 @@ public partial class CollectionService
         if (file.ChainName is { } chain)
         {
             if (string.IsNullOrWhiteSpace(ra.ChainName)) ra.ChainName = chain;
-            else if (!string.Equals(ra.ChainName.Trim(), chain, StringComparison.OrdinalIgnoreCase))
+            else if (!RemittanceFlags.SameChain(ra.ChainName, chain))
                 return (null, $"This RA Excel is for {chain}, but the Remittance Advice is for {ra.ChainName}.");
         }
         if (ra.PaymentMode == PaymentMode.Check && file.CheckNo is { } fileCheck && !string.IsNullOrEmpty(ra.CheckNo)
@@ -380,11 +387,11 @@ public partial class CollectionService
         c.RemittanceLines = file.Blocks.Select(b => new RemittanceLine
         {
             RowNo = b.RowNo, DocNo = b.DocNo, WhseNo = b.DocNo / 1_000_000, CustKey = b.CustKey, DocDate = b.DocDate, BirSeries = b.BirSeries,
-            Gross = b.Gross, Cewt = b.Cewt, RfcBoRtv = b.RfcBoRtv, Other = b.Other, Net = b.Net,
-            DeductionsJson = JsonSerializer.Serialize(b.Deductions.Select(d => new RaDed(d.Type, d.Amount, d.Remark)).ToList(), DedJson),
+            Gross = b.Gross, Cewt = b.Cewt, RfcBoRtv = b.RfcBoRtv, Other = b.Other, Net = b.Net, Ttc = b.Ttc,
+            DeductionsJson = JsonSerializer.Serialize(b.Deductions.Select(d => new RaDed(d.Type, d.Amount, d.Remark, d.DealCode, d.RfcNo, d.Ref)).ToList(), DedJson),
         }).ToList();
 
-        await ResolveLinesAsync(c);
+        await ResolveLinesAsync(c, ra);
         var amount = file.CheckAmount ?? file.Total ?? file.Blocks.Sum(b => b.Net);
         if (await RebuildCrAsync(u, ra, c, amount) is { } error) return (null, error);
 
@@ -478,7 +485,7 @@ public partial class CollectionService
         if (ra is null) return (null, gate);
         foreach (var c in ra.Collections.Where(Live))
         {
-            await ResolveLinesAsync(c);
+            await ResolveLinesAsync(c, ra);
             if (await RebuildCrAsync(u, ra, c, c.Amount) is { } error) return (null, error);
         }
         return await SaveRaAndReturnAsync(u, ra, ra.DepositBatchId);
@@ -488,10 +495,51 @@ public partial class CollectionService
     private static bool IsVatExcluded(decimal gross, decimal total) =>
         gross > 0 && gross < total && Math.Abs(gross - total / 1.12m) <= Math.Max(0.05m, total * 0.0001m);
 
-    /// <summary>Finds each line's invoice (warehouse = the invoice no.'s first two digits) and flags the differences.</summary>
-    private async Task ResolveLinesAsync(Collection c)
+    /// <summary>
+    /// A line given only by its BIR series (Puregold, user 2026-11-25): its invoice no. from HOMS's B1 files
+    /// (InvoiceBirSeries, the source of soachain's "BIR Series" column). Of the invoices carrying that number, the one of the
+    /// line's customer; when none is in HOMSys yet, the only candidate. Lines left at DocNo 0 get BirNotFound / BirAmbiguous.
+    /// </summary>
+    private async Task<Dictionary<RemittanceLine, string>> ResolveBirAsync(List<RemittanceLine> lines)
+    {
+        var flags = new Dictionary<RemittanceLine, string>();
+        var open = lines.Where(l => (l.DocNo == 0 || l.DocNoFromBir) && RemittanceAdviceParser.BirNumber(l.BirSeries) is not null).ToList();
+        foreach (var l in open)
+        {
+            var n = RemittanceAdviceParser.BirNumber(l.BirSeries)!.Value;
+            var candidates = await db.InvoiceBirSeries.AsNoTracking()
+                .Where(b => b.DocId == 1 && b.BirFrom <= n && b.BirTo >= n && b.BirFrom > n - 1000)
+                .Select(b => b.DocNo).Distinct().ToListAsync();
+            var posted = await db.PostedInvoices.AsNoTracking().Where(i => candidates.Contains(i.DocNo))
+                .Select(i => new { i.DocNo, i.CustKey }).ToListAsync();
+            var ofCustomer = posted.Where(i => string.Equals(i.CustKey.Trim(), l.CustKey.Trim(), StringComparison.OrdinalIgnoreCase))
+                .Select(i => i.DocNo).Distinct().ToList();
+            int? docNo = ofCustomer.Count == 1 ? ofCustomer[0]
+                : ofCustomer.Count == 0 && posted.Count == 0 && candidates.Count == 1 ? candidates[0] : null;
+            if (docNo is { } d)
+            {
+                l.DocNo = d;
+                l.WhseNo = d / 1_000_000;
+                l.DocNoFromBir = true;
+            }
+            else
+            {
+                l.DocNo = 0;
+                l.WhseNo = 0;
+                l.DocNoFromBir = false;
+                flags[l] = ofCustomer.Count > 1 || (ofCustomer.Count == 0 && candidates.Count > 1) ? RemittanceFlags.BirAmbiguous : RemittanceFlags.BirNotFound;
+            }
+        }
+        return flags;
+    }
+
+    /// <summary>Finds each line's invoice (warehouse = the invoice no.'s first two digits) and flags the differences.
+    /// A chain that reports without VAT (Puregold) matches on the VAT-excluded gross.</summary>
+    private async Task ResolveLinesAsync(Collection c, Remittance ra)
     {
         var lines = c.RemittanceLines.OrderBy(l => l.RowNo).ToList();
+        var birFlags = await ResolveBirAsync(lines);
+        var exVatChain = RemittanceFlags.ReportsWithoutVat(ra.ChainName);
         var docNos = lines.Select(l => l.DocNo).Distinct().ToList();
         var invoices = await db.PostedInvoices.Where(i => docNos.Contains(i.DocNo)).ToListAsync();
         var paid = await PaidAsync(invoices.Select(i => i.Id).ToList(), c.Id == 0 ? null : c.Id);
@@ -504,6 +552,17 @@ public partial class CollectionService
         foreach (var l in lines)
         {
             var f = new List<string>();
+            if (birFlags.TryGetValue(l, out var birFlag))
+            {
+                // No invoice no.: nothing to compare it with until the BIR series resolves.
+                l.PostedInvoice = null;
+                l.PostedInvoiceId = null;
+                l.SystemTotal = l.SystemRfc = null;
+                f.Add(birFlag);
+                if (Math.Abs(l.Gross - l.Cewt - l.RfcBoRtv - l.Other - l.Net) > 0.01m) f.Add(RemittanceFlags.NetMismatch);
+                l.Flags = string.Join(",", f);
+                continue;
+            }
             var inv = invoices.FirstOrDefault(i => i.DocNo == l.DocNo && i.WhseNo == l.WhseNo);
             l.PostedInvoice = inv;
             l.PostedInvoiceId = inv?.Id;
@@ -520,39 +579,90 @@ public partial class CollectionService
                 l.SystemTotal = inv.Total;
                 l.SystemRfc = sysRfc;
                 if (Math.Abs(l.Gross - inv.Total) > 0.01m)
-                    f.Add(IsVatExcluded(l.Gross, inv.Total) ? RemittanceFlags.VatExcluded : RemittanceFlags.GrossDiff);
+                {
+                    var exVat = IsVatExcluded(l.Gross, inv.Total);
+                    if (!(exVat && exVatChain)) f.Add(exVat ? RemittanceFlags.VatExcluded : RemittanceFlags.GrossDiff);
+                }
                 if (!string.Equals(inv.CustKey.Trim(), l.CustKey.Trim(), StringComparison.OrdinalIgnoreCase)) f.Add(RemittanceFlags.CustDiff);
                 if (l.DocDate is { } d && d != inv.DocDate) f.Add(RemittanceFlags.DateDiff);
-                // The chain deducts returns BMS hasn't posted as an RFC (or the amounts differ): the records aren't aligned.
-                if (Math.Abs(l.RfcBoRtv - sysRfc) > 0.01m)
-                {
-                    f.Add(RemittanceFlags.RfcDiff);
-                    // HO is re-reading the invoice's RFCs (QueueFetchesAsync): wait for its answer.
-                    if (l.FetchRequestId is { } rq && !answered.Contains(rq)) f.Add(RemittanceFlags.Fetching);
-                }
-                // Only the net is taken off the invoice (HOMS keeps the deductions open on A/R).
+                // The chain deducts returns HOMS A/R has no RFC for yet (or the amounts differ): soft — the line is applied,
+                // its returns wait for their RFC and the OR is held from HOMS until each is linked (user 2026-11-26).
+                // HOMSys re-reads the invoice's RFCs from HO meanwhile (QueueFetchesAsync).
+                if (Math.Abs(l.RfcBoRtv - sysRfc) > 0.01m) f.Add(RemittanceFlags.RfcDiff);
+                // The net and the deductions but the returns (settled by their RFC, which reduces the balance itself) must
+                // fit the open balance — what ApplyAsync checks.
                 if (!seen.Add(inv.Id)) f.Add(RemittanceFlags.Duplicate);
-                else if (l.Net > Balance(inv, paid.GetValueOrDefault(inv.Id)) + 0.005m) f.Add(RemittanceFlags.OverBalance);
+                else if (l.Net + l.Cewt + l.Other > Balance(inv, paid.GetValueOrDefault(inv.Id)) + 0.005m) f.Add(RemittanceFlags.OverBalance);
             }
             if (Math.Abs(l.Gross - l.Cewt - l.RfcBoRtv - l.Other - l.Net) > 0.01m) f.Add(RemittanceFlags.NetMismatch);
             l.Flags = string.Join(",", f);
         }
     }
 
-    /// <summary>Re-applies the CR from its lines: lines that match their invoice are applied at their NET, nothing else —
-    /// like the HOMS OR (DR bank / CR A/R net per invoice). The RA's deductions stay on its lines only.</summary>
+    /// <summary>Re-applies the CR from its lines: lines that match their invoice are applied at their NET — like the HOMS
+    /// Auto OR (DR bank / CR A/R net per invoice) — and carry their deductions as autocrcs records them (see
+    /// <see cref="RaDeductionsAsync"/>).</summary>
     private async Task<string?> RebuildCrAsync(CollectionUser u, Remittance ra, Collection c, decimal amount)
     {
-        var allocs = c.RemittanceLines.OrderBy(l => l.RowNo)
-            .Where(l => l.PostedInvoiceId is not null && IsClear(l) && l.Net > 0)
-            .Select(l => new SaveAllocationDto(l.PostedInvoiceId!.Value, l.Net)).ToList();
+        var applied = c.RemittanceLines.OrderBy(l => l.RowNo)
+            .Where(l => l.PostedInvoiceId is not null && IsClear(l) && (l.Net > 0 || l.Gross > 0)).ToList();
+        var allocs = applied.Select(l => new SaveAllocationDto(l.PostedInvoiceId!.Value, l.Net)).ToList();
+        var deds = await RaDeductionsAsync(c, applied);
         var custKey = (c.RemittanceLines.Where(l => l.PostedInvoice is not null).OrderBy(l => l.RowNo).FirstOrDefault()?.PostedInvoice!.CustKey
                        ?? c.RemittanceLines.OrderBy(l => l.RowNo).FirstOrDefault()?.CustKey ?? "").Trim();
         var dto = new SaveCollectionDto(c.SiteId, nameof(ReceiptType.CR), c.ReceiptNo, c.ReceiptDate, custKey, ra.PaymentMode.ToString(), amount,
-            ra.Bank, ra.CheckNo, ra.CheckDate, null, c.Remarks, allocs, [], MultiCustomer: true);
+            ra.Bank, ra.CheckNo, ra.CheckDate, null, c.Remarks, allocs, deds, MultiCustomer: true);
         if (await ApplyAsync(u, c, dto) is { } error) return $"CR {c.ReceiptNo}: {error}";
         c.DepositBatch = ra.DepositBatch;
         return null;
+    }
+
+    /// <summary>
+    /// The applied lines' deductions, as HOMS's Auto CR (autocrcs) records them in ordeduc2 / ordeduct:
+    ///   Cewit → EWT (14 CEWIT), on the OR (DR 10507, CR A/R net + CEWIT) only with "With TTC";
+    ///   Dealcode → unreflected discount (1) with its deal code;
+    ///   Rfc/Bo/Rtv (or a remark naming one) → "Return from customer" (11 BO RETURNS): linked at once to the Excel's RFC no.
+    ///     when it is posted on the invoice, free and of the same amount — else it waits for its RFC and the OR is held from
+    ///     HOMS A/R until the CNC Verifier links it (or it links itself after an AROF4HO sync);
+    ///   Remarks → Others (15) described by the remark.
+    /// </summary>
+    private async Task<List<SaveDeductionDto>> RaDeductionsAsync(Collection c, List<RemittanceLine> lines)
+    {
+        var withRfc = lines.Where(l => Deds(l).Any(d => d.RfcNo is not null)).Select(l => l.DocNo).Distinct().ToList();
+        var free = withRfc.Count == 0 ? [] : await rfcLinks.FreeRfcsAsync(withRfc, c.Id == 0 ? null : c.Id);
+        var taken = new HashSet<int>();
+        var list = new List<SaveDeductionDto>();
+        foreach (var l in lines)
+        {
+            var inv = l.PostedInvoiceId!.Value;
+            foreach (var d in Deds(l).Where(d => d.Amount > 0))
+            {
+                var remark = d.Remark?.Trim() is { Length: > 0 } r ? r[..Math.Min(r.Length, 100)] : null;
+                switch (d.Type)
+                {
+                    case DeductionType.Ewt2307:
+                        list.Add(new SaveDeductionDto(inv, nameof(DeductionType.Ewt2307), d.Amount, null, With2307: true,
+                            AcctNo: CollectionDeduction.EwtWith2307Account, Reason: DeductionReasons.Ewt, OnOr: l.Ttc));
+                        break;
+                    case DeductionType.Discount:
+                        list.Add(new SaveDeductionDto(inv, nameof(DeductionType.Discount), d.Amount, $"{d.Ref} {remark}".Trim(),
+                            Reason: "UNREFLECTED_DISCOUNT", DealCode: d.DealCode));
+                        break;
+                    case DeductionType.RfcBoRtv:
+                        int? link = d.RfcNo is { } no && !taken.Contains(no)
+                                    && (free.GetValueOrDefault(l.DocNo) ?? []).Any(x => x.RfcNo == no && x.Amount == d.Amount) ? no : null;
+                        if (link is { } k) taken.Add(k);
+                        list.Add(new SaveDeductionDto(inv, nameof(DeductionType.RfcBoRtv), d.Amount, d.Ref ?? remark ?? "RTV",
+                            Reason: "RETURN_CUSTOMER", RfcNo: link));
+                        break;
+                    default:
+                        list.Add(new SaveDeductionDto(inv, nameof(DeductionType.Other), d.Amount, null,
+                            Description: remark ?? "NO REMARKS IN THE RA", Reason: DeductionReasons.Others));
+                        break;
+                }
+            }
+        }
+        return list;
     }
 
     /// <summary>How often an "RFC differs" line asks HO again for its invoice's RFCs.</summary>
@@ -567,7 +677,7 @@ public partial class CollectionService
             .Where(l => l.PostedInvoiceId is null && l.FetchRequestId is null && l.DocDate is not null && Split(l.Flags).Contains(RemittanceFlags.Fetching))
             .Select(l => (Line: l, Date: l.DocDate!.Value)).ToList();
 
-        var rfc = lines.Where(l => l.PostedInvoiceId is not null && Split(l.Flags) is var f && f.Contains(RemittanceFlags.RfcDiff) && !f.Contains(RemittanceFlags.Fetching)).ToList();
+        var rfc = lines.Where(l => l.PostedInvoiceId is not null && Split(l.Flags).Contains(RemittanceFlags.RfcDiff)).ToList();
         if (rfc.Count > 0)
         {
             var reqIds = rfc.Where(l => l.FetchRequestId is not null).Select(l => l.FetchRequestId!.Value).Distinct().ToList();
@@ -594,8 +704,9 @@ public partial class CollectionService
                 foreach (var (l, _) in wh.Where(x => nos.Contains(x.Line.DocNo)))
                 {
                     l.FetchRequestId = status.Id;
-                    // An RFC re-check: the line waits for HO's answer like a missing invoice.
-                    if (!Split(l.Flags).Contains(RemittanceFlags.Fetching)) l.Flags = string.Join(",", Split(l.Flags).Append(RemittanceFlags.Fetching));
+                    // A missing invoice waits for HO's answer; an RFC re-check doesn't hold the line (its OR waits instead).
+                    if (l.PostedInvoiceId is null && !Split(l.Flags).Contains(RemittanceFlags.Fetching))
+                        l.Flags = string.Join(",", Split(l.Flags).Append(RemittanceFlags.Fetching));
                 }
             }
         }
@@ -634,7 +745,7 @@ public partial class CollectionService
         // Re-check against today's balances and posted RFCs: another receipt may have paid an invoice since the upload.
         foreach (var c in ra.Collections.Where(Live))
         {
-            await ResolveLinesAsync(c);
+            await ResolveLinesAsync(c, ra);
             if (await RebuildCrAsync(u, ra, c, c.Amount) is { } error) return (null, error);
         }
         if (MissingRa(ra) is { Count: > 0 } missing)

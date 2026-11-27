@@ -13,7 +13,8 @@ public record RemittanceListItemDto(
     int CrCount, decimal CrTotal, string ReceiptNos, int OpenFlags, string VerificationStatus,
     string? DepositSlipRef, string? BankMatch, string? Homs, string CreatedBy, DateTime CreatedAt, DateTime? SubmittedAt);
 
-public record RemittanceDeductionDto(string Type, decimal Amount, string? Remark);
+/// <summary>Ref: "RFC 87001234" / "RTV …" / "DEAL 123"; RfcLinked: the return's RFC is linked (its OR isn't held for it).</summary>
+public record RemittanceDeductionDto(string Type, decimal Amount, string? Remark, int? DealCode = null, string? Ref = null, int? RfcLinked = null);
 
 /// <summary>An RFC posted in BMS against the line's invoice (Amount positive). RfcNo 0 = not known yet (older sync).</summary>
 public record RemittanceRfcDto(int RfcNo, DateOnly? RfcDate, decimal Amount);
@@ -21,16 +22,19 @@ public record RemittanceRfcDto(int RfcNo, DateOnly? RfcDate, decimal Amount);
 /// <summary>One invoice block of the RA Excel vs the system invoice. Flags: Fetching, NotFound, GrossDiff, CustDiff,
 /// DateDiff, RfcDiff, OverBalance, NetMismatch, Duplicate. Applied = it's in the CR's applied invoices.
 /// OpenBalance = what this CR may still apply: total + posted RFCs − every other live receipt on the invoice;
-/// AppliedElsewhere names those receipts (e.g. "CR 23897 DAV-B (Draft) 7,606.08").</summary>
+/// AppliedElsewhere names those receipts (e.g. "CR 23897 DAV-B (Draft) 7,606.08").
+/// DocNoFromBir = the invoice no. was looked up from the BIR series; ExVat = the gross is the invoice without VAT.</summary>
 public record RemittanceLineDto(
     int Id, int RowNo, int DocNo, int WhseNo, string? SiteCode, string CustKey, DateOnly? DocDate, string? BirSeries,
     decimal Gross, decimal Cewt, decimal RfcBoRtv, decimal Other, decimal Net, List<RemittanceDeductionDto> Deductions,
     int? PostedInvoiceId, decimal? SystemTotal, decimal? SystemRfc, string? SystemCustKey, string? SystemCustName, DateOnly? SystemDocDate,
     List<string> Flags, bool Applied,
-    decimal? OpenBalance = null, string? AppliedElsewhere = null, List<RemittanceRfcDto>? Rfcs = null);
+    decimal? OpenBalance = null, string? AppliedElsewhere = null, List<RemittanceRfcDto>? Rfcs = null,
+    bool DocNoFromBir = false, bool ExVat = false, bool Ttc = false);
 
 /// <summary>Desk: HOMS DEPTCODE from the Excel (32 Luzon, 31 VisMin). ExcelFile = the RA Excel attachment.
-/// Deductions = the RA's CEWT + RFC/BO/RTV + other — information only: they stay open on the invoices (as in HOMS).</summary>
+/// Deductions = the RA's CEWT + RFC/BO/RTV + other: they stay open on the invoices in HOMS A/R (as the Auto OR) and go into
+/// ordeduc2 / ordeduct with the OR.</summary>
 public record RemittanceCrDto(
     int Id, string ReceiptNo, int? DcrNo, DateOnly ReceiptDate, int? Desk, string? DeskLabel, decimal Amount,
     decimal Applied, decimal Deductions, decimal Unapplied, string VerificationStatus, string PaymentStatus,

@@ -18,14 +18,19 @@ namespace HOMSys.Infrastructure.Collections;
 /// </summary>
 public static partial class RemittanceAdviceParser
 {
-    public record Deduction(DeductionType Type, decimal Amount, string? Remark);
+    /// <summary>One deduction cell of a block, read the way HOMS's Auto CR (bgatr\autocrcs) reads it: Cewit (J) = CEWT;
+    /// Rfc/Bo/Rtv (I) = the return's RFC no. (8 digits) or RTV no. with its amount in Amount (K); Dealcode (G) + K = an
+    /// unreflected discount of that deal; Remarks (H) + K = Others with that remark (a remark naming RTV/RFC/BO = a return).</summary>
+    public record Deduction(DeductionType Type, decimal Amount, string? Remark, int? DealCode = null, int? RfcNo = null, string? Ref = null);
 
+    /// <summary>Ttc: "With TTC" = T — the CEWIT goes on the OR (DR 10507, CR A/R net + CEWIT).</summary>
     public record Block(int RowNo, string CustKey, string? BirSeries, int DocNo, DateOnly? DocDate, decimal Gross,
-        List<Deduction> Deductions, decimal Net)
+        List<Deduction> Deductions, decimal Net, bool Ttc = false)
     {
         public decimal Cewt => Deductions.Where(d => d.Type == DeductionType.Ewt2307).Sum(d => d.Amount);
         public decimal RfcBoRtv => Deductions.Where(d => d.Type == DeductionType.RfcBoRtv).Sum(d => d.Amount);
-        public decimal Other => Deductions.Where(d => d.Type == DeductionType.Other).Sum(d => d.Amount);
+        /// <summary>Everything else: Others and deal discounts.</summary>
+        public decimal Other => Deductions.Where(d => d.Type is not (DeductionType.Ewt2307 or DeductionType.RfcBoRtv)).Sum(d => d.Amount);
         public bool NetMatches => Math.Abs(Gross - Cewt - RfcBoRtv - Other - Net) <= 0.01m;
     }
 
@@ -80,7 +85,8 @@ public static partial class RemittanceAdviceParser
         }
         int cCust = Col("CUSTKEY"), cBir = Col("BIRSERIES"), cDoc = Col("DOCNO"), cDate = Col("DOCDATE"),
             cGross = Col("GROSSAMOUNT", "GROSS"), cDeal = Col("DEALCODE"), cRemark = Col("REMARKSFORNODEALCODE", "REMARKS"),
-            cRfc = Col("RFCBORTV"), cCewt = Col("CEWIT", "CEWT", "EWT"), cAmt = Col("AMOUNT"), cNet = Col("NETAMOUNT", "NET");
+            cRfc = Col("RFCBORTV"), cCewt = Col("CEWIT", "CEWT", "EWT"), cAmt = Col("AMOUNT"), cNet = Col("NETAMOUNT", "NET"),
+            cTtc = Col("WITHTTC", "TTC");
         if (cGross < 0 || cNet < 0) throw new FormatException("The RA Excel has no Gross Amount / Net Amount columns.");
 
         object? At(object?[] row, int i) => i >= 0 && i < row.Length ? row[i] : null;
@@ -115,20 +121,39 @@ public static partial class RemittanceAdviceParser
             }
             var cust = Num(At(row, cCust));
             var doc = Num(At(row, cDoc));
-            if (cust is > 0m && doc is > 0m)
+            var birText = Text(At(row, cBir));
+            // An invoice is its Docno, or only its BIR series (Puregold, user 2026-11-25: DocNo 0, HOMSys looks it up).
+            if (cust is > 0m && (doc is > 0m || BirNumber(birText) is not null))
             {
                 Close(null);
-                open = new Block(r + 1, ((long)cust.Value).ToString(CultureInfo.InvariantCulture), Text(At(row, cBir)) is { Length: > 0 } bir ? Clip(bir, 40) : null,
-                    (int)doc.Value, Date(At(row, cDate)), Amount(row, cGross), [], 0);
+                open = new Block(r + 1, ((long)cust.Value).ToString(CultureInfo.InvariantCulture), birText.Length > 0 ? Clip(birText, 40) : null,
+                    doc is > 0m ? (int)doc.Value : 0, Date(At(row, cDate)), Amount(row, cGross), [], 0);
             }
             if (open is null) continue;
+            if (Norm(At(row, cTtc)) is { Length: > 0 } ttc && ttc[0] is 'T' or 'Y') open = open with { Ttc = true };
 
-            // Deduction cells of this row (the block's first row can carry them too).
-            if (Amount(row, cCewt) is > 0m and var ewt) deds.Add(new Deduction(DeductionType.Ewt2307, ewt, "CEWT"));
-            var remark = Join(Text(At(row, cDeal)), Text(At(row, cRemark)));
-            if (Amount(row, cRfc) is > 0m and var rfc) deds.Add(new Deduction(DeductionType.RfcBoRtv, rfc, remark ?? "RFC/BO/RTV"));
+            // Deduction cells of this row (the block's first row can carry them too). One Amount (K) per row: it belongs to
+            // the row's Rfc/Bo/Rtv, else its Dealcode, else its Remarks (autocrcs would book it once for each).
+            if (Amount(row, cCewt) is > 0m and var ewt) deds.Add(new Deduction(DeductionType.Ewt2307, ewt, "CEWIT"));
+            var remark = Text(At(row, cRemark)) is { Length: > 0 } rm ? Clip(rm, 100) : null;
+            var rfcText = Text(At(row, cRfc));
+            var deal = Num(At(row, cDeal)) is { } dc && dc is > 0m and < 2_147_483_647m ? (int)dc : (int?)null;
             if (Amount(row, cAmt) is > 0m and var amt)
-                deds.Add(new Deduction(remark is not null && RfcRemark().IsMatch(remark) ? DeductionType.RfcBoRtv : DeductionType.Other, amt, remark));
+            {
+                if (rfcText.Length > 0)
+                {
+                    var digits = new string(rfcText.Where(char.IsDigit).ToArray());
+                    int? rfcNo = digits.Length == 8 && int.TryParse(digits, out var rfcParsed) ? rfcParsed : null;
+                    deds.Add(new Deduction(DeductionType.RfcBoRtv, amt, remark, RfcNo: rfcNo,
+                        Ref: Clip(rfcNo is { } rfcN ? $"RFC {rfcN}" : $"RTV {rfcText}", 100)));
+                }
+                else if (deal is { } d)
+                    deds.Add(new Deduction(DeductionType.Discount, amt, remark, DealCode: d, Ref: $"DEAL {d}"));
+                else if (remark is not null && RfcRemark().IsMatch(remark))
+                    deds.Add(new Deduction(DeductionType.RfcBoRtv, amt, remark, Ref: Clip(remark, 100)));
+                else
+                    deds.Add(new Deduction(DeductionType.Other, amt, remark));
+            }
         }
         Close(null);
         if (blocks.Count == 0) throw new FormatException("The RA Excel lists no invoices.");
@@ -156,6 +181,14 @@ public static partial class RemittanceAdviceParser
             rows.Add(row);
         }
         return rows;
+    }
+
+    /// <summary>The (first) BIR series number of a "BIR Series" cell: "1430205-1430205" → 1430205, "1430205" → 1430205;
+    /// null when it has none.</summary>
+    public static int? BirNumber(string? text)
+    {
+        var m = Digits().Match(text ?? "");
+        return m.Success && int.TryParse(m.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n > 0 ? n : null;
     }
 
     private static decimal? Num(object? v) => v switch
@@ -188,6 +221,9 @@ public static partial class RemittanceAdviceParser
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Spaces();
+
+    [GeneratedRegex(@"\d{1,9}")]
+    private static partial Regex Digits();
 
     [GeneratedRegex(@"[^A-Z0-9]")]
     private static partial Regex Letters();

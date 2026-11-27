@@ -471,6 +471,9 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
                 Reason = reason.Code, Description = others ? desc : null, AttachmentId = attId,
                 RfcNo = d.RfcNo, RfcLinkedAt = d.RfcNo is null ? null : DateTime.UtcNow,
                 RfcLinkedBy = d.RfcNo is null ? null : RfcFollowUpService.PreEncoded,
+                // Only a Remittance Advice CR sets these (its Excel's "With TTC" / Dealcode).
+                OnOr = !ewt || !InRemittance(c) || d.OnOr,
+                DealCode = InRemittance(c) && dt == DeductionType.Discount ? d.DealCode : null,
             });
         }
         // The double the user saw: a return typed by hand for an RFC that's already pre-encoded on the invoice.
@@ -484,8 +487,10 @@ public partial class CollectionService(AppDbContext db, IAttachmentStore store, 
         foreach (var a in allocs)
         {
             var applied = Math.Round(a.AmountApplied, 2);
-            // A return linked to its RFC isn't counted: the RFC already reduced the open balance.
-            var deducted = newDeds.Where(x => x.PostedInvoiceId == a.PostedInvoiceId && x.CountsAsPaid).Sum(x => x.Amount);
+            // A return linked to its RFC isn't counted: the RFC already reduced the open balance. Nor is an RA's return still
+            // waiting for its RFC: the RFC settles it, and the OR is held until it's linked (RA lines check the same).
+            var deducted = newDeds.Where(x => x.PostedInvoiceId == a.PostedInvoiceId && x.CountsAsPaid && !(InRemittance(c) && x.IsReturn))
+                .Sum(x => x.Amount);
             var inv = invoices[a.PostedInvoiceId];
             if (applied < 0) return $"Invoice {inv.DocNo}: the applied amount can't be negative.";
             if (applied + deducted <= 0) return $"Invoice {inv.DocNo}: enter the amount applied (or a deduction).";

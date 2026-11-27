@@ -57,7 +57,7 @@ public class HomsPostingService(AppDbContext db)
         await db.Collections.Where(x => x.Id == c.Id)
             .Include(x => x.Site).Include(x => x.Invoices).ThenInclude(i => i.PostedInvoice)
             .Include(x => x.Deductions).Include(x => x.DepositBatch).ThenInclude(b => b!.BankAccount)
-            .Include(x => x.DepositoryAccount)
+            .Include(x => x.DepositoryAccount).Include(x => x.RemittanceLines)
             .AsSplitQuery().LoadAsync();
     }
 
@@ -228,7 +228,8 @@ public class HomsPostingService(AppDbContext db)
     /// </summary>
     public async Task<List<string>> QueueRegisterCatchUpAsync(bool dryRun, string user)
     {
-        var mains = await db.HomsPostings.Where(p => (p.Kind == HomsPostingKind.Rpdc || p.Kind == HomsPostingKind.PdcJv)
+        // ORs too since 2026-11-26: deposits / pdcclear / ordeduct / desk copies (+ the CEWIT rows, a Deductions posting).
+        var mains = await db.HomsPostings.Where(p => (p.Kind == HomsPostingKind.Rpdc || p.Kind == HomsPostingKind.PdcJv || p.Kind == HomsPostingKind.Or)
                 && p.Status == HomsPostingStatus.Done && p.DocNo != null && p.RegisterJson == "{}")
             .OrderBy(p => p.Id).ToListAsync();
         var report = new List<string>();
@@ -274,12 +275,16 @@ public class HomsPostingService(AppDbContext db)
             c.History.Add(new CollectionHistory
             {
                 Action = "Queued for HOMS (register)", By = user,
-                Reason = Cut($"{Label(main.Kind)} {main.DocNo}: pdc4w / deposits / rpdctr / side files DCSR writes, catch-up"),
+                Reason = Cut(main.Kind == HomsPostingKind.Or
+                    ? $"OR {main.DocNo}: deposits / pdcclear / ordeduct / desk copies HOMS's OR post writes, catch-up"
+                    : $"{Label(main.Kind)} {main.DocNo}: pdc4w / deposits / rpdctr / side files DCSR writes, catch-up"),
             });
+            // An OR's EWT gets its CEWIT row in ordeduc2 / ordeduct (not sent before 2026-11-26).
+            if (main.Kind == HomsPostingKind.Or) await QueueDeductionsAsync(c, user);
         }
         // Queued before the register existed and not written yet (a matured PDC's JV waiting for its RPDC): the register is
         // added as it would have been built then, the header / lines stay. A Held one gets it when it's rebuilt (Fill).
-        var waiting = await db.HomsPostings.Where(p => (p.Kind == HomsPostingKind.Rpdc || p.Kind == HomsPostingKind.PdcJv)
+        var waiting = await db.HomsPostings.Where(p => (p.Kind == HomsPostingKind.Rpdc || p.Kind == HomsPostingKind.PdcJv || p.Kind == HomsPostingKind.Or)
                 && (p.Status == HomsPostingStatus.Pending || p.Status == HomsPostingStatus.Failed) && p.RegisterJson == "{}")
             .OrderBy(p => p.Id).ToListAsync();
         foreach (var p in waiting)
@@ -395,7 +400,8 @@ public class HomsPostingService(AppDbContext db)
             p.Collection.History.Add(new CollectionHistory
             {
                 Action = "HOMS register caught up",
-                Reason = Cut($"{(p.DocId == 33 ? "RPDC" : "JV")} {p.DocNo}: {dto.Note ?? "pdc4w / deposits / rpdctr / side files"}"),
+                Reason = Cut($"{p.DocId switch { 33 => "RPDC", 2 => "OR", _ => "JV" }} {p.DocNo}: "
+                             + (dto.Note ?? (p.DocId == 2 ? "deposits / pdcclear / ordeduct / desk copies" : "pdc4w / deposits / rpdctr / side files"))),
                 By = "watcher",
             });
         }

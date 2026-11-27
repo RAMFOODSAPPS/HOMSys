@@ -67,11 +67,17 @@ public static class HomsPostingBuilder
 
         // Only EWT (2307) is an OR line (its own CEWT row). The other deductions go to HOMS's ordeduc2 as HOMS's own ORs
         // record them (user 2026-11-21), not as GL lines; see DeductionRows.
-        var ewt = c.Deductions.Where(d => d.Type == DeductionType.Ewt2307)
+        // An RA CEWIT without "With TTC" isn't on the OR (OnOr false): HOMS's Auto CR only records it (ordeduc2 CEWIT row).
+        var ewt = c.Deductions.Where(d => d.Type == DeductionType.Ewt2307 && d.OnOr)
             .GroupBy(d => d.PostedInvoiceId).ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
         var invs = c.Invoices.OrderBy(i => i.PostedInvoice.DocNo).Select(i => (Inv: i.PostedInvoice, Applied: i.AmountApplied,
             Ewt: ewt.GetValueOrDefault(i.PostedInvoiceId))).ToList();
         var first = invs[0].Inv;
+        // An RA CR's bank line / deposit / pdcclear carry the Excel's LAST invoice block, as the Auto OR does (autocrcs takes
+        // them from the customer of the last block; Auto OR 28571's bank line is its last invoice 87225272).
+        if (c.RemittanceLines.Where(l => l.PostedInvoiceId is not null).MaxBy(l => l.RowNo) is { } lastLine
+            && invs.FirstOrDefault(t => t.Inv.Id == lastLine.PostedInvoiceId) is { Inv: not null } last)
+            first = last.Inv;
 
         var account = c.DepositBatch?.BankAccount;
         if (kind != HomsPostingKind.Rpdc && account?.HomsAcctNo is null)
@@ -82,7 +88,7 @@ public static class HomsPostingBuilder
 
         Doc doc = kind switch
         {
-            HomsPostingKind.Or => Or(x, docNo, dept, user, invs, first, account!, gl),
+            HomsPostingKind.Or => Or(x, docNo, dept, user, invs, first, account!, gl) with { Register = OrRegister(x, docNo, dept, invs, first, account!) },
             HomsPostingKind.Rpdc => Rpdc(x, docNo, dept, user, invs, first, depository) with
             {
                 Register = RpdcRegister(x, docNo, dept, user, invs, depository),
@@ -172,6 +178,48 @@ public static class HomsPostingBuilder
         };
     }
 
+    /// <summary>
+    /// What HOMS's OR post (DCSR tagcoll + orpost3 / colautop, user 2026-11-26 "100% aligned") writes besides or_hdr / or_det /
+    /// ordeduc2, field for field as on the Auto ORs 28571 / 23897 — done by HOMSPOST from this and the staged header / lines:
+    ///   deposit → deposits, one row for the money: AMT = the OR amount, BANKDATE = the check date (a transfer: its deposit
+    ///             date), VERIDATE = the verify (post) date; also into ARCHIVES\DP03{MMYY} and DCSRARCH\{desk}\DP03{MMYY};
+    ///   clear   → pdcclear, one row: BANKDATE = later of OR date / check date, BANKNAME from banks4w (HOMSPOST);
+    ///   the OR's ordeduc2 rows into ordeduct (by customer = custs); DCSRARCH\{desk}\OH/OD03{MMYY} desk copies.
+    /// </summary>
+    private static Dictionary<string, object?> OrRegister(Input x, int docNo, int dept, List<(PostedInvoice Inv, decimal Applied, decimal Ewt)> invs,
+        PostedInvoice first, BankAccount acct)
+    {
+        var c = x.C;
+        var dep = c.DepositBatch!;
+        var cheque = c.PaymentMode == PaymentMode.Check;
+        var checkNo = Cut(cheque ? c.CheckNo : dep.SlipRefNo, 16);
+        var checkDate = cheque ? c.CheckDate : dep.DepositDate;
+        var depBank = Cut(acct.HomsBankAc ?? acct.AccountNo, 16);
+        var cust = Cust(first);
+        var deposit = new Dictionary<string, object?>
+        {
+            ["SALESMAN"] = first.Salesman, ["POSTED"] = D(x.PostDate), ["DOCNO"] = docNo, ["DOCID"] = 2, ["DOCDATE"] = D(c.ReceiptDate),
+            ["DCRDATE"] = D(c.ReceiptDate), ["DCRNO"] = c.DcrNo ?? 0, ["DEPBANK"] = depBank, ["DRAWEEBANK"] = cheque ? Cut(c.Bank, 20) : null,
+            ["CHECKNO"] = checkNo, ["CHECKDATE"] = D(checkDate), ["AMT"] = c.Amount, ["WHSENO"] = cust["WHSENO"], ["ACCTNO"] = acct.HomsAcctNo ?? 0,
+            ["USERNAME"] = DeskUser(dept), ["SYSDATE"] = D(DateOnly.FromDateTime(c.CreatedAt)), ["DEP_CTR"] = 1, ["BANKDATE"] = D(checkDate),
+            ["DCRNO2"] = c.DcrNo ?? 0, ["SALESMAN2"] = first.Salesman, ["RECBANK"] = acct.BankAbbr, ["DEPTCODE"] = dept,
+            ["VERIDATE"] = D(x.PostDate),
+        };
+        var clear = new Dictionary<string, object?>
+        {
+            ["DOCID"] = 2, ["DOCNO"] = docNo, ["DOCDATE"] = D(c.ReceiptDate), ["ACCTNO"] = acct.HomsAcctNo ?? 0, ["WHSENO"] = cust["WHSENO"],
+            ["CKEY"] = cust["CKEY"], ["CUSTNAME"] = Cut(first.CustName, 75), ["AMT"] = c.Amount, ["DRAWEEBANK"] = cheque ? Cut(c.Bank, 10) : null,
+            ["CHECKNO"] = checkNo, ["CHECKDATE"] = D(checkDate), ["DEPBANK"] = depBank,
+            ["BANKDATE"] = D(checkDate is { } cd && cd > c.ReceiptDate ? cd : c.ReceiptDate), ["RECBANK"] = acct.BankAbbr, ["DEP_CTR"] = 1,
+            ["SALESMAN"] = first.Salesman,
+        };
+        return new()
+        {
+            ["kind"] = "OR", ["checkNo"] = checkNo, ["checkDate"] = D(checkDate), ["desk"] = Desk(dept), ["custs"] = Custs(invs),
+            ["deposit"] = deposit, ["clear"] = clear,
+        };
+    }
+
     private static Doc Or(Input x, int docNo, int dept, string user, List<(PostedInvoice Inv, decimal Applied, decimal Ewt)> invs,
         PostedInvoice first, BankAccount acct, int gl)
     {
@@ -182,7 +230,8 @@ public static class HomsPostingBuilder
         var header = new Dictionary<string, object?>
         {
             ["DOCID"] = 2, ["DOCNO"] = docNo, ["DOCDATE"] = D(c.ReceiptDate), ["DCRNO"] = c.DcrNo ?? 0, ["DCRDATE"] = D(c.ReceiptDate),
-            ["USERNAME"] = user, ["TCODE"] = 1, ["POSTED"] = D(x.PostDate), ["STATDESC"] = "POSTED",
+            // The desk's DCSR user (syssec), as on HOMSys's RPDC / JV: DCSR's reports place records on a desk by USERNAME.
+            ["USERNAME"] = DeskUser(dept), ["TCODE"] = 1, ["POSTED"] = D(x.PostDate), ["STATDESC"] = "POSTED",
             ["SYSDATE"] = D(DateOnly.FromDateTime(c.CreatedAt)), ["SUBDATE"] = D(c.SubmittedAt is { } s ? DateOnly.FromDateTime(s) : x.PostDate),
             ["DEPTCODE"] = dept,
         };
@@ -278,7 +327,7 @@ public static class HomsPostingBuilder
 
     /// <summary>An invoice's CEWT debits, one per HOMS GL (a deduction saved before ACCTNO existed is a 10507).</summary>
     private static List<(int Acct, decimal Amount)> EwtLines(Collection c, int postedInvoiceId) =>
-        c.Deductions.Where(d => d.PostedInvoiceId == postedInvoiceId && d.Type == DeductionType.Ewt2307)
+        c.Deductions.Where(d => d.PostedInvoiceId == postedInvoiceId && d.Type == DeductionType.Ewt2307 && d.OnOr)
             .GroupBy(d => d.AcctNo ?? Cewt).OrderBy(g => g.Key)
             .Select(g => (g.Key, g.Sum(d => d.Amount))).Where(x => x.Item2 > 0).ToList();
 
@@ -291,6 +340,16 @@ public static class HomsPostingBuilder
             .Select(x => (x ?? "").Trim()).Where(x => x.Length > 0);
         return Cut(string.Join(" ", parts).ToUpperInvariant(), 50);
     }
+
+    /// <summary>ordeduc2 REMARKS of an RA CR's deduction, as autocrcs writes them: "CEWIT", the return's "RFC n" / "RTV …", the
+    /// deal's "DEAL n" + remark (HOMSys has no deal master; autocrcs puts DEAL4MAS's description), else the remark.</summary>
+    private static string RaRemarks(CollectionDeduction d) => Cut((d.Type switch
+    {
+        DeductionType.Ewt2307 => "CEWIT",
+        DeductionType.RfcBoRtv => d.RfcNo is > 0 ? $"RFC {d.RfcNo}" : d.Reference ?? "RTV",
+        DeductionType.Discount when d.DealCode is > 0 => d.Reference ?? $"DEAL {d.DealCode}",
+        _ => d.Description ?? d.Reference ?? "",
+    }).Trim().ToUpperInvariant(), 50);
 
     /// <summary>
     /// Rows for HOMS's ordeduc2 (F:\HOMS\RAM\ordeduc2.DBF), field for field the way HOMS's own ORs fill it (checked on
@@ -305,7 +364,8 @@ public static class HomsPostingBuilder
         var user = Cut(userName, 20).ToUpperInvariant();
         var rows = new List<Dictionary<string, object?>>();
         var ids = new List<int>();
-        foreach (var d in c.Deductions.Where(d => d.ReadyForHoms && d.Amount > 0).OrderBy(d => d.Id))
+        // An OR's EWT also gets its CEWIT (14) row, as HOMS's own ORs (1,076 of 1,080 Sep–Nov 2026); an RPDC's doesn't.
+        foreach (var d in c.Deductions.Where(d => d.ReadyForHoms && d.Amount > 0 && (docId == 2 || d.Type != DeductionType.Ewt2307)).OrderBy(d => d.Id))
         {
             if (!invs.TryGetValue(d.PostedInvoiceId, out var inv)) continue;
             var reason = DeductionReasons.Of(d);
@@ -315,12 +375,18 @@ public static class HomsPostingBuilder
             // rows without one do (REFTYPE "INV", REFNO = invoice).
             var rfc = code == 11 && d.RfcNo is > 0;
             var cust = Cust(inv);
+            // A Remittance Advice CR: as HOMS's Auto CR (autocrcs) writes them — REFNO 0 on invoice rows, a deal as REFID 0
+            // "DEALS & DISCOUNT" / "UNREFLECTED DISCOUNTS" with its DEALCODE, REMARKS = the Excel's text.
+            var ra = c.RemittanceId is not null || c.Remittance is not null;
+            var deal = ra && d.DealCode is > 0 && code == 1;
             rows.Add(new()
             {
                 ["DOCID"] = docId, ["DOCNO"] = docNo, ["WHSENO"] = cust["WHSENO"], ["CKEY"] = cust["CKEY"], ["CUSTKEY"] = cust["CUSTKEY"],
-                ["DOCDATE"] = D(c.ReceiptDate), ["DEDCODE"] = code, ["DEDTYPE"] = text, ["DEALCODE"] = 0,
-                ["REFID"] = code == 11 ? 6 : 1, ["REFTYPE"] = rfc ? "RFC" : "INV", ["REFNO"] = rfc ? d.RfcNo : inv.DocNo,
-                ["AMOUNT"] = d.Amount, ["PAYMENTID"] = PaymentId(inv.DocDate, 1, inv.DocNo), ["REMARKS"] = DedRemarks(d),
+                ["DOCDATE"] = D(c.ReceiptDate), ["DEDCODE"] = code, ["DEDTYPE"] = deal ? "UNREFLECTED DISCOUNTS" : text,
+                ["DEALCODE"] = deal ? d.DealCode : 0,
+                ["REFID"] = deal ? 0 : code == 11 ? 6 : 1, ["REFTYPE"] = deal ? "DEALS & DISCOUNT" : rfc ? "RFC" : "INV",
+                ["REFNO"] = rfc ? d.RfcNo : ra ? 0 : inv.DocNo,
+                ["AMOUNT"] = d.Amount, ["PAYMENTID"] = PaymentId(inv.DocDate, 1, inv.DocNo), ["REMARKS"] = ra ? RaRemarks(d) : DedRemarks(d),
                 ["FORAUTODN"] = false, ["POSTED"] = D(posted), ["SALESMAN"] = inv.Salesman, ["EMPNO"] = inv.EmpNo,
                 ["APPLYID"] = 1, ["APPLYDOC"] = inv.DocNo, ["APPDOCDATE"] = D(inv.DocDate),
                 ["USERNAME"] = user, ["SYSDATE"] = D(sysDate),

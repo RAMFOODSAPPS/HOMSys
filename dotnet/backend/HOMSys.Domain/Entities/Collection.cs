@@ -156,8 +156,15 @@ public class CollectionDeduction
     /// HOMS's ordeduc2, so it shows as a hanging balance in the VFP report (user 2026-11-21).</summary>
     public int? AttachmentId { get; set; }
     public CollectionAttachment? Attachment { get; set; }
-    /// <summary>When its row was written into HOMS's ordeduc2 (never for EWT, which is an OR line). Null = not yet.</summary>
+    /// <summary>When its row was written into HOMS's ordeduc2 (+ ordeduct). An OR's EWT gets one too since 2026-11-26 (a CEWIT
+    /// code-14 row besides its CEWT line, as HOMS's own ORs). Null = not yet.</summary>
     public DateTime? HomsSentAt { get; set; }
+
+    /// <summary>EWT only: debited on the OR as a CEWT line (CR A/R = applied + EWT). False for a Remittance Advice CEWIT
+    /// without "With TTC" — HOMS's Auto CR (autocrcs) leaves it open on A/R and only records it (ordeduc2 CEWIT row).</summary>
+    public bool OnOr { get; set; } = true;
+    /// <summary>A chain's deal (RA Excel "Dealcode"): ordeduc2 DEALCODE of its unreflected-discount row (autocrcs).</summary>
+    public int? DealCode { get; set; }
 
     /// <summary>"Return from customer": the RFC posted in HOMS A/R for it (its DOCNO). The receipt's OR / RPDC is held until
     /// every return on it has one (user 2026-11-24: "We cannot download in AR unless the RFC for this has been posted") — the
@@ -175,8 +182,9 @@ public class CollectionDeduction
     /// <summary>Counts toward the invoice's paid amount: everything but a return whose RFC is linked (the RFC counts instead).</summary>
     public bool CountsAsPaid => !(IsReturn && RfcNo is not null);
 
-    /// <summary>Goes to ordeduc2 now: not EWT, not sent yet, and a Service Invoice only with its scanned copy.</summary>
-    public bool ReadyForHoms => Type != DeductionType.Ewt2307 && HomsSentAt is null && (Type != DeductionType.ServiceInvoice || AttachmentId is not null);
+    /// <summary>Goes to ordeduc2 now: not sent yet, and a Service Invoice only with its scanned copy. EWT only for an OR
+    /// (HomsPostingBuilder.DeductionRows leaves it out of an RPDC's).</summary>
+    public bool ReadyForHoms => HomsSentAt is null && (Type != DeductionType.ServiceInvoice || AttachmentId is not null);
 
     public static int DefaultEwtAccount(bool with2307) => with2307 ? EwtWith2307Account : EwtWithout2307Account;
 }

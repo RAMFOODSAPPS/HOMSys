@@ -79,6 +79,7 @@ public static class DependencyInjection
         services.AddScoped<CollectionDocumentKindService>();
         services.AddScoped<BankStatementService>();
         services.AddScoped<BmsCollectionImporter>();
+        services.AddScoped<BirSeriesImporter>();
         services.AddScoped<UserBranchService>();
         services.AddScoped<HOMSys.Infrastructure.Data.UserServicingBranchService>();
         services.AddScoped<HOMSys.Infrastructure.Data.TasafDashboardService>();

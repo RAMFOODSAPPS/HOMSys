@@ -36,7 +36,9 @@ const LIST_STATUSES: [string, string][] = [
   ['all', 'All'], ['Draft', 'Draft'], ['ForVerification', 'For verification'], ['Returned', 'Returned'], ['Verified', 'Verified'], ['Voided', 'Voided'],
 ];
 /** Flags the uploader can't clear by correcting the Excel alone (red, like the design's "hard" lines). */
-const HARD_FLAGS: RemittanceFlag[] = ['OverBalance', 'Duplicate', 'NotFound'];
+const HARD_FLAGS: RemittanceFlag[] = ['OverBalance', 'Duplicate', 'NotFound', 'BirNotFound', 'BirAmbiguous'];
+/** Shown, but the line is applied and the RA can be submitted: its OR waits in HOMSys until each return's RFC is linked. */
+const SOFT_FLAGS: RemittanceFlag[] = ['RfcDiff'];
 
 /**
  * Remittance Advice (NKA chains): one payment, 1+ CRs, each filled from the chain's RA Excel and counter-checked
@@ -252,7 +254,7 @@ const HARD_FLAGS: RemittanceFlag[] = ['OverBalance', 'Duplicate', 'NotFound'];
                   <div class="ra-tiles">
                     <div><small>CR amount</small><span class="mono">{{ c.amount | number:'1.2-2' }}</span></div>
                     <div><small>Applied</small><span class="mono">{{ c.applied | number:'1.2-2' }}</span></div>
-                    <div pTooltip="Only the net is applied (like the HOMS OR); the RA's deductions stay open on the invoices">
+                    <div pTooltip="Only the net is applied on the OR (like HOMS's Auto CR); the RA's deductions stay open on the invoices in HOMS A/R and are recorded in ordeduc2 / ordeduct with the OR">
                       <small>RA deductions (left open)</small><span class="mono">{{ c.deductions | number:'1.2-2' }}</span></div>
                     <div><small>Unapplied</small><span class="mono strong" [class.bad]="c.unapplied > 0.005" [class.good]="c.unapplied <= 0.005">{{ c.unapplied | number:'1.2-2' }}</span></div>
                   </div>
@@ -281,7 +283,7 @@ const HARD_FLAGS: RemittanceFlag[] = ['OverBalance', 'Duplicate', 'NotFound'];
                       @for (l of rows(); track l.id) {
                         <tr [class]="'t-' + rowTone(l)" [class.sel]="selLineId() === l.id" (click)="selLineId.set(selLineId() === l.id ? null : l.id)">
                           <td class="mono dim">{{ l.rowNo }}</td>
-                          <td class="mono">{{ l.docNo }}</td>
+                          <td class="mono">{{ l.docNo || '—' }}@if (l.docNoFromBir || (!l.docNo && l.birSeries)) { <div class="dim" [pTooltip]="birTip">BIR {{ l.birSeries }}</div> }</td>
                           <td class="nowrap">{{ l.siteCode ?? l.whseNo }}</td>
                           <td class="cust"><div [title]="l.systemCustName ?? ''">
                             <span class="mono code" [class.bad]="custDiff(l)">{{ l.custKey }}@if (custDiff(l)) { ≠ {{ l.systemCustKey }} }</span>
@@ -293,7 +295,7 @@ const HARD_FLAGS: RemittanceFlag[] = ['OverBalance', 'Duplicate', 'NotFound'];
                           <td class="mono num">{{ l.net | number:'1.2-2' }}</td>
                           <td class="mono num" [class.bad]="!!variance(l)" [class.dim]="variance(l) === 0">{{ variance(l) === null ? '—' : (variance(l) | number:'1.2-2') }}</td>
                           <td class="nowrap">
-                            @if (!l.flags.length) { <span class="tone-ok">Matched</span> }
+                            @if (!l.flags.length) { <span class="tone-ok" [pTooltip]="l.exVat ? exVatTip(l) : undefined">Matched@if (l.exVat) { (ex-VAT)}</span> }
                             @for (f of l.flags; track f; let last = $last) {
                               <span [class]="'tone-' + flagTone(f)" [pTooltip]="flagTip(l, f)">{{ flagLabel(f) }}@if (f === 'RfcDiff') { <span class="rfc-nos">({{ rfcNos(l) }})</span> }</span>@if (!last) { <span class="dim"> · </span> }
                             }
@@ -399,7 +401,7 @@ export class RemittancePageComponent implements OnInit, OnDestroy {
     return c.lines.filter(l => {
       const ok = this.matches(l);
       if ((f === 'review' && ok) || (f === 'ok' && !ok)) return false;
-      return !q || [String(l.docNo), l.custKey, l.systemCustName ?? '', l.siteCode ?? ''].some(x => x.toLowerCase().includes(q));
+      return !q || [String(l.docNo), l.birSeries ?? '', l.custKey, l.systemCustName ?? '', l.siteCode ?? ''].some(x => x.toLowerCase().includes(q));
     });
   });
   historyDesc = computed(() => [...(this.ra()?.history ?? [])].reverse());
@@ -710,30 +712,45 @@ export class RemittancePageComponent implements OnInit, OnDestroy {
       { v: 'all' as LineFilter, label: 'All', n: c.lines.length },
     ];
   }
-  /** No flags: it matches its invoice, so it's applied. */
-  matches(l: RemittanceLineDto) { return !l.flags.length; }
+  /** No flags but "Waiting for RFC": it matches its invoice, so it's applied (its returns wait for their RFC). */
+  matches(l: RemittanceLineDto) { return l.flags.every(f => SOFT_FLAGS.includes(f)); }
   flagLabel(f: RemittanceFlag) { return FLAG_LABELS[f] ?? f; }
-  flagTone(f: RemittanceFlag) { return f === 'Fetching' ? 'wait' : HARD_FLAGS.includes(f) ? 'hard' : 'fix'; }
+  flagTone(f: RemittanceFlag) { return f === 'Fetching' || SOFT_FLAGS.includes(f) ? 'wait' : HARD_FLAGS.includes(f) ? 'hard' : 'fix'; }
   rowTone(l: RemittanceLineDto) { return this.matches(l) ? 'ok' : l.flags.some(f => HARD_FLAGS.includes(f)) ? 'hard' : 'fix'; }
   custDiff(l: RemittanceLineDto) { return !!l.systemCustKey && l.systemCustKey !== l.custKey; }
   dateDiff(l: RemittanceLineDto) { return !!l.systemDocDate && !!l.docDate && l.systemDocDate !== l.docDate; }
   dedTotal(l: RemittanceLineDto) { return l.cewt + l.rfcBoRtv + l.other; }
   dedTip(l: RemittanceLineDto) {
     return l.deductions.length
-      ? l.deductions.map(x => `${DEDUCTION_TYPES.find(t => t.value === x.type)?.label ?? x.type} ${this.money(x.amount)}${x.remark && x.type !== 'Ewt2307' ? ' — ' + x.remark : ''}`).join(' · ')
+      ? l.deductions.map(x => `${DEDUCTION_TYPES.find(t => t.value === x.type)?.label ?? x.type} ${this.money(x.amount)}`
+          + (x.type === 'Ewt2307' ? (l.ttc ? ' (With TTC: on the OR, 10507)' : ' (recorded, left open on A/R)') : '')
+          + (x.ref && x.ref !== x.remark ? ` [${x.ref}]` : '')
+          + (x.type === 'RfcBoRtv' ? (x.rfcLinked ? ` → RFC ${x.rfcLinked} linked` : ' → waits for its RFC (CNC)') : '')
+          + (x.remark && x.type !== 'Ewt2307' ? ' — ' + x.remark : '')).join(' · ')
       : 'No deductions';
   }
   /** Gross (RA) − System; null when the invoice isn't in HOMSys. */
   variance(l: RemittanceLineDto) { return l.systemTotal === null ? null : Math.round((l.gross - l.systemTotal) * 100) / 100; }
   /** Labels that explain themselves on hover. */
+  readonly birTip = "BIR series in the RA Excel; the invoice no. comes from HOMS's BIR files (B1)";
+  /** Puregold shows invoices without VAT (user 2026-11-25): it's a match; the VAT stays open on the invoice. */
+  exVatTip(l: RemittanceLineDto) {
+    return l.systemTotal === null ? undefined
+      : `RA ${this.money(l.gross)} = invoice ${this.money(l.systemTotal)} without its 12% VAT (this chain reports without VAT) — the VAT ${this.money(l.systemTotal - l.gross)} stays open on the invoice`;
+  }
   flagTip(l: RemittanceLineDto, f: RemittanceFlag) {
+    if (f === 'BirNotFound')
+      return `BIR series ${l.birSeries} isn't an invoice of customer ${l.custKey} in HOMS's BIR files (B1) yet — check the BIR series, or try again after HO's next update`;
+    if (f === 'BirAmbiguous')
+      return `Several invoices carry BIR series ${l.birSeries} — type the Docno in the RA Excel and upload it again`;
     if (f === 'VatExcluded' && l.systemTotal !== null)
       return `RA ${this.money(l.gross)} = invoice ${this.money(l.systemTotal)} without its 12% VAT — short ${this.money(l.systemTotal - l.gross)}`;
     if (f === 'RfcDiff')
       return `The RA deducts RFC/BO/RTV ${this.money(l.rfcBoRtv)}; RFCs posted in BMS: `
         + (l.rfcs?.length ? `${l.rfcs.length} RFC${l.rfcs.length === 1 ? '' : 's'}, total ` : '') + this.money(l.systemRfc ?? 0)
         + (l.rfcs?.length ? ' — ' + l.rfcs.map(x => `${x.rfcNo ? 'RFC ' + x.rfcNo : 'RFC (no. not synced yet)'}${x.rfcDate ? ' ' + this.shortDate(x.rfcDate) : ''} ${this.money(x.amount)}`).join(', ') : '')
-        + ' — the records don\'t match: post the RFC in BMS (HOMSys re-reads it from HO) or correct the RA Excel';
+        + ' — the line is applied, but its OR stays out of HOMS A/R until each return is linked to its RFC: posted in HOMS and'
+        + ' tagged by the CNC Verifier (PDC › Returns awaiting RFC), or linked by itself when one of the same amount is there';
     if (f === 'OverBalance' && l.openBalance !== null)
       return `Open balance ${this.money(l.openBalance)}, less than the net ${this.money(l.net)}`
         + (l.appliedElsewhere ? ` — already applied: ${l.appliedElsewhere}` : '')
@@ -753,20 +770,21 @@ export class RemittancePageComponent implements OnInit, OnDestroy {
   exportLines(c: RemittanceCrDto) {
     const r = this.ra();
     if (!r) return;
-    const headers = ['Row', 'Invoice', 'Branch', 'Cust key (RA)', 'Cust key (system)', 'Customer', 'Date (RA)', 'Date (system)',
+    const headers = ['Row', 'Invoice', 'BIR series', 'Branch', 'Cust key (RA)', 'Cust key (system)', 'Customer', 'Date (RA)', 'Date (system)',
       'Gross (RA)', 'System', 'CEWT', 'RFC/BO/RTV', 'Other', 'Deductions', 'Net', 'Variance', 'Check',
-      'RFCs posted in BMS', 'RFC #s', 'Deduction details'];
+      'RFCs posted in BMS', 'RFC #s', 'Deduction details', 'With TTC'];
     const rows = this.rows().map(l => [
-      l.rowNo, l.docNo, l.siteCode ?? l.whseNo, l.custKey, l.systemCustKey, l.systemCustName, this.fullDate(l.docDate), this.fullDate(l.systemDocDate),
+      l.rowNo, l.docNo || null, l.birSeries, l.siteCode ?? l.whseNo, l.custKey, l.systemCustKey, l.systemCustName, this.fullDate(l.docDate), this.fullDate(l.systemDocDate),
       l.gross, l.systemTotal, l.cewt, l.rfcBoRtv, l.other, this.dedTotal(l), l.net, this.variance(l),
-      l.flags.length ? l.flags.map(f => this.flagLabel(f)).join(' · ') : 'Matched',
+      l.flags.length ? l.flags.map(f => this.flagLabel(f)).join(' · ') : l.exVat ? 'Matched (ex-VAT)' : 'Matched',
       l.systemRfc,
       (l.rfcs ?? []).map(x => `${x.rfcNo || '(no. not synced)'} (${x.rfcDate ? this.shortDate(x.rfcDate) + ', ' : ''}${this.money(x.amount)})`).join(', '),
       l.deductions.length ? this.dedTip(l) : '',
+      l.ttc ? 'T' : '',
     ]);
     const view = this.lineFilter() === 'review' ? 'needs review' : this.lineFilter() === 'ok' ? 'matched' : '';
     const name = `RA ${r.id} ${r.chainName || ''} - CR ${c.receiptNo || c.id}` + (view ? ` (${view})` : '') + (this.query().trim() ? ' (search)' : '');
-    this.exporter.exportExcelRows(name.replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim(), 'Lines', headers, rows, [8, 9, 10, 11, 12, 13, 14, 15, 17]);
+    this.exporter.exportExcelRows(name.replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim(), 'Lines', headers, rows, [9, 10, 11, 12, 13, 14, 15, 16, 18]);
   }
   homsText(p: HomsPostingDto) {
     const name = `HOMS ${p.kind}${p.docNo ? ' ' + p.docNo : ''}`;

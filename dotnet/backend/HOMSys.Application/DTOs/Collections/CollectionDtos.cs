@@ -28,7 +28,9 @@ public record SaveAllocationDto(int PostedInvoiceId, decimal AmountApplied);
 /// Reason: the selection from finance's list (DeductionReasons code); it sets Type. Without it, Type's default selection.
 public record SaveDeductionDto(int PostedInvoiceId, string Type, decimal Amount, string? Reference, bool With2307 = false, int? AcctNo = null,
     string? Description = null, int? AttachmentId = null, string? Reason = null,
-    int? RfcNo = null);   // a "Return from customer" pre-encoded from an RFC already posted on the invoice (amount = the RFC's)
+    int? RfcNo = null,    // a "Return from customer" pre-encoded from an RFC already posted on the invoice (amount = the RFC's)
+    bool OnOr = true,     // EWT: a CEWT line on the OR (false: an RA CEWIT without "With TTC", recorded only)
+    int? DealCode = null);   // an RA Excel deal code (ordeduc2 DEALCODE)
 
 /// <summary>Create / update a Draft (or Returned) collection. Enums travel as their names.</summary>
 public record SaveCollectionDto(

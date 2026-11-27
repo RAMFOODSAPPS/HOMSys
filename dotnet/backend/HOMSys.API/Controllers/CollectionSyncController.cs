@@ -16,6 +16,7 @@ public class CollectionSyncController(
     ArofMirrorImporter arofMirror,
     InvoiceSyncRequestService requests,
     BmsCollectionImporter bms,
+    BirSeriesImporter birSeries,
     HomsPostingService postings,
     RfcFollowUpService rfcLinks,
     IConfiguration config,
@@ -165,5 +166,22 @@ public class CollectionSyncController(
         var result = await bms.ImportAsync(request);
         logger.LogInformation("BMS collections sync: {Result}", result);
         return Ok(new { success = true, data = result });
+    }
+
+    /// <summary>HOMS's B1 files (invoice no. → BIR series), changed invoices only; idempotent.</summary>
+    [HttpPost("bir-series")]
+    [DisableRequestSizeLimit]
+    public async Task<IActionResult> BirSeries([FromHeader(Name = "X-Api-Key")] string? apiKey, [FromBody] BirSeriesSyncRequest? request)
+    {
+        if (!KeyOk(apiKey)) return Unauthorized(new { success = false, message = "Invalid or missing X-Api-Key." });
+        if (request is null || string.IsNullOrWhiteSpace(request.SourceFile))
+            return BadRequest(new { success = false, message = "sourceFile is required." });
+        try
+        {
+            var result = await birSeries.ImportAsync(request);
+            logger.LogInformation("BIR series sync: {Result}", result);
+            return Ok(new { success = true, data = result });
+        }
+        catch (ArgumentException ex) { return BadRequest(new { success = false, message = ex.Message }); }
     }
 }

@@ -769,12 +769,18 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<int>("CollectionId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("DealCode")
+                        .HasColumnType("int");
+
                     b.Property<string>("Description")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime?>("HomsSentAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("OnOr")
+                        .HasColumnType("bit");
 
                     b.Property<int>("PostedInvoiceId")
                         .HasColumnType("int");
@@ -2042,6 +2048,47 @@ namespace HOMSys.Infrastructure.Migrations
                     b.HasIndex("Status", "Id");
 
                     b.ToTable("HomsPostings");
+                });
+
+            modelBuilder.Entity("HOMSys.Domain.Entities.InvoiceBirSeries", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BirFrom")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BirTo")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("DocDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DocId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DocNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceFile")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<int>("WhseNo")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BirFrom", "BirTo");
+
+                    b.HasIndex("SourceFile", "DocId", "DocNo")
+                        .IsUnique();
+
+                    b.ToTable("InvoiceBirSeries");
                 });
 
             modelBuilder.Entity("HOMSys.Domain.Entities.InvoiceSyncRequest", b =>
@@ -4133,6 +4180,9 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<int>("DocNo")
                         .HasColumnType("int");
 
+                    b.Property<bool>("DocNoFromBir")
+                        .HasColumnType("bit");
+
                     b.Property<int?>("FetchRequestId")
                         .HasColumnType("int");
 
@@ -4170,6 +4220,9 @@ namespace HOMSys.Infrastructure.Migrations
                     b.Property<decimal?>("SystemTotal")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("Ttc")
+                        .HasColumnType("bit");
 
                     b.Property<int>("WhseNo")
                         .HasColumnType("int");
