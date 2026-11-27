@@ -21,6 +21,9 @@ import { CustomerSuggestionDto } from '../../core/models/sales-order.model';
 
 type ReportType = 'account' | 'zone' | 'grouped';
 
+// Comparison export is split into files of this many customers (3 columns each).
+const EXPORT_PART_SIZE = 300;
+
 @Component({
   selector: 'app-pricelist-export-page',
   standalone: true,
@@ -54,9 +57,9 @@ type ReportType = 'account' | 'zone' | 'grouped';
             </label>
           }
 
-          <div class="sidebar-heading">Branch @if (reportType() !== 'account') { <span class="required-star">*</span> }</div>
+          <div class="sidebar-heading">Branch @if (reportType() !== 'account' && branchLocked()) { <span class="required-star">*</span> }</div>
           <p-select [options]="branches()" optionLabel="label" optionValue="value"
-                    [ngModel]="selectedBranch()" (ngModelChange)="selectedBranch.set($event)" [showClear]="reportType() === 'account' && !branchLocked()"
+                    [ngModel]="selectedBranch()" (ngModelChange)="selectedBranch.set($event)" [showClear]="!branchLocked()"
                     [disabled]="branchLocked()" placeholder="All branches" [appendTo]="'body'" (onChange)="onBranchChange()" styleClass="sidebar-input" />
 
           @if (reportType() === 'zone') {
@@ -64,14 +67,14 @@ type ReportType = 'account' | 'zone' | 'grouped';
             <p-multiselect [options]="zoneOptions()" optionLabel="label" optionValue="value"
                    [(ngModel)]="selectedZones" (onChange)="clearPreview()"
                    [showToggleAll]="true" display="chip" [filter]="true"
-                   [disabled]="!selectedBranch()" placeholder="Select zones" [appendTo]="'body'" styleClass="sidebar-input" />
+                   [disabled]="!selectedBranch()" [placeholder]="selectedBranch() ? 'Select zones' : 'All zones of every branch'" [appendTo]="'body'" styleClass="sidebar-input" />
           }
 
           @if (reportType() === 'grouped') {
             <div class="sidebar-heading">Compare to Customer (optional)</div>
             <p-autoComplete [ngModel]="baselineCustomer()" (ngModelChange)="baselineCustomer.set($event); clearPreview()"
                    [suggestions]="baselineSuggestions()" field="custKey" [minLength]="2" [delay]="500"
-                   [disabled]="groupedFieldsDisabled()"
+                   [disabled]="groupedFieldsDisabled() || !selectedBranch()"
                    [showClear]="true" [appendTo]="'body'" placeholder="Search customer key or name"
                    (completeMethod)="searchBaselineCustomers($event)">
               <ng-template let-item pTemplate="item">
@@ -90,13 +93,16 @@ type ReportType = 'account' | 'zone' | 'grouped';
           <p-inputnumber [(ngModel)]="srpMarkupPercent" mode="decimal" [minFractionDigits]="0" [maxFractionDigits]="2" [min]="0"
                  (onInput)="clearPreview()" [disabled]="groupedFieldsDisabled()" styleClass="sidebar-input srp-input" />
 
-          <p-button label="Generate" icon="pi pi-table" [loading]="generating()"
+          <p-button [label]="allBranchesMode() ? 'Generate all branches' : 'Generate'" icon="pi pi-table" [loading]="generating()"
                  [disabled]="generateDisabled()" styleClass="generate-btn"
                  (onClick)="generate()" />
+          @if (allBranchesMode()) {
+            <div class="all-branches-note">{{ generating() && exportProgress() ? exportProgress() : 'Downloads one Excel file per branch.' }}</div>
+          }
 
-          @if (previewResult() || zonePreviewResult()) {
+          @if (previewResult() || zonePreviewResult() || accountPreviewFailed()) {
             <button type="button" class="pe-export-btn sidebar-export-btn" [disabled]="exporting()" (click)="onExportClick($event, exportMenu)">
-              <i class="pi pi-download"></i> Export
+              <i class="pi pi-download"></i> {{ exportProgress() ?? 'Export' }}
             </button>
             <p-menu #exportMenu [model]="exportMenuItems()" [popup]="true" appendTo="body" />
           }
@@ -401,6 +407,7 @@ type ReportType = 'account' | 'zone' | 'grouped';
     }
     .pe-export-btn:hover:not(:disabled) { background: #256640; }
     .pe-export-btn:disabled { opacity: 0.6; cursor: default; }
+    .all-branches-note { margin: -12px 0 16px; font-size: 11px; color: #6b7280; text-align: center; }
     .sidebar-export-btn { width: 100%; justify-content: center; margin: -10px 0 20px; padding: 8px 14px; }
 
     /* PrimeNG's own ".p-datatable-flex-scrollable" rule (added automatically
@@ -567,6 +574,10 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
   srpMarkupPercent = signal<number>(3);
   generating = signal(false);
   exporting = signal(false);
+  // Per Account preview failed (e.g. All Customers across all branches is too
+  // big to preview) — Export stays available and splits large lists into parts.
+  accountPreviewFailed = signal(false);
+  exportProgress = signal<string | null>(null);
   apiError = signal<string | null>(null);
   previewResult = signal<PricelistPreviewResult | null>(null);
   filterText = signal('');
@@ -612,8 +623,14 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
       row.category?.toLowerCase().includes(term));
   });
 
+  // Per Zone / Grouped with "All branches": Generate downloads one file per
+  // branch (each branch has its own zones and price groups, so there is no
+  // single combined preview).
+  allBranchesMode = computed(() => this.reportType() !== 'account' && !this.selectedBranch() && !this.branchLocked());
+
   generateDisabled = computed(() => {
     if (!this.effectivityDate()) return true;
+    if (this.allBranchesMode()) return this.branches().length === 0;
     switch (this.reportType()) {
       case 'account': return this.selectedCustomers().length === 0;
       case 'zone': return !this.selectedBranch() || this.selectedZones().length === 0;
@@ -624,7 +641,7 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
   // Grouped mode's date/SRP/baseline fields are meaningless without a branch —
   // reactive on selectedBranch() now that it's a real signal, unlike the plain
   // field it used to be (which computed()s couldn't react to on its own).
-  groupedFieldsDisabled = computed(() => this.reportType() === 'grouped' && !this.selectedBranch());
+  groupedFieldsDisabled = computed(() => this.reportType() === 'grouped' && !this.selectedBranch() && this.branchLocked());
 
   // The inline Export button in the results pane reproduces what the app's
   // global toolbar used to do for this page: Per Account has two export
@@ -1006,6 +1023,7 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
 
   clearPreview(): void {
     this.previewResult.set(null);
+    this.accountPreviewFailed.set(false);
     this.zonePreviewResult.set(null);
     this.filterText.set('');
   }
@@ -1075,6 +1093,7 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
   }
 
   generate(): void {
+    if (this.allBranchesMode()) { this.generateAllBranches(); return; }
     switch (this.reportType()) {
       case 'account': this.generateAccount(); break;
       case 'zone': this.generateZone(); break;
@@ -1089,6 +1108,7 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
 
     this.apiError.set(null);
     this.previewResult.set(null);
+    this.accountPreviewFailed.set(false);
     this.generating.set(true);
 
     this.pricelistApi.preview(this.buildRequest(customers, date)).subscribe({
@@ -1098,10 +1118,66 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
         setTimeout(() => this.measureFreezeOffsets(), 0);
       },
       error: () => {
-        this.apiError.set('Failed to generate the pricelist preview.');
+        this.apiError.set(customers.length > EXPORT_PART_SIZE
+          ? `Too many customers to preview (${customers.length.toLocaleString()}). Use Export to download the pricelist in parts of ${EXPORT_PART_SIZE} customers.`
+          : 'Failed to generate the pricelist preview. You can still try Export.');
+        this.accountPreviewFailed.set(true);
         this.generating.set(false);
       }
     });
+  }
+
+  // One Excel per branch, in turn: Per Zone = every zone of the branch,
+  // Grouped = the branch's grouped pricelist (no baseline customer).
+  private generateAllBranches(): void {
+    const date = this.effectivityDate();
+    const branches = this.branches();
+    if (!date || branches.length === 0) return;
+
+    const mode = this.reportType();
+    const effectivityDate = this.toIsoDate(date);
+    const ymd = effectivityDate.replace(/-/g, '');
+    const srpMarkupPercent = this.srpMarkupPercent() ?? 3;
+    const total = branches.length;
+    const failed: string[] = [];
+
+    this.apiError.set(null);
+    this.clearPreview();
+    this.generating.set(true);
+
+    const next = (i: number): void => {
+      if (i >= total) {
+        this.generating.set(false);
+        this.exportProgress.set(null);
+        if (failed.length > 0) {
+          this.apiError.set(`Done: ${total - failed.length} of ${total} branches downloaded. Not downloaded: ${failed.join(', ')}.`);
+        }
+        return;
+      }
+      const branch = branches[i].value;
+      const fail = (why = ''): void => { failed.push(branch + why); next(i + 1); };
+      this.exportProgress.set(`Branch ${i + 1} of ${total}: ${branches[i].label}...`);
+
+      if (mode === 'zone') {
+        this.pricelistApi.getZonesForBranch(branch).subscribe({
+          next: z => {
+            const zones = (z.data ?? []).map(x => x.zone);
+            if (zones.length === 0) { fail(' (no zones)'); return; }
+            this.pricelistApi.zoneExport({ branch, zones, effectivityDate, srpMarkupPercent }).subscribe({
+              next: res => { this.pricelistApi.download(res, `ZonePricelist_${branch}_${ymd}.xlsx`); next(i + 1); },
+              error: () => fail()
+            });
+          },
+          error: () => fail()
+        });
+      } else {
+        this.pricelistApi.groupedExport({ branch, effectivityDate, srpMarkupPercent }).subscribe({
+          next: res => { this.pricelistApi.download(res, `GroupedPricelist_${branch}_${ymd}.xlsx`); next(i + 1); },
+          error: () => fail()
+        });
+      }
+    };
+    next(0);
   }
 
   private generateZone(): void {
@@ -1160,6 +1236,10 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
     this.exporting.set(true);
 
     const effectivityDate = this.toIsoDate(date);
+    if (customers.length > EXPORT_PART_SIZE) {
+      this.exportInParts(customers, date, effectivityDate);
+      return;
+    }
     this.pricelistApi.export(this.buildRequest(customers, date)).subscribe({
       next: res => {
         this.pricelistApi.download(res, `Pricelist_${effectivityDate.replace(/-/g, '')}.xlsx`);
@@ -1170,6 +1250,41 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
         this.exporting.set(false);
       }
     });
+  }
+
+  // Large comparison exports (one server build + one sheet can't hold them:
+  // the build times out and Excel stops at 16,384 columns = ~5,400 customers)
+  // are downloaded as consecutive files of EXPORT_PART_SIZE customers each.
+  private exportInParts(customers: CustomerSuggestionDto[], date: Date, effectivityDate: string): void {
+    const parts: CustomerSuggestionDto[][] = [];
+    for (let i = 0; i < customers.length; i += EXPORT_PART_SIZE) parts.push(customers.slice(i, i + EXPORT_PART_SIZE));
+    const total = parts.length;
+    const width = Math.max(2, String(total).length);
+    const ymd = effectivityDate.replace(/-/g, '');
+    const failed: number[] = [];
+
+    const next = (i: number): void => {
+      if (i >= total) {
+        this.exporting.set(false);
+        this.exportProgress.set(null);
+        if (failed.length > 0) {
+          this.apiError.set(`Export finished, but ${failed.length} of ${total} part(s) failed: part ${failed.join(', ')}.`);
+        }
+        return;
+      }
+      this.exportProgress.set(`Exporting part ${i + 1} of ${total}...`);
+      this.pricelistApi.export(this.buildRequest(parts[i], date)).subscribe({
+        next: res => {
+          this.pricelistApi.download(res, `Pricelist_${ymd}_part${String(i + 1).padStart(width, '0')}of${total}.xlsx`);
+          next(i + 1);
+        },
+        error: () => {
+          failed.push(i + 1);
+          next(i + 1);
+        }
+      });
+    };
+    next(0);
   }
 
   exportPerAccount(): void {
