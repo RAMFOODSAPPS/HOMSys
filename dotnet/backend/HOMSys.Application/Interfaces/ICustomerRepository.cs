@@ -47,7 +47,8 @@ public interface ICustomerRepository
     /// are excluded.
     /// </summary>
     Task<IEnumerable<CustomerSuggestionDto>> SearchAsync(
-        string term, int take = 50, string? pricingFolder = null, IReadOnlyCollection<int>? whseNos = null);
+        string term, int take = 50, string? pricingFolder = null, IReadOnlyCollection<int>? whseNos = null,
+        bool activeOnly = false);
 
     /// <summary>Sets the withholding flag on every row with this CustKey; returns the rows updated (0 = unknown customer).</summary>
     Task<int> SetWithholdingAsync(string custKey, bool withholding, string updatedBy);

@@ -86,7 +86,8 @@ public class CustomerRepository(AppDbContext db) : ICustomerRepository
     // the CustKey/CusName indexes — acceptable because the frontend now debounces
     // 1s before calling this, instead of on every keystroke.
     public async Task<IEnumerable<CustomerSuggestionDto>> SearchAsync(
-        string term, int take = 50, string? pricingFolder = null, IReadOnlyCollection<int>? whseNos = null)
+        string term, int take = 50, string? pricingFolder = null, IReadOnlyCollection<int>? whseNos = null,
+        bool activeOnly = false)
     {
         var tokens = term.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var query = db.Customers.AsNoTracking();
@@ -101,6 +102,11 @@ public class CustomerRepository(AppDbContext db) : ICustomerRepository
             query = query.Where(c => c.Branch == pricingFolder && !c.Inactive);
             if (whseNos is { Count: > 0 })
                 query = query.Where(c => whseNos.Contains(c.WhseNo));
+        }
+        else if (activeOnly)
+        {
+            // Pricelist Export "All branches" + All Customers: every branch, active only.
+            query = query.Where(c => !c.Inactive);
         }
 
         return await query

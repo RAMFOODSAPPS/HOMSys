@@ -84,12 +84,12 @@ public class SalesOrdersController(SalesOrderService salesOrderService, ZonePric
     [HttpGet("search/customer")]
     [Authorize(Policy = "customer-search")]
     public async Task<IActionResult> SearchCustomers(
-        [FromQuery] string? term, [FromQuery] string? branch, [FromQuery] int? take)
+        [FromQuery] string? term, [FromQuery] string? branch, [FromQuery] int? take, [FromQuery] bool activeOnly = false)
     {
         var effectiveTake = Math.Clamp(take ?? 50, 1, 20000);
 
         if (string.IsNullOrWhiteSpace(branch))
-            return Ok(new { success = true, data = await salesOrderService.SearchCustomersAsync(term ?? "", take: effectiveTake) });
+            return Ok(new { success = true, data = await salesOrderService.SearchCustomersAsync(term ?? "", take: effectiveTake, activeOnly: activeOnly) });
 
         var honBranches = await zonePricelistExport.GetHonBranchesAsync();
         var pricingFolder = ZonePricelistExportService.ResolvePricingFolder(branch, honBranches.Keys);

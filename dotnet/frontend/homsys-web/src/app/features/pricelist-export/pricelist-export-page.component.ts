@@ -112,9 +112,9 @@ type ReportType = 'account' | 'zone' | 'grouped';
               }
             </div>
             <div class="all-customers-toggle">
-              <p-checkbox [binary]="true" inputId="allCustomers" [ngModel]="allCustomers()" [disabled]="!selectedBranch() || loadingAllCustomers()"
+              <p-checkbox [binary]="true" inputId="allCustomers" [ngModel]="allCustomers()" [disabled]="loadingAllCustomers() || (branchLocked() && !selectedBranch())"
                           (onChange)="onAllCustomersChange($event.checked)" />
-              <label for="allCustomers">All Customers</label>
+              <label for="allCustomers">All Customers@if (!selectedBranch()) { (all branches) }</label>
             </div>
             <div class="customers-input-row" [class.collapsed]="customersCollapsed()" #customersRow (click)="onCustomersBoxClick()">
               <p-autoComplete [ngModel]="selectedCustomers()" (ngModelChange)="selectedCustomers.set($event)" [suggestions]="customerSuggestions()"
@@ -759,18 +759,19 @@ export class PricelistExportPageComponent implements OnInit, AfterViewInit, OnDe
       return;
     }
 
-    const branch = this.selectedBranch();
-    if (!branch) return;
+    // No branch = "All branches": every active customer of every branch in
+    // one combined report (same 20,000 cap as the server's search).
+    const branch = this.selectedBranch() ?? undefined;
 
     this.loadingAllCustomers.set(true);
-    this.api.searchCustomers('', branch, 20000).subscribe({
+    this.api.searchCustomers('', branch, 20000, !branch).subscribe({
       next: res => {
         this.selectedCustomers.set(res.data ?? []);
         this.loadingAllCustomers.set(false);
         afterNextRender(() => this.waitForChipsThenCollapse(), { injector: this.injector });
       },
       error: () => {
-        this.apiError.set('Failed to load all customers for the selected branch.');
+        this.apiError.set(branch ? 'Failed to load all customers for the selected branch.' : 'Failed to load all customers.');
         this.allCustomers.set(false);
         this.loadingAllCustomers.set(false);
       }

@@ -49,11 +49,12 @@ export class SalesOrderService {
       `${this.base}/lookup/product/${encodeURIComponent(cProdNo)}`);
   }
 
-  searchCustomers(term: string, branch?: string, take?: number) {
+  searchCustomers(term: string, branch?: string, take?: number, activeOnly = false) {
     const branchParam = branch ? `&branch=${encodeURIComponent(branch)}` : '';
     const takeParam = take ? `&take=${take}` : '';
+    const activeParam = activeOnly ? '&activeOnly=true' : '';
     return this.http.get<ApiResponse<CustomerSuggestionDto[]>>(
-      `${this.base}/search/customer?term=${encodeURIComponent(term)}${branchParam}${takeParam}`);
+      `${this.base}/search/customer?term=${encodeURIComponent(term)}${branchParam}${takeParam}${activeParam}`);
   }
 
   searchProducts(term: string) {
